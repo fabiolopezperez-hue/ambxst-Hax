@@ -2,6 +2,24 @@
 
 **Hax** es un spotlight/launcher modular para el shell Wayland **Ambxst**, construido con Quickshell y Qt QML. Ofrece búsqueda instantánea de aplicaciones, archivos, operaciones aritméticas y comandos del sistema — todo desde una interfaz limpia, rápida y nativa.
 
+## 📸 Galería
+
+<p align="center">
+  <img src="screenshots/hax-search-bar.png" alt="Hax — Barra de búsqueda" width="620">
+</p>
+
+<p align="center">
+  <img src="screenshots/hax-results.png" alt="Hax — Resultados de búsqueda" width="620">
+  <br>
+  <em>Búsqueda de aplicaciones con resultados en tiempo real</em>
+</p>
+
+<p align="center">
+  <img src="screenshots/hax-terminal.png" alt="Hax — Terminal integrada" width="620">
+  <br>
+  <em>Terminal integrada: ejecuta comandos con / y muestra la salida en vivo</em>
+</p>
+
 ## ✨ Características
 
 - **Búsqueda unificada** — Encuentra apps instaladas, archivos, carpetas y realiza cálculos al instante.
@@ -63,7 +81,11 @@ bind = SUPER, slash, exec, qs -p "$HOME/.local/src/ambxst/modules/widgets/spotli
 ```
 modules/widgets/spotlight/
 ├── SpotlightView.qml      # Ventana principal del launcher
-└── qmldir                 # Registro del módulo QML
+├── SpotlightResult.qml    # Componente de resultado individual
+├── spotlight-apps.qml     # Búsqueda de aplicaciones
+├── spotlight-files.qml    # Búsqueda de archivos
+├── spotlight-math.qml     # Evaluación aritmética
+└── resources/             # Recursos adicionales
 ```
 
 ## 📄 Licencia
