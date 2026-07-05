@@ -1,6 +1,6 @@
 # Hax 🎯
 
-**Hax** es un spotlight/launcher modular para el shell Wayland **Ambxst**, construido con Quickshell y Qt QML. Ofrece búsqueda instantánea de aplicaciones, archivos, operaciones aritméticas y comandos del sistema — todo desde una interfaz limpia, rápida y nativa.
+**Hax** es un spotlight/launcher modular para el shell Wayland **Ambxst**, construido con Quickshell y Qt QML. Inspirado en Spotlight de macOS, ofrece búsqueda instantánea de aplicaciones, archivos, cálculos inline, acciones rápidas del sistema, terminal integrada y comandos del sistema — todo desde una interfaz limpia, rápida y nativa.
 
 ## 📸 Galería
 
@@ -28,6 +28,9 @@
 - **Apertura inteligente** — Abre archivos con Thunar/Dolphin directamente desde el launcher.
 - **Tema nativo** — Respeta la paleta de colores y estilos de Ambxst.
 - **Bajo overhead** — Sin Electron, sin webviews. QML puro sobre Wayland.
+- **🧮 Preview inline de cálculos** — Muestra el resultado mientras escribes (ej: `23*4` → `= 92`), como Spotlight.
+- **⚡ Acciones rápidas del sistema** — Escribe `bloquear`, `apagar`, `reiniciar`, `captura` y ejecútalas al instante.
+- **💻 Terminal integrada** — Ejecuta cualquier comando con `/` y ve la salida en vivo dentro del launcher.
 
 ## 📦 Requisitos
 
@@ -68,13 +71,26 @@ bind = SUPER, slash, exec, qs -p "$HOME/.local/src/ambxst/modules/widgets/spotli
 
 ## ⌨️ Uso
 
-| Acción | Tecla |
-|--------|-------|
+| Acción | Tecla / Comando |
+|--------|-----------------|
 | Abrir Hax | `Super + /` |
 | Navegar resultados | `↑` / `↓` |
 | Autocompletar | `Tab` |
 | Abrir selección | `Enter` |
 | Cerrar | `Esc` |
+| Ejecutar comando | `/comando` + `Enter` |
+| Calcular al instante | Escribe `23*4` → muestra `= 92` |
+
+### ⚡ Acciones rápidas disponibles
+
+| Escribe | Acción |
+|---------|--------|
+| `bloquear` / `lock` | 🔒 Bloquear pantalla |
+| `apagar` / `shutdown` | ⏻ Apagar sistema |
+| `reiniciar` / `reboot` | 🔄 Reiniciar |
+| `suspender` / `sleep` | 💤 Suspender |
+| `captura` / `screenshot` | 📸 Capturar pantalla |
+| `captura región` | 📐 Capturar área seleccionada |
 
 ## 🧱 Estructura
 

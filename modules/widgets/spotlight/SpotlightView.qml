@@ -253,6 +253,30 @@ PanelWindow {
                             }
                         }
 
+                        // Preview inline de cálculo (como Spotlight)
+                        Text {
+                            id: calcPreview
+                            text: {
+                                if (spotlight.isCommandMode) return "";
+                                var q = spotlight.searchText.trim();
+                                if (q.length > 0 && /^[\d+\-*/().\s]+$/.test(q) && /[+\-*/]/.test(q)) {
+                                    var r = spotlight.safeEval(q);
+                                    if (r !== null && typeof r === "number") {
+                                        return "= " + r;
+                                    }
+                                }
+                                return "";
+                            }
+                            font.family: Config.theme.font
+                            font.pixelSize: Config.theme.fontSize + 2
+                            font.weight: Font.Medium
+                            color: Colors.primary || Styling.srItem("overprimary")
+                            opacity: 0.85
+                            visible: text.length > 0
+                            verticalAlignment: Text.AlignVCenter
+                            Layout.alignment: Qt.AlignVCenter
+                        }
+
                         // Contador de resultados
                         Text {
                             text: results.length > 0 ? `${selectedIndex + 1}/${results.length}` : ""
@@ -474,10 +498,11 @@ PanelWindow {
                                         anchors.centerIn: parent
                                         text: {
                                             switch (modelData.type) {
-                                                case "calc": return Icons.notepad;
-                                                case "web":  return Icons.globe;
-                                                case "file": return Icons.file;
-                                                default:     return Icons.apps;
+                                                case "calc":   return Icons.notepad;
+                                                case "web":    return Icons.globe;
+                                                case "file":   return Icons.file;
+                                                case "action": return Icons.lightning;
+                                                default:       return Icons.apps;
                                             }
                                         }
                                         font.family: Icons.font
@@ -532,6 +557,7 @@ PanelWindow {
                                                 case "calc": return "=";
                                                 case "file": return "📁";
                                                 case "web": return "🌐";
+                                                case "action": return "⚡";
                                                 default: return "";
                                             }
                                         }
@@ -667,6 +693,99 @@ PanelWindow {
                 });
                 results = newResults;
                 return;
+            }
+        }
+
+        // Acciones rápidas del sistema
+        const systemActions = [
+            {
+                match: q => /^(bloquea|lock|cerrar|traba)/.test(q),
+                name: "🔒 Bloquear pantalla",
+                description: "Bloquear la sesión ahora",
+                icon: Icons.lock,
+                exec: () => {
+                    LockscreenService.lock();
+                    Visibilities.setActiveModule("");
+                }
+            },
+            {
+                match: q => /^(apagar|shutdown|poweroff|off)/.test(q),
+                name: "⏻ Apagar sistema",
+                description: "Apagar el equipo completamente",
+                icon: Icons.shutdown,
+                exec: () => {
+                    var p = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+                    p.command = ["bash", "-c", "systemctl poweroff"];
+                    p.onExited.connect(() => p.destroy());
+                    p.running = true;
+                    Visibilities.setActiveModule("");
+                }
+            },
+            {
+                match: q => /^(reiniciar|reboot|reinicia|restart)/.test(q),
+                name: "🔄 Reiniciar sistema",
+                description: "Reiniciar el equipo",
+                icon: Icons.sync,
+                exec: () => {
+                    var p = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+                    p.command = ["bash", "-c", "systemctl reboot"];
+                    p.onExited.connect(() => p.destroy());
+                    p.running = true;
+                    Visibilities.setActiveModule("");
+                }
+            },
+            {
+                match: q => /^(suspender|sleep|suspend|hiber)/.test(q),
+                name: "💤 Suspender",
+                description: "Suspender el sistema",
+                icon: Icons.moon,
+                exec: () => {
+                    var p = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+                    p.command = ["bash", "-c", "systemctl suspend"];
+                    p.onExited.connect(() => p.destroy());
+                    p.running = true;
+                    Visibilities.setActiveModule("");
+                }
+            },
+            {
+                match: q => /^(captura|screenshot|pantallazo|grim)/.test(q),
+                name: "📸 Captura de pantalla",
+                description: "Capturar toda la pantalla",
+                icon: Icons.camera,
+                exec: () => {
+                    var p = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+                    var dir = Quickshell.env("HOME") + "/Imágenes/Capturas";
+                    p.command = ["bash", "-c", "mkdir -p '" + dir + "' && grim '" + dir + "/$(date +%s).png'"];
+                    p.onExited.connect(() => p.destroy());
+                    p.running = true;
+                    Visibilities.setActiveModule("");
+                }
+            },
+            {
+                match: q => /^(captura.*(regi|área|area|sele)|screenshot.*(reg|area)|grim.*(slur|reg))/.test(q),
+                name: "📐 Captura de región",
+                description: "Seleccionar un área para capturar",
+                icon: Icons.crop,
+                exec: () => {
+                    var p = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+                    var dir = Quickshell.env("HOME") + "/Imágenes/Capturas";
+                    p.command = ["bash", "-c", "mkdir -p '" + dir + "' && grim -g \"$(slurp)\" '" + dir + "/$(date +%s).png'"];
+                    p.onExited.connect(() => p.destroy());
+                    p.running = true;
+                    Visibilities.setActiveModule("");
+                }
+            }
+        ];
+
+        for (var si = 0; si < systemActions.length; si++) {
+            if (systemActions[si].match(query)) {
+                newResults.push({
+                    name: systemActions[si].name,
+                    description: systemActions[si].description,
+                    icon: systemActions[si].icon,
+                    type: "action",
+                    exec: systemActions[si].exec
+                });
             }
         }
 
