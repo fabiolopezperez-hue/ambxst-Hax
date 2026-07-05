@@ -84,6 +84,12 @@ PanelWindow {
     property var results: []
     property int searchGeneration: 0  // evita race conditions en async
 
+    // ── Terminal integrada ─────────────────────────────────────────────────
+    property var cmdProcess: null      // proceso de comando activo
+    property var cmdOutput: []         // líneas de salida capturadas
+    property string cmdOutputText: ""  // salida como texto plano (forza bindings en QML)
+    readonly property bool isCommandMode: searchText.trim().startsWith("/")
+
     // ── Panel principal centrado ────────────────────────────────────────────
     Item {
         id: mainContainer
@@ -118,7 +124,13 @@ PanelWindow {
             id: panelBg
             variant: "bg"
             width: parent.width
-            height: 56 + 32 + (results.length > 0 ? 8 + Math.min(results.length * 54, 400) : 0)
+            height: 56 + 32
+                + (cmdProcess !== null || isCommandMode
+                    ? 8 + 36 + Math.min(cmdOutput.length * 20 + 20, 460)
+                    : 0)
+                + (results.length > 0 && !isCommandMode
+                    ? 8 + Math.min(results.length * 54, 400)
+                    : 0)
             radius: Styling.radius(24)
             clip: true
 
@@ -141,7 +153,7 @@ PanelWindow {
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.margins: 16
-                spacing: results.length > 0 ? 8 : 0
+                spacing: (results.length > 0 || cmdProcess !== null || isCommandMode) ? 8 : 0
 
                 // ── Campo de búsqueda ──────────────────────────────────────────
                 StyledRect {
@@ -184,7 +196,9 @@ PanelWindow {
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter
                                 x: 2
-                                text: qsTr("Hax — Buscar apps, archivos, calcular...")
+                                text: cmdProcess !== null
+                                    ? qsTr("Ejecutando comando...  (Esc para salir)")
+                                    : qsTr("Hax — Buscar apps, archivos, calcular...")
                                 font: parent.font
                                 color: Styling.srItem("text")
                                 opacity: 0.35
@@ -194,6 +208,10 @@ PanelWindow {
                             onTextChanged: {
                                 spotlight.searchText = text;
                                 spotlight.selectedIndex = 0;
+                                // Cancelar proceso al salir del modo comando
+                                if (!text.trim().startsWith("/")) {
+                                    spotlight.cancelCmdProcess();
+                                }
                                 spotlight.updateResults();
                             }
 
@@ -206,7 +224,12 @@ PanelWindow {
                             }
 
                             Keys.onReturnPressed: {
-                                spotlight.executeSelected();
+                                if (spotlight.isCommandMode && text.trim().length > 1) {
+                                    var cmd = text.trim().substring(1); // quitar el /
+                                    spotlight.runCmd(cmd);
+                                } else {
+                                    spotlight.executeSelected();
+                                }
                             }
 
                             Keys.onUpPressed: {
@@ -238,6 +261,118 @@ PanelWindow {
                             color: Styling.srItem("overprimary")
                             opacity: 0.6
                             visible: results.length > 0
+                        }
+                    }
+                }
+
+                // ── Terminal integrada (modo comando /) ─────────────────────────
+                StyledRect {
+                    id: cmdContainer
+                    width: contentColumn.width
+                    height: isCommandMode || cmdProcess !== null
+                        ? 36 + Math.min(cmdOutput.length * 20 + 20, 460)
+                        : 0
+                    variant: "pane"
+                    radius: Styling.radius(12)
+                    clip: true
+                    opacity: (cmdProcess !== null || isCommandMode) ? 1 : 0
+                    visible: opacity > 0
+
+                    Behavior on height {
+                        enabled: Config.animDuration > 0
+                        NumberAnimation {
+                            duration: Config.animDuration * 2
+                            easing.type: Easing.OutCubic
+                        }
+                    }
+                    Behavior on opacity {
+                        enabled: Config.animDuration > 0
+                        NumberAnimation {
+                            duration: Config.animDuration
+                            easing.type: Easing.OutCubic
+                        }
+                    }
+
+                    Column {
+                        width: parent.width
+                        anchors.fill: parent
+                        anchors.margins: 12
+                        spacing: 6
+
+                        // Header
+                        RowLayout {
+                            width: parent.width
+                            spacing: 8
+
+                            Text {
+                                text: ">_"
+                                font.family: "monospace"
+                                font.pixelSize: Config.theme.fontSize - 2
+                                font.bold: true
+                                color: Styling.srItem("overprimary")
+                                opacity: 0.7
+                            }
+
+                            Text {
+                                Layout.fillWidth: true
+                                text: cmdProcess !== null
+                                    ? "$ " + searchText.trim().substring(1)
+                                    : "$ " + (searchText.trim().length > 1
+                                        ? searchText.trim().substring(1)
+                                        : "escribe un comando...")
+                                font.family: "monospace"
+                                font.pixelSize: Config.theme.fontSize - 2
+                                color: Styling.srItem("text")
+                                opacity: 0.6
+                                elide: Text.ElideRight
+                            }
+
+                            // Indicador de ejecución
+                            Rectangle {
+                                width: 8
+                                height: 8
+                                radius: 4
+                                visible: cmdProcess !== null
+                                color: Colors.primary || "#00ff88"
+                                opacity: 0.8
+
+                                SequentialAnimation on opacity {
+                                    loops: Animation.Infinite
+                                    NumberAnimation { to: 0.3; duration: 600 }
+                                    NumberAnimation { to: 0.8; duration: 600 }
+                                }
+                            }
+                        }
+
+                        // Salida del comando
+                        Flickable {
+                            width: parent.width
+                            height: Math.min(cmdOutput.length * 20 + 8, 440)
+                            contentHeight: cmdOutputText.length > 0
+                                ? cmdOutput.length * 20 + 8
+                                : 0
+                            clip: true
+
+                            Text {
+                                id: cmdOutputDisplay
+                                width: parent.width
+                                text: cmdOutput.join("\n")
+                                font.family: "monospace"
+                                font.pixelSize: Config.theme.fontSize - 2
+                                color: Styling.srItem("text")
+                                opacity: 0.85
+                                wrapMode: Text.WrapAnywhere
+                            }
+
+                            ScrollBar.vertical: ScrollBar {
+                                width: 4
+                                policy: ScrollBar.AsNeeded
+                                contentItem: Rectangle {
+                                    radius: 2
+                                    color: Styling.srItem("overprimary")
+                                    opacity: 0.3
+                                }
+                            }
                         }
                     }
                 }
@@ -439,9 +574,67 @@ PanelWindow {
         }
     }
 
+    // ── Terminal integrada ─────────────────────────────────────────────────
+
+    function runCmd(cmd) {
+        // Cancelar proceso anterior si existe
+        cancelCmdProcess();
+
+        if (cmd.trim().length === 0) return;
+
+        cmdOutput = [];
+        cmdOutputText = "";
+
+        var proc = Qt.createQmlObject(
+            'import Quickshell.Io; Process { stdout: SplitParser {} }',
+            spotlight
+        );
+
+        proc.command = ["bash", "-c", cmd + " 2>&1"];
+        proc.workingDirectory = Quickshell.env("HOME") || "/tmp";
+
+        proc.stdout.onRead.connect(function(data) {
+            var lines = data.trim().split("\n");
+            var arr = cmdOutput.slice();
+            for (var i = 0; i < lines.length; i++) {
+                if (lines[i].length > 0) arr.push(lines[i]);
+            }
+            cmdOutput = arr;
+            cmdOutputText = arr.join("\n");
+        });
+
+        proc.onExited.connect(function(code) {
+            var arr = cmdOutput.slice();
+            arr.push("✦ Hecho (código: " + code + ")");
+            cmdOutput = arr;
+            cmdOutputText = arr.join("\n");
+            cmdProcess = null;
+            proc.destroy();
+        });
+
+        cmdProcess = proc;
+        proc.running = true;
+    }
+
+    function cancelCmdProcess() {
+        if (cmdProcess) {
+            cmdProcess.running = false;
+            cmdProcess.destroy();
+            cmdProcess = null;
+        }
+        cmdOutput = [];
+        cmdOutputText = "";
+    }
+
     // ── Lógica de búsqueda ─────────────────────────────────────────────────
 
     function updateResults() {
+        // En modo comando, no mostrar resultados normales
+        if (isCommandMode) {
+            results = [];
+            return;
+        }
+
         const query = searchText.trim().toLowerCase();
         const gen = ++searchGeneration;
 
@@ -695,6 +888,7 @@ PanelWindow {
                 searchInput.clear();
                 searchText = "";
                 selectedIndex = 0;
+                cancelCmdProcess();
                 updateResults();
             });
         }
