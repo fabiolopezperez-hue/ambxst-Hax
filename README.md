@@ -69,6 +69,25 @@ Y añade este atajo a tu configuración de Hyprland:
 bind = SUPER, slash, exec, qs -p "$HOME/.local/src/ambxst/modules/widgets/spotlight/SpotlightView.qml"
 ```
 
+## 📋 Cambios — nuestros-cambios
+
+### 📊 Apps ordenadas por uso en búsqueda
+- **`SpotlightView.qml`** — Ahora se registra el uso de cada app al abrirla desde Hax
+- **`UsageTracker.recordUsage(a.id)`** se llama antes de ejecutar la app
+- El `AppSearch.fuzzyQuery` ya ordena por uso (frecuencia + recencia), así que con el tiempo las apps que más usas aparecen primero al escribir
+
+### 🌤 Clima con ubicación por defecto
+- **`WeatherService.qml`** — Nueva propiedad `defaultLocation` para acceder desde cualquier parte
+- Ubicación por defecto: **Cabanillas del Campo**
+
+### ⚡ Acciones rápidas en Hax
+- **`SpotlightView.qml`** — Nuevas acciones del sistema al escribir:
+  - `l` / `lock` / `bloquear` → Bloquear pantalla
+  - `s` / `suspend` / `suspender` → Suspender el sistema
+  - `a` / `apagar` / `shutdown` / `poweroff` → Apagar
+  - `r` / `reboot` / `reiniciar` → Reiniciar
+  - `c` / `capturar` / `screenshot` / `pantallazo` → Captura de pantalla
+
 ## ⌨️ Uso
 
 | Acción | Tecla / Comando |
