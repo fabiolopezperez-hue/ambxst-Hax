@@ -234,6 +234,5 @@ Distribuido bajo licencia MIT. Partes del código derivadas de [Ambxst](https://
 
 ---
 
-<p align="center">
-  Hecho con 💖 por Fabio y Maria
+
 </p>
