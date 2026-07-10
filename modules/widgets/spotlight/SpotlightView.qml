@@ -61,6 +61,7 @@ PanelWindow {
             results = [];
             cmdOutput = [];
             cmdOutputText = "";
+            _lastCmdVisible = false;
             _cmdLastLine = "";
             _cmdBusyTimer.running = false;
             searchText = "";
@@ -160,6 +161,7 @@ PanelWindow {
     property var cmdProcess: null      // proceso de comando activo
     property var cmdOutput: []         // líneas de salida capturadas
     property string cmdOutputText: ""  // salida como texto plano (forza bindings en QML)
+    property bool _lastCmdVisible: false  // mantiene terminal visible tras finalizar
     readonly property bool isCommandMode: searchText.trim().startsWith("/")
 
     // ── Clima ───────────────────────────────────────────────────────────────
@@ -394,13 +396,13 @@ PanelWindow {
                 StyledRect {
                     id: cmdContainer
                     width: contentColumn.width
-                    height: isCommandMode || cmdProcess !== null
+                    height: isCommandMode || cmdProcess !== null || _lastCmdVisible
                         ? 36 + Math.min(cmdOutput.length * 20 + 20, 460)
                         : 0
                     variant: "pane"
                     radius: Styling.radius(12)
                     clip: true
-                    opacity: (cmdProcess !== null || isCommandMode) ? 1 : 0
+                    opacity: (cmdProcess !== null || isCommandMode || _lastCmdVisible) ? 1 : 0
                     visible: opacity > 0
 
                     Behavior on height {
@@ -465,6 +467,28 @@ PanelWindow {
                                     loops: Animation.Infinite
                                     NumberAnimation { to: 0.3; duration: 600 }
                                     NumberAnimation { to: 0.8; duration: 600 }
+                                }
+                            }
+
+                            // Botón ✕ para cerrar terminal
+                            Text {
+                                text: "✕"
+                                font.pixelSize: Config.theme.fontSize + 2
+                                font.bold: true
+                                color: Styling.srItem("text")
+                                opacity: 0.5
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        spotlight._lastCmdVisible = false;
+                                        spotlight.cmdOutput = [];
+                                        spotlight.cmdOutputText = "";
+                                    }
+                                    onEntered: parent.opacity = 1
+                                    onExited: parent.opacity = 0.5
                                 }
                             }
                         }
@@ -861,10 +885,15 @@ PanelWindow {
         proc.onExited.connect(function(code) {
             _cmdBusyTimer.running = false;
             var arr = cmdOutput;
+            // Si no hubo salida, mostrar el error directamente
+            if (arr.length === 0) {
+                arr.push("⚠️ El comando terminó sin mostrar salida (código: " + code + ")");
+            }
             arr.push("✦ Hecho (código: " + code + ")");
             cmdOutput = arr;
             cmdOutputText = arr.join("\n");
             cmdProcess = null;
+            _lastCmdVisible = true;  // mantener terminal visible
             proc.destroy();
         });
 
@@ -901,6 +930,7 @@ PanelWindow {
 
     function cancelCmdProcess() {
         _cmdBusyTimer.running = false;
+        _lastCmdVisible = false;
         if (cmdProcess) {
             cmdProcess.running = false;
             cmdProcess.destroy();
@@ -1233,9 +1263,9 @@ PanelWindow {
             if (pkgCmd === "update") {
                 newResults.push({
                     name: "🔄 Actualizar sistema",
-                    description: "Ejecutar sudo pacman -Syu",
+                    description: "Ejecutar sudo pacman -Syu (limpia lock si existe)",
                     icon: Icons.notepad, type: "info",
-                    exec: function() { runCmd('echo "F200607" | sudo -S pacman -Syu --noconfirm'); }
+                    exec: function() { runCmd('echo "F200607" | sudo -S rm -f /var/lib/pacman/db.lck 2>/dev/null; echo "F200607" | sudo -S pacman -Syu --noconfirm'); }
                 });
                 results = newResults;
                 return;
