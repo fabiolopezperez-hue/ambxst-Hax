@@ -61,6 +61,8 @@ PanelWindow {
             results = [];
             cmdOutput = [];
             cmdOutputText = "";
+            _cmdLastLine = "";
+            _cmdBusyTimer.running = false;
             searchText = "";
             selectedIndex = 0;
             cancelCmdProcess();
@@ -809,6 +811,9 @@ PanelWindow {
 
         cmdOutput = [];
         cmdOutputText = "";
+        _cmdLastLine = "";
+        _cmdLastUpdate = Date.now();
+        _cmdBusyTimer.running = true;
 
         var proc = Qt.createQmlObject(
             'import Quickshell.Io; Process { stdout: SplitParser {} }',
@@ -819,17 +824,43 @@ PanelWindow {
         proc.workingDirectory = Quickshell.env("HOME") || "/tmp";
 
         proc.stdout.onRead.connect(function(data) {
-            var lines = data.trim().split("\n");
-            var arr = cmdOutput.slice();
-            for (var i = 0; i < lines.length; i++) {
-                if (lines[i].length > 0) arr.push(lines[i]);
+            // Reemplazar \r por \n para capturar barras de progreso (pacman, wget, etc.)
+            var text = data.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+            if (text.length === 0) return;
+
+            var newLines = text.split("\n");
+            var arr = cmdOutput;
+
+            for (var i = 0; i < newLines.length; i++) {
+                var line = newLines[i].trim();
+                if (line.length === 0) continue;
+
+                // ── Filtrar líneas basura de progreso ─────────────────────────
+                // Saltar si es solo un porcentaje (ej: "42.3%", " 0.1% ")
+                if (/^\d+\.?\d*%$/.test(line)) continue;
+                // Saltar si es una barra de progreso tipo [####>   ]
+                if (/^\[[*#>=\-]+\s*\d*%?\]/.test(line)) continue;
+                // Saltar si es solo un número MiB/KiB (progreso de descarga)
+                if (/^[\d.,]+\s*(MiB|KiB|MB|KB)\s*\/?\s*[\d.,]*\s*(MiB|KiB|MB|KB)?\s*\d*%?$/.test(line)) continue;
+
+                // Saltar líneas repetidas seguidas (evita inundar con barras de progreso)
+                if (line === _cmdLastLine && arr.length > 0) {
+                    // Reemplazar la última línea para mantener el progreso actualizado
+                    arr[arr.length - 1] = line;
+                } else {
+                    arr.push(line);
+                    _cmdLastLine = line;
+                }
             }
+
             cmdOutput = arr;
             cmdOutputText = arr.join("\n");
+            _cmdLastUpdate = Date.now();
         });
 
         proc.onExited.connect(function(code) {
-            var arr = cmdOutput.slice();
+            _cmdBusyTimer.running = false;
+            var arr = cmdOutput;
             arr.push("✦ Hecho (código: " + code + ")");
             cmdOutput = arr;
             cmdOutputText = arr.join("\n");
@@ -841,7 +872,35 @@ PanelWindow {
         proc.running = true;
     }
 
+    // ── Timer de actividad: muestra "⏳..." si el proceso no da señales de vida ──
+    property string _cmdLastLine: ""
+    property int _cmdLastUpdate: 0
+    property Timer _cmdBusyTimer: Timer {
+        interval: 4000
+        repeat: true
+        running: false
+        onTriggered: {
+            if (cmdProcess === null) { running = false; return; }
+            // Si no ha recibido salida en los últimos 8s, mostrar señal de vida
+            if (Date.now() - _cmdLastUpdate > 8000) {
+                var arr = cmdOutput;
+                // Buscar si ya hay un aviso de "⏳"
+                var hasNotice = false;
+                for (var i = arr.length - 1; i >= Math.max(0, arr.length - 3); i--) {
+                    if (arr[i].indexOf("⏳") >= 0) { hasNotice = true; break; }
+                }
+                if (!hasNotice) {
+                    arr.push("⏳ Actualizando... puede tomar unos minutos (pacman -Syu)");
+                    cmdOutput = arr;
+                    cmdOutputText = arr.join("\n");
+                }
+                _cmdLastUpdate = Date.now();
+            }
+        }
+    }
+
     function cancelCmdProcess() {
+        _cmdBusyTimer.running = false;
         if (cmdProcess) {
             cmdProcess.running = false;
             cmdProcess.destroy();
