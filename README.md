@@ -25,13 +25,13 @@
 </p>
 
 <p align="center">
- <img src="screenshots/new-animation-Hax.mp4">
+ <video src="https://github.com/fabiolopezperez-hue/ambxst-Hax/blob/main/screenshots/new-animation-Hax.mp4" width="100%" controls></video>
   <br>
   <em>Video: Demostracion de la nueva animacion que tiene el buscador inspirada en el Spotlight del **ipadOS 27**</em>
 </p>
 
 <p align="center">
- <video src="" width="100%" controls></video>
+ <video src="https://github.com/fabiolopezperez-hue/ambxst-Hax/blob/main/screenshots/new-functions-Hax.mp4" width="100%" controls></video>
   <br>
   <em>Video: Demostracion del poder que tiene **Hax** y showcase de funciones implementadas recientemente</em>
 </p>
