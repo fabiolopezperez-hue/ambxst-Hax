@@ -1,3 +1,7 @@
+
+
+
+
 # Hax 🎯
 
 **Hax** es un spotlight/launcher modular para shells Wayland basadas en **Ambxst**, construido con Quickshell y Qt QML. Inspirado en Spotlight de macOS, ofrece búsqueda instantánea de aplicaciones, archivos, cálculos inline, acciones rápidas del sistema, terminal integrada, timers, alarmas, instalación de paquetes, clima y mucho más — todo desde una interfaz limpia, rápida y nativa.
@@ -25,13 +29,13 @@
 </p>
 
 <p align="center">
- <video src="https://github.com/fabiolopezperez-hue/ambxst-Hax/blob/main/screenshots/new-animation-Hax.mp4" width="100%" controls></video>
+ <video src="https://github.com/user-attachments/assets/9b14eecc-a359-438f-9041-73d1e3866318" width="100%" controls></video>
   <br>
   <em>Video: Demostracion de la nueva animacion que tiene el buscador inspirada en el Spotlight del **ipadOS 27**</em>
 </p>
 
 <p align="center">
- <video src="https://github.com/fabiolopezperez-hue/ambxst-Hax/blob/main/screenshots/new-functions-Hax.mp4" width="100%" controls></video>
+ <video src="https://github.com/user-attachments/assets/2ec3f49d-d599-4b62-a8e6-8ff708fbc6db" width="100%" controls></video>
   <br>
   <em>Video: Demostracion del poder que tiene **Hax** y showcase de funciones implementadas recientemente</em>
 </p>
