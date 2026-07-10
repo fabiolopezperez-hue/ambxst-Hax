@@ -31,7 +31,7 @@
 </p>
 
 <p align="center">
- <img src="screenshots/new-functions-Hax.mp4">
+ <video src="screenshots/new-functions-Hax.mp4" width="100%" controls></video>
   <br>
   <em>Video: Demostracion del poder que tiene **Hax** y showcase de funciones implementadas recientemente</em>
 </p>
