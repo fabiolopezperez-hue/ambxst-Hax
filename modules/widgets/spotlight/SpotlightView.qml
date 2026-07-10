@@ -11,12 +11,6 @@ import qs.modules.services
 import qs.modules.components
 import qs.config
 
-// ─── Hax — El buscador de Axenide ──────────────────────────────────────────
-// Spotlight nativo para Ambxst + Ax-shell.
-// Busca apps, calcula, encuentra archivos y navega por la web.
-// Hecho con amor por Fabio y Maria 💖
-// ─────────────────────────────────────────────────────────────────────────────
-
 PanelWindow {
     id: spotlight
 
