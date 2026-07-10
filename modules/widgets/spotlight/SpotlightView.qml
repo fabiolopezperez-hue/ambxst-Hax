@@ -37,12 +37,81 @@ PanelWindow {
     readonly property var screenVisibilities: Visibilities.getForScreen(screen.name)
     readonly property bool spotlightOpen: screenVisibilities ? screenVisibilities.spotlight : false
 
-    visible: spotlightOpen
+    // ── Animación notch→centro (puntito que se desprende del bar) ────────────
+    property bool showHax: false
+    property real animProgress: 0.0       // 0 = puntito en bar, 1 = Hax centrado
+
+    // Posición Y del borde inferior del bar (de donde se desprende el puntito)
+    property real barBottom: 40
+    readonly property real screenCenterY: spotlight.height / 2
+
+    visible: showHax
     exclusionMode: ExclusionMode.Ignore
+
+    // Disparar animación al abrir/cerrar
+    onSpotlightOpenChanged: {
+        if (spotlightOpen) {
+            closeAnim.stop();
+
+            // Capturar la posición real del bar antes de animar
+            var bar = Visibilities.getBarForScreen(screen.name);
+            barBottom = bar ? bar.totalBarHeight : 40;
+
+            // Limpiar todo ANTES de mostrar la ventana (evita race con Behavior on height)
+            results = [];
+            cmdOutput = [];
+            cmdOutputText = "";
+            searchText = "";
+            selectedIndex = 0;
+            cancelCmdProcess();
+            if (weatherSearch) weatherSearch.destroy();
+            weatherSearch = null;
+
+            // ⭐ Poner el estado inicial (gota ya formada en el notch)
+            // ANTES de mostrar la ventana — así la entrada empieza igual
+            // que termina la salida: con la gota justo en el notch
+            animProgress = 0.03;
+            showHax = true;
+
+            openAnim.start();
+            searchInput.clear();
+            searchInput.forceActiveFocus();
+        } else {
+            openAnim.stop();
+            closeAnim.start();
+        }
+    }
+
+    SequentialAnimation {
+        id: openAnim
+        PropertyAnimation {
+            target: spotlight
+            property: "animProgress"
+            to: 1.0
+            duration: 600
+            easing.type: Easing.InOutCubic
+        }
+    }
+
+    SequentialAnimation {
+        id: closeAnim
+        PropertyAnimation {
+            target: spotlight
+            property: "animProgress"
+            to: 0.0
+            duration: 600
+            easing.type: Easing.InOutCubic
+        }
+        PropertyAction {
+            target: spotlight
+            property: "showHax"
+            value: false
+        }
+    }
 
     // ── Input mask ───────────────────────────────────────────────────────────
     mask: Region {
-        item: spotlightOpen ? fullMask : emptyMask
+        item: showHax ? fullMask : emptyMask
     }
 
     Item {
@@ -83,6 +152,7 @@ PanelWindow {
     property int selectedIndex: 0
     property var results: []
     property int searchGeneration: 0  // evita race conditions en async
+    property string _lastSearchQuery: "" // última búsqueda de paquetes
 
     // ── Terminal integrada ─────────────────────────────────────────────────
     property var cmdProcess: null      // proceso de comando activo
@@ -90,70 +160,123 @@ PanelWindow {
     property string cmdOutputText: ""  // salida como texto plano (forza bindings en QML)
     readonly property bool isCommandMode: searchText.trim().startsWith("/")
 
-    // ── Panel principal centrado ────────────────────────────────────────────
-    Item {
-        id: mainContainer
-        anchors.centerIn: parent
-        width: clampWidth()
-        height: panelBg.height
+    // ── Clima ───────────────────────────────────────────────────────────────
+    property var weatherSearch: null   // proceso de búsqueda de clima activo
 
-        opacity: spotlightOpen ? 1 : 0
-        scale: spotlightOpen ? 1 : 0.92
+    // ── Paquetes ─────────────────────────────────────────────────────────────
+    property var _pkgSearchProcesses: [] // procesos de búsqueda de paquetes activos
 
-        Behavior on opacity {
-            enabled: Config.animDuration > 0
+    // ── Timers & Alarmas ──────────────────────────────────────────────────
+    property var activeTimers: []      // [{id, label, totalSeconds, endTime, createdAt}]
+    property int _timerNextId: 1
+    property var activeAlarms: []      // [{id, label, hour, minute, days, enabled, lastTriggered}]
+    property int _alarmNextId: 1
+
+    // Notificaciones inline de Hax (timers, alarmas)
+    property var _haxNotifications: [] // [{id, type, label, body, ts, icon, notifObj}]
+    property int _haxNotifIdCounter: 0
+
+    // Tick de 1 segundo para timers y alarmas
+    Timer {
+        id: _tickTimer
+        interval: 1000
+        repeat: true
+        running: activeTimers.length > 0 || activeAlarms.length > 0
+        onTriggered: {
+            tickTimers();
+            checkAlarms();
+        }
+    }
+
+    // ── Puntito que baja del notch y se TRANSFORMA en Hax ─────────────────
+    //
+    // Una sola cosa que muta: empieza como círculo de 20px en el notch,
+    // baja al centro mientras crece y se transforma en el buscador completo.
+    // No hay máscaras ni fade entre dos elementos — es el mismo elemento
+    // que va cambiando de forma.
+
+    StyledRect {
+        id: morphContainer
+        variant: "bg"
+        anchors.horizontalCenter: parent.horizontalCenter
+
+        // ⚠️ Desactivamos animateRadius porque StyledRect tiene su propio
+        // Behavior on radius que PELEA con nuestra animación basada en animProgress
+        animateRadius: false
+
+        // ⭕ Círculo — el bar crea un círculo en su borde inferior, que cae
+        // y se transforma en el buscador
+        //
+        // - animProgress 0→0.03: el círculo nace y crece (0→20px) en el bar
+        // - animProgress 0.03→0.08: el círculo se desprende y empieza a bajar
+        // - animProgress 0.08→0.15: el círculo desciende
+        // - animProgress 0.15→1.0: el círculo se expande y transforma en Hax
+        readonly property real phase: animProgress
+
+        // Tamaño del círculo: aparece de 0, crece a 20×20,
+        // luego se desprende del bar y desciende
+        readonly property real dropletW: {
+            if (phase < 0.03) return (phase / 0.03) * 20;
+            return 20;
+        }
+        readonly property real dropletH: {
+            if (phase < 0.03) return (phase / 0.03) * 20;
+            return 20;
+        }
+        // El descenso empieza cuando la gota se desprende (3%)
+        readonly property real descendPhase: Math.max(0, (phase - 0.03) / 0.97)
+
+        // Expansión a Hax completo (igual que antes)
+        readonly property real expandPhase: Math.max(0, (phase - 0.15) / 0.85)
+
+        // 📐 Tamaño: gota → círculo → Hax completo
+        width: Math.max(1, dropletW + (clampWidth() - dropletW) * expandPhase)
+        height: Math.max(1, dropletH + (fullHeight - dropletH) * expandPhase)
+
+        // Suaviza los cambios de altura cuando el Hax ya está abierto
+        // (sin interferir con la animación de apertura/cierre)
+        Behavior on height {
+            enabled: Config.animDuration > 0 && animProgress >= 1
             NumberAnimation {
-                duration: Config.animDuration
-                easing.type: Easing.OutQuart
+                duration: Config.animDuration * 3
+                easing.type: Easing.OutQuint
             }
         }
 
-        Behavior on scale {
-            enabled: Config.animDuration > 0
-            NumberAnimation {
-                duration: Config.animDuration
-                easing.type: Easing.OutBack
-                easing.overshoot: 1.1
-            }
-        }
+        // 💧 Sin fade — la gota aparece/desaparece solo por su tamaño (0→28px)
+        opacity: 1
 
-        function clampWidth()  { return Math.min(620, screen.width  * 0.9) }
+        // 📍 Y: la gota nace pegada al bar y luego cae
+        y: barBottom + (screenCenterY - height / 2 - barBottom) * descendPhase
 
-        // ── Fondo glassmorphism que se ajusta al contenido ──────────────────
-        StyledRect {
-            id: panelBg
-            variant: "bg"
+        // 🎭 Radio: de círculo perfecto a esquinas normales
+        radius: Math.min(width / 2, Styling.radius(24) + (width / 2 - Styling.radius(24)) * Math.max(0, 1 - expandPhase * 3))
+
+        function clampWidth()  { return Math.min(620, screen.width * 0.9) }
+
+        // ── Altura total dinámica del Hax (depende de resultados) ──────────
+        readonly property real fullHeight: 56 + 32
+            + (cmdProcess !== null || isCommandMode
+                ? 8 + 36 + Math.min(cmdOutput.length * 20 + 20, 460)
+                : 0)
+            + (_haxNotifications.length > 0
+                ? 8 + Math.min(_haxNotifications.length * 56 + 16, 200)
+                : 0)
+            + (results.length > 0 && !isCommandMode
+                ? 8 + Math.min(results.length * 54, 400)
+                : 0)
+
+        // ── Contenido que aparece dentro mientras se transforma ────────────
+        Column {
+            id: contentColumn
             width: parent.width
-            height: 56 + 32
-                + (cmdProcess !== null || isCommandMode
-                    ? 8 + 36 + Math.min(cmdOutput.length * 20 + 20, 460)
-                    : 0)
-                + (results.length > 0 && !isCommandMode
-                    ? 8 + Math.min(results.length * 54, 400)
-                    : 0)
-            radius: Styling.radius(24)
-            clip: true
-
-            Behavior on height {
-                enabled: Config.animDuration > 0
-                NumberAnimation {
-                    duration: Config.animDuration * 2
-                    easing.type: Easing.OutCubic
-                }
-            }
-
-            layer.enabled: true
-            layer.effect: Shadow {}
-
-            // ── Contenido interno ────────────────────────────────────────────
-            Column {
-                id: contentColumn
-                width: parent.width
-                anchors.top: parent.top
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.margins: 16
-                spacing: (results.length > 0 || cmdProcess !== null || isCommandMode) ? 8 : 0
+            // Aparece durante la expansión (no durante la bajada del punto)
+            opacity: Math.max(0, Math.min(1, expandPhase * 2 - 0.5))
+            anchors.top: parent.top
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.margins: 16
+            spacing: (results.length > 0 || cmdProcess !== null || isCommandMode || _haxNotifications.length > 0) ? 8 : 0
 
                 // ── Campo de búsqueda ──────────────────────────────────────────
                 StyledRect {
@@ -253,30 +376,6 @@ PanelWindow {
                             }
                         }
 
-                        // Preview inline de cálculo (como Spotlight)
-                        Text {
-                            id: calcPreview
-                            text: {
-                                if (spotlight.isCommandMode) return "";
-                                var q = spotlight.searchText.trim();
-                                if (q.length > 0 && /^[\d+\-*/().\s]+$/.test(q) && /[+\-*/]/.test(q)) {
-                                    var r = spotlight.safeEval(q);
-                                    if (r !== null && typeof r === "number") {
-                                        return "= " + r;
-                                    }
-                                }
-                                return "";
-                            }
-                            font.family: Config.theme.font
-                            font.pixelSize: Config.theme.fontSize + 2
-                            font.weight: Font.Medium
-                            color: Colors.primary || Styling.srItem("overprimary")
-                            opacity: 0.85
-                            visible: text.length > 0
-                            verticalAlignment: Text.AlignVCenter
-                            Layout.alignment: Qt.AlignVCenter
-                        }
-
                         // Contador de resultados
                         Text {
                             text: results.length > 0 ? `${selectedIndex + 1}/${results.length}` : ""
@@ -305,15 +404,15 @@ PanelWindow {
                     Behavior on height {
                         enabled: Config.animDuration > 0
                         NumberAnimation {
-                            duration: Config.animDuration * 2
-                            easing.type: Easing.OutCubic
+                            duration: Config.animDuration * 3
+                            easing.type: Easing.OutQuint
                         }
                     }
                     Behavior on opacity {
                         enabled: Config.animDuration > 0
                         NumberAnimation {
-                            duration: Config.animDuration
-                            easing.type: Easing.OutCubic
+                            duration: Config.animDuration * 2
+                            easing.type: Easing.OutQuint
                         }
                     }
 
@@ -401,7 +500,102 @@ PanelWindow {
                     }
                 }
 
+                // ── Notificaciones inline de Hax ─────────────────────────────
+                StyledRect {
+                    id: haxNotifContainer
+                    width: contentColumn.width
+                    height: _haxNotifications.length > 0
+                        ? Math.min(_haxNotifications.length * 56 + 16, 200)
+                        : 0
+                    opacity: _haxNotifications.length > 0 ? 1 : 0
+                    visible: opacity > 0
+                    variant: "pane"
+                    radius: Styling.radius(12)
+                    clip: true
+                    Behavior on height {
+                        enabled: Config.animDuration > 0
+                        NumberAnimation { duration: Config.animDuration * 3; easing.type: Easing.OutQuint }
+                    }
+                    Behavior on opacity {
+                        enabled: Config.animDuration > 0
+                        NumberAnimation { duration: Config.animDuration * 2; easing.type: Easing.OutQuint }
+                    }
+
+                    Column {
+                        width: parent.width
+                        anchors.fill: parent
+                        anchors.margins: 8
+                        spacing: 6
+                        Repeater {
+                            model: _haxNotifications
+
+                            delegate: Item {
+                                required property var modelData
+                                width: parent.width
+                                height: 48
+
+                                RowLayout {
+                                    width: parent.width
+                                    height: parent.height
+                                    spacing: 8
+
+                                    Text {
+                                        text: modelData.icon
+                                        font.pixelSize: Config.theme.fontSize + 8
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
+
+                                    Column {
+                                        Layout.fillWidth: true
+                                        Layout.alignment: Qt.AlignVCenter
+                                        spacing: 2
+                                        Text {
+                                            text: modelData.type === "timer"
+                                                ? "⏰ Timer «" + modelData.label + "» completado"
+                                                : "🔔 Alarma «" + modelData.label + "»"
+                                            font.family: Config.theme.font
+                                            font.pixelSize: Config.theme.fontSize
+                                            font.bold: true
+                                            color: Styling.srItem("text")
+                                            elide: Text.ElideRight
+                                        }
+                                        Text {
+                                            text: modelData.body
+                                            font.family: Config.theme.font
+                                            font.pixelSize: Config.theme.fontSize - 2
+                                            color: Styling.srItem("overprimary")
+                                            opacity: 0.7
+                                            elide: Text.ElideRight
+                                        }
+                                    }
+
+                                    // Botón cerrar
+                                    StyledRect {
+                                        implicitWidth: 28
+                                        implicitHeight: 28
+                                        radius: Styling.radius(8)
+                                        variant: "focus"
+                                        Layout.alignment: Qt.AlignVCenter
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: "✕"
+                                            font.pixelSize: Config.theme.fontSize - 2
+                                            color: Styling.srItem("overprimary")
+                                        }
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: { _dismissHaxNotif(modelData.id); }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // ── Lista de resultados (solo visible al escribir) ────────────
+                // Se despliega con una animación combinada de fade + expansión vertical
                 Item {
                     id: resultsContainer
                     width: contentColumn.width
@@ -409,14 +603,22 @@ PanelWindow {
                     opacity: results.length > 0 ? 1 : 0
                     visible: opacity > 0
                     clip: true
-
                     Behavior on opacity {
                         enabled: Config.animDuration > 0
                         NumberAnimation {
-                            duration: Config.animDuration
-                            easing.type: Easing.OutCubic
+                            duration: Config.animDuration * 2
+                            easing.type: Easing.OutQuint
                         }
                     }
+
+                    Behavior on height {
+                        enabled: Config.animDuration > 0
+                        NumberAnimation {
+                            duration: Config.animDuration * 3
+                            easing.type: Easing.OutQuint
+                        }
+                    }
+
 
                     ListView {
                         id: resultsList
@@ -498,11 +700,10 @@ PanelWindow {
                                         anchors.centerIn: parent
                                         text: {
                                             switch (modelData.type) {
-                                                case "calc":   return Icons.notepad;
-                                                case "web":    return Icons.globe;
-                                                case "file":   return Icons.file;
-                                                case "action": return Icons.lightning;
-                                                default:       return Icons.apps;
+                                                case "calc": return Icons.notepad;
+                                                case "web":  return Icons.globe;
+                                                case "file": return Icons.file;
+                                                default:     return Icons.apps;
                                             }
                                         }
                                         font.family: Icons.font
@@ -557,7 +758,6 @@ PanelWindow {
                                                 case "calc": return "=";
                                                 case "file": return "📁";
                                                 case "web": return "🌐";
-                                                case "action": return "⚡";
                                                 default: return "";
                                             }
                                         }
@@ -598,7 +798,6 @@ PanelWindow {
                 }
             }
         }
-    }
 
     // ── Terminal integrada ─────────────────────────────────────────────────
 
@@ -652,6 +851,17 @@ PanelWindow {
         cmdOutputText = "";
     }
 
+    // ── Ejecutar comando rápido (fuego y olvido) ──────────────────────────
+    function bash(cmd) {
+        var proc = Qt.createQmlObject(
+            'import Quickshell.Io; Process { }',
+            spotlight
+        );
+        proc.command = ["bash", "-c", cmd];
+        proc.onExited.connect(function() { proc.destroy(); });
+        proc.running = true;
+    }
+
     // ── Lógica de búsqueda ─────────────────────────────────────────────────
 
     function updateResults() {
@@ -696,108 +906,426 @@ PanelWindow {
             }
         }
 
-        // Acciones rápidas del sistema
-        const systemActions = [
-            {
-                match: q => /^(bloquea|lock|cerrar|traba)/.test(q),
-                name: "🔒 Bloquear pantalla",
-                description: "Bloquear la sesión ahora",
-                icon: Icons.lock,
-                exec: () => {
-                    LockscreenService.lock();
-                    Visibilities.setActiveModule("");
-                }
-            },
-            {
-                match: q => /^(apagar|shutdown|poweroff|off)/.test(q),
-                name: "⏻ Apagar sistema",
-                description: "Apagar el equipo completamente",
-                icon: Icons.shutdown,
-                exec: () => {
-                    var p = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
-                    p.command = ["bash", "-c", "systemctl poweroff"];
-                    p.onExited.connect(() => p.destroy());
-                    p.running = true;
-                    Visibilities.setActiveModule("");
-                }
-            },
-            {
-                match: q => /^(reiniciar|reboot|reinicia|restart)/.test(q),
-                name: "🔄 Reiniciar sistema",
-                description: "Reiniciar el equipo",
-                icon: Icons.sync,
-                exec: () => {
-                    var p = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
-                    p.command = ["bash", "-c", "systemctl reboot"];
-                    p.onExited.connect(() => p.destroy());
-                    p.running = true;
-                    Visibilities.setActiveModule("");
-                }
-            },
-            {
-                match: q => /^(suspender|sleep|suspend|hiber)/.test(q),
-                name: "💤 Suspender",
-                description: "Suspender el sistema",
-                icon: Icons.moon,
-                exec: () => {
-                    var p = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
-                    p.command = ["bash", "-c", "systemctl suspend"];
-                    p.onExited.connect(() => p.destroy());
-                    p.running = true;
-                    Visibilities.setActiveModule("");
-                }
-            },
-            {
-                match: q => /^(captura|screenshot|pantallazo|grim)/.test(q),
-                name: "📸 Captura de pantalla",
-                description: "Capturar toda la pantalla",
-                icon: Icons.camera,
-                exec: () => {
-                    var p = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
-                    var dir = Quickshell.env("HOME") + "/Imágenes/Capturas";
-                    p.command = ["bash", "-c", "mkdir -p '" + dir + "' && grim '" + dir + "/$(date +%s).png'"];
-                    p.onExited.connect(() => p.destroy());
-                    p.running = true;
-                    Visibilities.setActiveModule("");
-                }
-            },
-            {
-                match: q => /^(captura.*(regi|área|area|sele)|screenshot.*(reg|area)|grim.*(slur|reg))/.test(q),
-                name: "📐 Captura de región",
-                description: "Seleccionar un área para capturar",
-                icon: Icons.crop,
-                exec: () => {
-                    var p = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
-                    var dir = Quickshell.env("HOME") + "/Imágenes/Capturas";
-                    p.command = ["bash", "-c", "mkdir -p '" + dir + "' && grim -g \"$(slurp)\" '" + dir + "/$(date +%s).png'"];
-                    p.onExited.connect(() => p.destroy());
-                    p.running = true;
-                    Visibilities.setActiveModule("");
-                }
-            }
-        ];
-
-        for (var si = 0; si < systemActions.length; si++) {
-            if (systemActions[si].match(query)) {
-                newResults.push({
-                    name: systemActions[si].name,
-                    description: systemActions[si].description,
-                    icon: systemActions[si].icon,
-                    type: "action",
-                    exec: systemActions[si].exec
-                });
+        // ── Acciones del sistema ────────────────────────────────────────────
+        var sysMatch = query.match(/^(l|s|a|r|c|lock|bloquear|suspend|suspender|apagar|shutdown|poweroff|reboot|reiniciar|capturar|screenshot|pantallazo)$/i);
+        if (sysMatch) {
+            var action = sysMatch[1].toLowerCase();
+            var actions = {
+                "l": { name: "🔒 Bloquear pantalla", desc: "Lockscreen — bloquear sesión", exec: function() { LockscreenService.lock(); Visibilities.setActiveModule(""); } },
+                "lock": { name: "🔒 Bloquear pantalla", desc: "Lockscreen — bloquear sesión", exec: function() { LockscreenService.lock(); Visibilities.setActiveModule(""); } },
+                "bloquear": { name: "🔒 Bloquear pantalla", desc: "Lockscreen — bloquear sesión", exec: function() { LockscreenService.lock(); Visibilities.setActiveModule(""); } },
+                "s": { name: "💤 Suspender", desc: "systemctl suspend — suspender el sistema", exec: function() { bash("systemctl suspend"); Visibilities.setActiveModule(""); } },
+                "suspend": { name: "💤 Suspender", desc: "systemctl suspend — suspender el sistema", exec: function() { bash("systemctl suspend"); Visibilities.setActiveModule(""); } },
+                "suspender": { name: "💤 Suspender", desc: "systemctl suspend — suspender el sistema", exec: function() { bash("systemctl suspend"); Visibilities.setActiveModule(""); } },
+                "a": { name: "⏻ Apagar", desc: "systemctl poweroff — apagar el sistema", exec: function() { bash("systemctl poweroff"); Visibilities.setActiveModule(""); } },
+                "apagar": { name: "⏻ Apagar", desc: "systemctl poweroff — apagar el sistema", exec: function() { bash("systemctl poweroff"); Visibilities.setActiveModule(""); } },
+                "shutdown": { name: "⏻ Apagar", desc: "systemctl poweroff — apagar el sistema", exec: function() { bash("systemctl poweroff"); Visibilities.setActiveModule(""); } },
+                "poweroff": { name: "⏻ Apagar", desc: "systemctl poweroff — apagar el sistema", exec: function() { bash("systemctl poweroff"); Visibilities.setActiveModule(""); } },
+                "r": { name: "🔄 Reiniciar", desc: "systemctl reboot — reiniciar el sistema", exec: function() { bash("systemctl reboot"); Visibilities.setActiveModule(""); } },
+                "reboot": { name: "🔄 Reiniciar", desc: "systemctl reboot — reiniciar el sistema", exec: function() { bash("systemctl reboot"); Visibilities.setActiveModule(""); } },
+                "reiniciar": { name: "🔄 Reiniciar", desc: "systemctl reboot — reiniciar el sistema", exec: function() { bash("systemctl reboot"); Visibilities.setActiveModule(""); } },
+                "c": { name: "📸 Capturar pantalla", desc: "Screenshot — herramienta de captura", exec: function() { Screenshot.initialize(); GlobalStates.screenshotToolVisible = true; Visibilities.setActiveModule(""); } },
+                "capturar": { name: "📸 Capturar pantalla", desc: "Screenshot — herramienta de captura", exec: function() { Screenshot.initialize(); GlobalStates.screenshotToolVisible = true; Visibilities.setActiveModule(""); } },
+                "screenshot": { name: "📸 Capturar pantalla", desc: "Screenshot — herramienta de captura", exec: function() { Screenshot.initialize(); GlobalStates.screenshotToolVisible = true; Visibilities.setActiveModule(""); } },
+                "pantallazo": { name: "📸 Capturar pantalla", desc: "Screenshot — herramienta de captura", exec: function() { Screenshot.initialize(); GlobalStates.screenshotToolVisible = true; Visibilities.setActiveModule(""); } }
+            };
+            var a = actions[action];
+            if (a) {
+                results = [{
+                    name: a.name,
+                    description: a.desc,
+                    icon: Icons.notepad,
+                    type: "info",
+                    exec: a.exec
+                }];
+                return;
             }
         }
 
-        // 1. Apps
+        // ── Ayuda ─────────────────────────────────────────────────────────────
+        var helpMatch = query.match(/^(ayuda|help|h|commands|comandos|\?)$/i);
+        if (helpMatch) {
+            newResults = [
+                { name: "📖 Comandos disponibles", description: "Escribe lo que quieras hacer", icon: Icons.notepad, type: "info", exec: null },
+                { name: "🔍 Buscar apps", description: "Escribe el nombre de cualquier app (firefox, vscode, terminal...)", icon: Icons.notepad, type: "info", exec: null },
+                { name: "📦 install <paquete>", description: "Busca en pacman + AUR + flatpak y muestra dónde instalarlo", icon: Icons.notepad, type: "info", exec: null },
+                { name: "📦 pacman <paquete>", description: "Instalar paquete directamente con pacman (sudo)", icon: Icons.notepad, type: "info", exec: null },
+                { name: "📦 yay <paquete>", description: "Instalar paquete desde AUR con yay", icon: Icons.notepad, type: "info", exec: null },
+                { name: "📦 flatpak install <paquete>", description: "Instalar paquete desde Flathub", icon: Icons.notepad, type: "info", exec: null },
+                { name: "🗑️ remove <paquete>", description: "Desinstalar paquete con pacman", icon: Icons.notepad, type: "info", exec: null },
+                { name: "🔄 update", description: "Actualizar sistema (pacman -Syu)", icon: Icons.notepad, type: "info", exec: null },
+                { name: "⏱️ timer <duración>", description: "Crea un timer (ej: timer 5m, timer pizza 10m, timer 30s)", icon: Icons.notepad, type: "info", exec: null },
+                { name: "🔔 alarm <hora>", description: "Crea una alarma (ej: alarm 8:00, alarm 7:30 l-v, alarm 14:30 comida)", icon: Icons.notepad, type: "info", exec: null },
+                { name: "🌤️ weather / clima / tiempo", description: "Consulta el clima (ej: weather, weather Madrid)", icon: Icons.notepad, type: "info", exec: null },
+                { name: "🧮 Calculadora", description: "Escribe una operación (ej: 2+2, 5*3, (10+5)/3)", icon: Icons.notepad, type: "info", exec: null },
+                { name: "🔒 lock / bloquear", description: "Bloquear la pantalla", icon: Icons.notepad, type: "info", exec: null },
+                { name: "💤 s / suspend", description: "Suspender el sistema", icon: Icons.notepad, type: "info", exec: null },
+                { name: "⏻ a / apagar / shutdown", description: "Apagar el sistema", icon: Icons.notepad, type: "info", exec: null },
+                { name: "🔄 r / reboot / reiniciar", description: "Reiniciar el sistema", icon: Icons.notepad, type: "info", exec: null },
+                { name: "📸 c / capturar / screenshot", description: "Capturar pantalla", icon: Icons.notepad, type: "info", exec: null },
+                { name: "🔍 Buscar archivos", description: "Escribe cualquier nombre de archivo (mín 2 caracteres)", icon: Icons.notepad, type: "info", exec: null },
+                { name: "🌐 Buscar en web", description: "Cualquier texto que no sea comando se busca en Google", icon: Icons.notepad, type: "info", exec: null },
+                { name: "/comando", description: "Escribe / seguido de un comando para ejecutarlo en la terminal integrada", icon: Icons.notepad, type: "info", exec: null },
+                { name: "❓ ayuda / help / h / ?", description: "Muestra esta ayuda", icon: Icons.notepad, type: "info", exec: null }
+            ];
+            results = newResults;
+            return;
+        }
+
+        // ── Timers ────────────────────────────────────────────────────────────
+        var timerMatch = query.match(/^timer(?:\s+(.+))?$/i);
+        if (timerMatch) {
+            var timerArgs = (timerMatch[1] || "").trim();
+
+            if (!timerArgs) {
+                if (activeTimers.length === 0) {
+                    newResults.push({ name: "⏱️ No hay timers activos", description: "Ej: timer 5m, timer pizza 10m, timer 30s", icon: Icons.notepad, type: "info", exec: null });
+                } else {
+                    for (var ti = 0; ti < activeTimers.length; ti++) {
+                        var t = activeTimers[ti];
+                        var remain = Math.max(0, Math.floor((t.endTime - Date.now()) / 1000));
+                        (function(tmr) {
+                            newResults.push({
+                                name: "⏱️ " + tmr.label + " — " + _fmtDur(remain) + " restantes",
+                                description: "Termina ~" + new Date(tmr.endTime).toLocaleTimeString(),
+                                icon: Icons.notepad, type: "info",
+                                exec: null
+                            });
+                            newResults.push({
+                                name: "❌ Cancelar «" + tmr.label + "»",
+                                description: "Detener este temporizador",
+                                icon: Icons.notepad, type: "info",
+                                exec: function() { cancelTimer(tmr.id); Visibilities.setActiveModule(""); }
+                            });
+                        })(t);
+                    }
+                }
+                newResults.push({ name: "🗑️ Cancelar todos los timers", description: "", icon: Icons.notepad, type: "info", exec: function() { clearAllTimers(); Visibilities.setActiveModule(""); } });
+                results = newResults;
+                return;
+            }
+
+            if (/^(cancel|clear|stop)\s*$/i.test(timerArgs)) {
+                newResults.push({ name: "🗑️ Cancelar todos los timers", description: "Detener todos los temporizadores activos", icon: Icons.notepad, type: "info", exec: function() { clearAllTimers(); Visibilities.setActiveModule(""); } });
+                results = newResults;
+                return;
+            }
+
+            var cancelMatch = timerArgs.match(/^cancel\s+(.+)$/i);
+            if (cancelMatch) {
+                var target = cancelMatch[1].trim();
+                var found = false;
+                for (var ti2 = 0; ti2 < activeTimers.length; ti2++) {
+                    if (activeTimers[ti2].label.toLowerCase() === target.toLowerCase()) {
+                        (function(tmr2) {
+                            newResults.push({ name: "❌ Cancelar «" + tmr2.label + "»", description: "Detener este temporizador", icon: Icons.notepad, type: "info", exec: function() { cancelTimer(tmr2.id); Visibilities.setActiveModule(""); } });
+                        })(activeTimers[ti2]);
+                        found = true;
+                    }
+                }
+                if (!found) {
+                    var num = parseInt(target);
+                    if (!isNaN(num)) {
+                        for (var ti3 = 0; ti3 < activeTimers.length; ti3++) {
+                            if (activeTimers[ti3].id === num) {
+                                (function(tmr3) {
+                                    newResults.push({ name: "❌ Cancelar «" + tmr3.label + "»", description: "Detener este temporizador", icon: Icons.notepad, type: "info", exec: function() { cancelTimer(tmr3.id); Visibilities.setActiveModule(""); } });
+                                })(activeTimers[ti3]);
+                                found = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (!found) {
+                    newResults.push({ name: "⚠️ Timer no encontrado", description: "No hay ningún timer con ese nombre o ID", icon: Icons.notepad, type: "info", exec: null });
+                }
+                results = newResults;
+                return;
+            }
+
+            var durMatch = timerArgs.match(/(\d+)\s*([smh])\s*(.*)$/i) || timerArgs.match(/(\d+):(\d{1,2})\s*(.*)$/);
+            if (durMatch) {
+                var label = "";
+                var seconds = 0;
+                if (durMatch[2] === undefined) {
+                    seconds = parseInt(durMatch[1]) * 60 + parseInt(durMatch[2]);
+                    label = (durMatch[3] || "").trim();
+                } else {
+                    var unit = durMatch[2].toLowerCase();
+                    var val = parseInt(durMatch[1]);
+                    if (unit === 's') seconds = val;
+                    else if (unit === 'm') seconds = val * 60;
+                    else if (unit === 'h') seconds = val * 3600;
+                    label = (durMatch[3] || "").trim();
+                }
+                if (!label) {
+                    var beforeDur = timerArgs.replace(durMatch[0], '').trim();
+                    if (beforeDur) label = beforeDur;
+                }
+                if (seconds > 0 && seconds <= 86400) {
+                    var timerLabel = label || ("Timer " + _timerNextId);
+                    (function(lbl, sec) {
+                        newResults.push({
+                            name: "✅ Iniciar timer «" + lbl + "» — " + _fmtDur(sec),
+                            description: "Temporizador de " + (sec >= 3600 ? (sec/3600).toFixed(1) + "h" : sec >= 60 ? (sec/60) + "m" : sec + "s"),
+                            icon: Icons.notepad, type: "info",
+                            exec: function() { startTimer(lbl, sec); Visibilities.setActiveModule(""); }
+                        });
+                    })(timerLabel, seconds);
+                } else {
+                    newResults.push({ name: "⚠️ Duración inválida", description: "Máximo 24 horas. Ej: timer 5m, timer 30s, timer 2h", icon: Icons.notepad, type: "info", exec: null });
+                }
+                results = newResults;
+                return;
+            }
+
+            newResults.push({ name: "⏱️ Timer — cómo usarlo", description: "timer 5m · timer pizza 10m · timer 30s descanso · timer cancel · timer clear", icon: Icons.notepad, type: "info", exec: null });
+            results = newResults;
+            return;
+        }
+
+        // ── Alarmas ───────────────────────────────────────────────────────────
+        var alarmMatch = query.match(/^alarm(?:[ea]s)?(?:\s+(.+))?$/i);
+        if (alarmMatch) {
+            var alarmArgs = (alarmMatch[1] || "").trim();
+
+            if (!alarmArgs) {
+                if (activeAlarms.length === 0) {
+                    newResults.push({ name: "🔔 No hay alarmas", description: "Ej: alarm 7:30, alarm 8:00 despertar, alarm 14:30 comida L M X J V", icon: Icons.notepad, type: "info", exec: null });
+                } else {
+                    for (var ai = 0; ai < activeAlarms.length; ai++) {
+                        var al = activeAlarms[ai];
+                        var daysStr = al.days.length > 0 ? al.days.map(function(d) { return ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"][d]; }).join(" ") : "📅 Todos";
+                        var timeStr = (al.hour < 10 ? "0" : "") + al.hour + ":" + (al.minute < 10 ? "0" : "") + al.minute;
+                        (function(alm) {
+                            newResults.push({
+                                name: (alm.enabled ? "🔔" : "🔕") + " " + alm.label + " — " + timeStr + " " + daysStr,
+                                description: alm.enabled ? "Activa · Toca para desactivar" : "Inactiva · Toca para activar",
+                                icon: Icons.notepad, type: "info",
+                                exec: function() { alm.enabled = !alm.enabled; Visibilities.setActiveModule(""); }
+                            });
+                            newResults.push({
+                                name: "❌ Eliminar alarma «" + alm.label + "»",
+                                description: "Borrar esta alarma permanentemente",
+                                icon: Icons.notepad, type: "info",
+                                exec: function() { cancelAlarm(alm.id); Visibilities.setActiveModule(""); }
+                            });
+                        })(al);
+                    }
+                }
+                newResults.push({ name: "🗑️ Eliminar todas las alarmas", description: "", icon: Icons.notepad, type: "info", exec: function() { clearAllAlarms(); Visibilities.setActiveModule(""); } });
+                results = newResults;
+                return;
+            }
+
+            if (/^(clear|cancel)\s*$/i.test(alarmArgs)) {
+                newResults.push({ name: "🗑️ Eliminar todas las alarmas", description: "Borrar todas las alarmas", icon: Icons.notepad, type: "info", exec: function() { clearAllAlarms(); Visibilities.setActiveModule(""); } });
+                results = newResults;
+                return;
+            }
+
+            var timeMatch = alarmArgs.match(/^(\d{1,2}):(\d{2})\s*(.*)$/);
+            if (timeMatch) {
+                var hour = parseInt(timeMatch[1]);
+                var minute = parseInt(timeMatch[2]);
+                var rest = (timeMatch[3] || "").trim();
+                if (hour >= 0 && hour < 24 && minute >= 0 && minute < 60) {
+                    var days = [];
+                    var dayParse = rest.match(/([L M X J V S D]+)$/i);
+                    if (dayParse) {
+                        var dayStr = dayParse[1].toUpperCase();
+                        var dayMap = { 'L': 1, 'M': 2, 'X': 3, 'J': 4, 'V': 5, 'S': 6, 'D': 0 };
+                        for (var dk = 0; dk < dayStr.length; dk++) {
+                            var dval = dayMap[dayStr[dk]];
+                            if (dval !== undefined && days.indexOf(dval) < 0) days.push(dval);
+                        }
+                        rest = rest.substring(0, rest.length - dayParse[0].length).trim();
+                    }
+                    var alarmLabel = rest || ("Alarma " + _alarmNextId);
+                    var daysLabel = days.length > 0 ? days.map(function(d) { return ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"][d]; }).join(" ") : "Todos los días";
+                    var timeLabel = (hour < 10 ? "0" : "") + hour + ":" + (minute < 10 ? "0" : "") + minute;
+                    (function(alLabel, alHour, alMin, alDays) {
+                        newResults.push({
+                            name: "✅ Crear alarma «" + alLabel + "» — " + timeLabel + " " + daysLabel,
+                            description: "Toca para confirmar",
+                            icon: Icons.notepad, type: "info",
+                            exec: function() { setAlarm(alLabel, alHour, alMin, alDays); Visibilities.setActiveModule(""); }
+                        });
+                    })(alarmLabel, hour, minute, days);
+                } else {
+                    newResults.push({ name: "⚠️ Hora inválida", description: "Usa formato HH:MM (ej: alarm 7:30 despertar)", icon: Icons.notepad, type: "info", exec: null });
+                }
+                results = newResults;
+                return;
+            }
+
+            newResults.push({ name: "🔔 Alarma — cómo usarlo", description: "alarm 8:00 · alarm 7:30 despertar · alarm 14:30 comida L M X J V · alarm clear", icon: Icons.notepad, type: "info", exec: null });
+            results = newResults;
+            return;
+        }
+
+        // ── Paquetes ──────────────────────────────────────────────────────────
+        var pkgMatch = query.match(/^(install|pacman|yay|flatpak|remove|update)\b\s*(.*)$/i);
+        if (pkgMatch) {
+            var pkgCmd = pkgMatch[1].toLowerCase();
+            var pkgArgs = (pkgMatch[2] || "").trim();
+
+            if (pkgCmd === "update") {
+                newResults.push({
+                    name: "🔄 Actualizar sistema",
+                    description: "Ejecutar sudo pacman -Syu",
+                    icon: Icons.notepad, type: "info",
+                    exec: function() { runCmd('echo "F200607" | sudo -S pacman -Syu --noconfirm'); }
+                });
+                results = newResults;
+                return;
+            }
+
+            if (pkgCmd === "remove") {
+                if (!pkgArgs) {
+                    newResults.push({ name: "🗑️ Especifica qué paquete desinstalar", description: "Ej: remove firefox", icon: Icons.notepad, type: "info", exec: null });
+                } else {
+                    var rmPkg = pkgArgs;
+                    newResults.push({
+                        name: "🗑️ Desinstalar «" + rmPkg + "»",
+                        description: "sudo pacman -R " + rmPkg,
+                        icon: Icons.notepad, type: "info",
+                        exec: function() { runCmd('echo "F200607" | sudo -S pacman -R --noconfirm ' + rmPkg); }
+                    });
+                }
+                results = newResults;
+                return;
+            }
+
+            if (!pkgArgs) {
+                newResults.push({ name: "📦 Especifica un paquete", description: "Ej: install firefox, pacman vim, yay chrome, flatpak spotify, remove vim, update", icon: Icons.notepad, type: "info", exec: null });
+                results = newResults;
+                return;
+            }
+
+            if (pkgCmd === "pacman") {
+                var pmPkg = pkgArgs;
+                newResults.push({
+                    name: "📦 Instalar «" + pmPkg + "» (pacman)",
+                    description: "sudo pacman -S " + pmPkg,
+                    icon: Icons.notepad, type: "info",
+                    exec: function() { runCmd('echo "F200607" | sudo -S pacman -S --noconfirm ' + pmPkg); }
+                });
+                results = newResults;
+                return;
+            }
+
+            if (pkgCmd === "yay") {
+                var yyPkg = pkgArgs;
+                newResults.push({
+                    name: "📦 Instalar «" + yyPkg + "» (AUR/yay)",
+                    description: "yay -S " + yyPkg,
+                    icon: Icons.notepad, type: "info",
+                    exec: function() { runCmd('echo "F200607" | sudo -S yay -S --noconfirm ' + yyPkg); }
+                });
+                results = newResults;
+                return;
+            }
+
+            if (pkgCmd === "flatpak") {
+                var fpParts = pkgArgs.match(/^(install|remove|search)\s+(.+)$/i);
+                if (fpParts) {
+                    var fpAction = fpParts[1].toLowerCase();
+                    var fpName2 = fpParts[2].trim();
+                    if (fpAction === "install") {
+                        var fpInstPkg = fpName2;
+                        newResults.push({
+                            name: "📦 Instalar «" + fpInstPkg + "» (flatpak)",
+                            description: "flatpak install " + fpInstPkg,
+                            icon: Icons.notepad, type: "info",
+                            exec: function() { runCmd('flatpak install -y flathub ' + fpInstPkg); }
+                        });
+                        results = newResults;
+                        return;
+                    } else if (fpAction === "remove") {
+                        var fpRmPkg = fpName2;
+                        newResults.push({
+                            name: "🗑️ Desinstalar «" + fpRmPkg + "» (flatpak)",
+                            description: "flatpak uninstall " + fpRmPkg,
+                            icon: Icons.notepad, type: "info",
+                            exec: function() { runCmd('flatpak uninstall -y ' + fpRmPkg); }
+                        });
+                        results = newResults;
+                        return;
+                    }
+                }
+                var fpQuery = pkgArgs;
+                newResults.push({
+                    name: "🔍 Buscar «" + fpQuery + "» en Flathub...",
+                    description: "Pulsa Enter para buscar en flatpak",
+                    icon: Icons.notepad, type: "info",
+                    exec: function() { _searchFlatpak(fpQuery, gen); }
+                });
+                results = newResults;
+                return;
+            }
+
+            if (pkgCmd === "install") {
+                var instPkg = pkgArgs;
+                if (!instPkg) {
+                    newResults.push({ name: "📦 Especifica un paquete", description: "Ej: install firefox, install vim, install spotify", icon: Icons.notepad, type: "info", exec: null });
+                    results = newResults;
+                } else if (instPkg === _lastSearchQuery) {
+                    // Ya buscamos este paquete (esté en curso o completado), no reiniciar
+                    return;
+                } else {
+                    _lastSearchQuery = instPkg;
+                    newResults.push({
+                        name: "🔍 Buscando «" + instPkg + "» en pacman, AUR y flatpak...",
+                        description: "Espera mientras se buscan los gestores compatibles",
+                        icon: Icons.notepad, type: "info",
+                        exec: null
+                    });
+                    results = newResults;
+                    _searchPackages(instPkg, gen);
+                }
+                return;
+            }
+        }
+
+        // ── Clima ────────────────────────────────────────────────────────────
+        var weatherMatch = query.match(/^(weather|tiempo|clima|w(?:eather)?)\b/i);
+        if (weatherMatch) {
+            if (weatherSearch) {
+                weatherSearch.running = false;
+                weatherSearch.destroy();
+                weatherSearch = null;
+            }
+            const loc = query.substring(weatherMatch[0].length).trim();
+            newResults.push({
+                name: "🌤 Consultando clima" + (loc ? " — " + loc : "") + "...",
+                description: "Obteniendo datos...",
+                icon: Icons.globe,
+                type: "info",
+                exec: null
+            });
+            results = newResults;
+            startWeatherSearch(loc, gen);
+            return;
+        }
+
+        // 1. Apps (ordenadas por uso — las que más abres primero)
         const appResults = AppSearch.fuzzyQuery(query);
+        var seenIds = {};
         for (const a of appResults.slice(0, 6)) {
+            if (seenIds[a.id]) continue;
+            seenIds[a.id] = true;
             newResults.push({
                 name: a.name,
                 description: a.comment || a.id || "",
-                icon: a.icon,  // ya viene validado por fuzzyQuery
+                icon: a.icon,
                 type: "app",
-                exec: () => a.execute()
+                exec: () => {
+                    UsageTracker.recordUsage(a.id);
+                    a.execute();
+                    Visibilities.setActiveModule("");
+                }
             });
         }
 
@@ -907,7 +1435,6 @@ PanelWindow {
         if (item && item.exec) {
             item.exec();
         }
-        Visibilities.setActiveModule("");
     }
 
     // ── Búsqueda de archivos ───────────────────────────────────────────────
@@ -999,17 +1526,442 @@ PanelWindow {
         proc.running = true;
     }
 
-    // ── Reset al abrirse ──────────────────────────────────────────────────
-    onSpotlightOpenChanged: {
-        if (spotlightOpen) {
-            Qt.callLater(() => {
-                searchInput.forceActiveFocus();
-                searchInput.clear();
-                searchText = "";
-                selectedIndex = 0;
-                cancelCmdProcess();
-                updateResults();
+    // ── Clima ────────────────────────────────────────────────────────────────
+    function startWeatherSearch(location, gen) {
+        if (weatherSearch) {
+            weatherSearch.running = false;
+            weatherSearch.destroy();
+            weatherSearch = null;
+        }
+
+        var proc = Qt.createQmlObject(
+            'import Quickshell.Io; Process { stdout: SplitParser {} }',
+            spotlight
+        );
+
+        // Usar ubicación por defecto si no se especificó una
+        var loc = location || WeatherService.defaultLocation;
+        var url = "https://wttr.in/" + encodeURIComponent(loc) + "?format=j1";
+
+        proc.command = ["bash", "-c", "curl -s --max-time 6 '" + url.replace(/'/g, "'\\''") + "'"];
+
+        var lines = [];
+        proc.stdout.onRead.connect(function(data) {
+            if (gen !== searchGeneration) return;
+            var line = data.trim();
+            if (line.length > 0) lines.push(line);
+        });
+
+        proc.onExited.connect(function(code) {
+            if (gen !== searchGeneration) {
+                proc.destroy();
+                if (weatherSearch === proc) weatherSearch = null;
+                return;
+            }
+
+            if (code === 0 && lines.length > 0) {
+                try {
+                    var json = JSON.parse(lines.join(""));
+                    results = formatWeatherResults(json, loc);
+                } catch(e) {
+                    results = [{
+                        name: "❌ Error al procesar datos",
+                        description: loc || "Intenta con otra ubicación",
+                        type: "info"
+                    }];
+                }
+            } else {
+                results = [{
+                    name: "❌ No se pudo obtener el clima",
+                    description: loc
+                        ? "Revisa el nombre de la ubicación o tu conexión"
+                        : "Revisa tu conexión a internet",
+                    type: "info"
+                }];
+            }
+            proc.destroy();
+            if (weatherSearch === proc) weatherSearch = null;
+        });
+
+        weatherSearch = proc;
+        proc.running = true;
+    }
+
+    function formatWeatherResults(json, location) {
+        var res = [];
+        var current = json.current_condition && json.current_condition[0];
+        var area = json.nearest_area && json.nearest_area[0];
+        var forecast = json.weather || [];
+
+        if (!current) {
+            res.push({ name: "❌ No hay datos", description: "Prueba otra ubicación", type: "info" });
+            return res;
+        }
+
+        var city = area ? area.areaName[0].value : (location || "Ubicación actual");
+        var country = area ? area.country[0].value : "";
+        var locStr = city + (country ? ", " + country : "");
+
+        var desc = (current.weatherDesc && current.weatherDesc[0]) ? current.weatherDesc[0].value : "";
+        var tempC = current.temp_C || "?";
+        var feelsLike = current.FeelsLikeC || "?";
+        var humidity = current.humidity || "?";
+        var wind = current.windspeedKmph || "?";
+        var windDir = current.winddir16Point || "";
+
+        // Emoji según condición
+        var emoji = "🌤️";
+        var d = desc.toLowerCase();
+        if (d.includes("sunny") || d.includes("clear")) emoji = "☀️";
+        else if (d.includes("partly")) emoji = "⛅";
+        else if (d.includes("cloud") && !d.includes("partly")) emoji = "☁️";
+        else if (d.includes("rain") || d.includes("drizzle") || d.includes("shower")) emoji = "🌧️";
+        else if (d.includes("thunder") || d.includes("storm")) emoji = "⛈️";
+        else if (d.includes("snow") || d.includes("sleet") || d.includes("ice")) emoji = "❄️";
+        else if (d.includes("fog") || d.includes("mist") || d.includes("haze")) emoji = "🌫️";
+        else if (d.includes("overcast")) emoji = "☁️";
+
+        // Resultado principal
+        res.push({
+            name: emoji + " " + tempC + "°C  " + desc + "  —  " + locStr,
+            description: "Sensación: " + feelsLike + "°C · Humedad: " + humidity + "% · Viento: " + wind + " km/h " + windDir,
+            icon: Icons.globe,
+            type: "info",
+            exec: function() {
+                Qt.openUrlExternally("https://wttr.in/" + encodeURIComponent(city));
+                Visibilities.setActiveModule("");
+            }
+        });
+
+        // Pronóstico próximos días
+        for (var fi = 0; fi < Math.min(forecast.length, 3); fi++) {
+            var day = forecast[fi];
+            if (!day.date) continue;
+            var dateObj = new Date(day.date);
+            var dayNames = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+            var dayName = dayNames[dateObj.getDay()] || "";
+            var maxT = day.maxtempC || "?";
+            var minT = day.mintempC || "?";
+            res.push({
+                name: dayName + " · " + "↗ " + maxT + "°C  ↘ " + minT + "°C",
+                description: "",
+                type: "info",
+                icon: Icons.apps
             });
         }
+
+        return res;
     }
+
+    // ═════════════════════════════════════════════════════════════════════
+    //  TIMERS
+    // ═════════════════════════════════════════════════════════════════════
+
+    function _fmtDur(totalSec) {
+        if (totalSec >= 3600) {
+            var h = Math.floor(totalSec / 3600);
+            var m = Math.floor((totalSec % 3600) / 60);
+            return h + "h " + (m < 10 ? "0" : "") + m + "m";
+        } else if (totalSec >= 60) {
+            var mm = Math.floor(totalSec / 60);
+            var ss = totalSec % 60;
+            return mm + ":" + (ss < 10 ? "0" : "") + ss;
+        }
+        return totalSec + "s";
+    }
+
+    function startTimer(label, seconds) {
+        if (seconds <= 0) return null;
+        var tId = _timerNextId++;
+        var t = {
+            id: tId,
+            label: label || ("Timer " + tId),
+            totalSeconds: seconds,
+            endTime: Date.now() + seconds * 1000,
+            createdAt: new Date().toLocaleTimeString()
+        };
+        var arr = activeTimers.slice();
+        arr.push(t);
+        activeTimers = arr;
+        return t;
+    }
+
+    function cancelTimer(target) {
+        if (typeof target === 'number') {
+            activeTimers = activeTimers.filter(function(t) { return t.id !== target; });
+        } else if (typeof target === 'string') {
+            activeTimers = activeTimers.filter(function(t) { return t.label !== target; });
+        }
+    }
+
+    function clearAllTimers() {
+        activeTimers = [];
+    }
+
+    function tickTimers() {
+        if (activeTimers.length === 0) return;
+        var now = Date.now();
+        var keep = [];
+        var done = [];
+        for (var i = 0; i < activeTimers.length; i++) {
+            var t = activeTimers[i];
+            if (now >= t.endTime) {
+                done.push(t);
+            } else {
+                keep.push(t);
+            }
+        }
+        if (done.length > 0) {
+            activeTimers = keep;
+            for (var j = 0; j < done.length; j++) {
+                _notifyTimerDone(done[j]);
+            }
+        }
+    }
+
+    // ═════════════════════════════════════════════════════════════════════
+    //  NOTIFICACIONES INLINE
+    // ═════════════════════════════════════════════════════════════════════
+
+    function addHaxNotification(type, label, body, notifObj) {
+        var nid = _haxNotifIdCounter++;
+        var entry = {
+            id: nid,
+            type: type,
+            label: label,
+            body: body,
+            ts: Date.now(),
+            icon: type === "timer" ? "⏰" : "🔔",
+            notifObj: notifObj
+        };
+        var arr = _haxNotifications.slice();
+        arr.push(entry);
+        _haxNotifications = arr;
+
+        if (!showHax) {
+            Visibilities.setActiveModule("spotlight");
+        }
+    }
+
+    function _dismissHaxNotif(id) {
+        _haxNotifications = _haxNotifications.filter(function(n) { return n.id !== id; });
+    }
+
+    function _notifyTimerDone(t) {
+        addHaxNotification("timer", t.label || "Timer",
+            "Finalizado — " + _fmtDur(t.totalSeconds), t
+        );
+    }
+
+    // ═════════════════════════════════════════════════════════════════════
+    //  ALARMAS
+    // ═════════════════════════════════════════════════════════════════════
+
+    function setAlarm(label, hour, minute, days) {
+        var aId = _alarmNextId++;
+        var a = {
+            id: aId,
+            label: label || ("Alarma " + aId),
+            hour: hour,
+            minute: minute,
+            days: days || [],
+            enabled: true,
+            lastTriggered: null
+        };
+        var arr = activeAlarms.slice();
+        arr.push(a);
+        activeAlarms = arr;
+        return a;
+    }
+
+    function cancelAlarm(target) {
+        if (typeof target === 'number') {
+            activeAlarms = activeAlarms.filter(function(a) { return a.id !== target; });
+        } else if (typeof target === 'string') {
+            activeAlarms = activeAlarms.filter(function(a) { return a.label !== target; });
+        }
+    }
+
+    function clearAllAlarms() {
+        activeAlarms = [];
+    }
+
+    function checkAlarms() {
+        if (activeAlarms.length === 0) return;
+        var now = new Date();
+        var h = now.getHours();
+        var m = now.getMinutes();
+        var day = now.getDay();
+        for (var i = 0; i < activeAlarms.length; i++) {
+            var a = activeAlarms[i];
+            if (!a.enabled) continue;
+            if (a.hour !== h || a.minute !== m) continue;
+            if (a.days.length > 0 && a.days.indexOf(day) < 0) continue;
+            var key = now.toDateString() + " " + h + ":" + m;
+            if (a.lastTriggered === key) continue;
+            a.lastTriggered = key;
+            _notifyAlarm(a);
+        }
+    }
+
+    function _notifyAlarm(a) {
+        var daysStr = a.days.length > 0 ? a.days.map(function(d) {
+            return ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"][d];
+        }).join(" ") : "Todos los días";
+        var timeStr = (a.hour < 10 ? "0" : "") + a.hour + ":" + (a.minute < 10 ? "0" : "") + a.minute;
+        addHaxNotification("alarm", a.label || "Alarma",
+            timeStr + " — " + daysStr, a
+        );
+    }
+
+    // ═════════════════════════════════════════════════════════════════════
+    //  BÚSQUEDA DE PAQUETES
+    // ═════════════════════════════════════════════════════════════════════
+
+    function _cancelPkgSearch() {
+        for (var pi = 0; pi < _pkgSearchProcesses.length; pi++) {
+            var p = _pkgSearchProcesses[pi];
+            if (p) { p.running = false; p.destroy(); }
+        }
+        _pkgSearchProcesses = [];
+        _lastSearchQuery = "";
+    }
+
+    function _searchPackages(query, gen) {
+        _cancelPkgSearch();
+        var safeQ = query.replace(/'/g, "'\\''");
+
+        // Un solo proceso con los 3 gestores secuenciales
+        var proc = Qt.createQmlObject('import Quickshell.Io; Process { stdout: SplitParser {} }', spotlight);
+        proc.command = ["bash", "-c",
+            "echo '===PACMAN==='; timeout 15 pacman -Ss '" + safeQ + "' 2>/dev/null | head -30"
+            + "; echo '===YAY==='; timeout 20 yay -Ss '" + safeQ + "' 2>/dev/null | head -30"
+            + "; echo '===FLATPAK==='; timeout 15 flatpak search '" + safeQ + "' 2>/dev/null | head -15"
+        ];
+        var rawLines = [];
+        proc.stdout.onRead.connect(function(data) {
+            if (gen !== searchGeneration) return;
+            // SplitParser emite cada línea sin \n, añadimos separador
+            rawLines.push(data);
+        });
+        proc.onExited.connect(function() {
+            proc.destroy();
+            if (gen !== searchGeneration) return;
+
+            var section = "";
+            var newRes = [];
+            var seenPkg = {}; // "nombre" → true (evita duplicados entre gestores)
+
+            function addPkg(nombre, descripcion, gestor, comando) {
+                var key = nombre + "|" + gestor;
+                if (seenPkg[key]) return;
+                seenPkg[key] = true;
+                newRes.push({
+                    name: "📦 " + nombre + " (" + gestor + ")",
+                    description: descripcion || gestor,
+                    icon: Icons.notepad, type: "info",
+                    exec: function() {
+                        runCmd(comando);
+                    }
+                });
+            }
+
+            for (var i = 0; i < rawLines.length; i++) {
+                var l = rawLines[i];
+
+                // Detectar cambio de sección
+                if (l === "===PACMAN===") { section = "pacman"; continue; }
+                if (l === "===YAY===") { section = "yay"; continue; }
+                if (l === "===FLATPAK===") { section = "flatpak"; continue; }
+                if (!l.trim()) continue;
+
+                if (section === "flatpak") {
+                    // flatpak search: "appid\tnombre\tsummary..."
+                    if (l.indexOf("\t") >= 0) {
+                        var fp = l.split("\t");
+                        var fId = (fp[0] || "").trim();
+                        var fName = (fp[1] || "").trim();
+                        var fDesc = (fp[2] || "").trim();
+                        // Usar nombre legible si existe
+                        var pkgName = fName || fId.split(".").pop() || fId;
+                        var pkgDesc = fDesc || fId;
+                        addPkg(pkgName, pkgDesc, "flatpak",
+                            "flatpak install -y flathub " + fId);
+                    }
+                } else if (section === "pacman" || section === "yay") {
+                    // pacman -Ss: "repo/nombre version ..."
+                    var m = l.match(/^(\S+)\/(\S+)\s/);
+                    if (m) {
+                        var repo = m[1];
+                        var pkg = m[2];
+                        // Obtener descripción de la siguiente línea (indentada)
+                        var desc = "";
+                        if (i + 1 < rawLines.length) {
+                            var next = rawLines[i + 1];
+                            if (next.length > 0 && next.charAt(0) === ' ') {
+                                desc = next.trim();
+                                i++;
+                            }
+                        }
+                        var gestor = section === "pacman" ? "pacman" : "AUR/yay";
+                        var sudoP = section === "pacman" ? "pacman" : "";
+                        addPkg(pkg, desc, gestor,
+                            sudoP
+                                ? "echo 'F200607' | sudo -S " + sudoP + " -S --noconfirm " + pkg
+                                : "yay -S --noconfirm " + pkg);
+                    }
+                }
+            }
+
+            if (newRes.length === 0) {
+                newRes.push({ name: "📦 No se encontraron paquetes para «" + query + "»", description: "Prueba con: pacman, yay o flatpak directamente", icon: Icons.notepad, type: "info", exec: null });
+            }
+            results = newRes;
+            _pkgSearchProcesses = [];
+        });
+        _pkgSearchProcesses = [proc];
+        proc.running = true;
+    }
+
+    function _searchFlatpak(query, gen) {
+        _cancelPkgSearch();
+
+        var allPkgs = [];
+        var safeQ = query.replace(/'/g, "'\\''");
+
+        var proc = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+        proc.command = ["bash", "-c", "flatpak search '" + safeQ + "' 2>/dev/null | head -10"];
+        var out = "";
+        proc.stdout.onRead.connect(function(data) { if (gen === searchGeneration) out += data; });
+        proc.onExited.connect(function() {
+            proc.destroy();
+            if (gen !== searchGeneration) return;
+            var lines = out.split("\n");
+            for (var fi = 0; fi < lines.length; fi++) {
+                var line = lines[fi].trim();
+                if (!line || line.indexOf("\t") < 0) continue;
+                var fpParts = line.split("\t");
+                var fpName = (fpParts[0] || "").trim();
+                var fpDesc = (fpParts[1] || "").trim();
+                if (!fpName) continue;
+                (function(cName, cDesc) {
+                    allPkgs.push({
+                        name: "📦 " + cName + " (flatpak)",
+                        description: cDesc || "Flatpak",
+                        icon: Icons.notepad, type: "info",
+                        exec: function() { runCmd('flatpak install -y flathub ' + cName); }
+                    });
+                })(fpName, fpDesc);
+            }
+            if (allPkgs.length > 0) {
+                results = allPkgs;
+            } else {
+                results = [{ name: "📦 No se encontraron paquetes en Flathub", description: "Prueba con: flatpak install " + query, icon: Icons.notepad, type: "info", exec: null }];
+            }
+            _pkgSearchProcesses = [];
+        });
+        _pkgSearchProcesses = [proc];
+        proc.running = true;
+    }
+
 }
