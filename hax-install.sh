@@ -27,6 +27,47 @@ log_error()   { echo -e "${RED}✖  $1${NC}" >&2; }
 
 has_cmd() { command -v "$1" >/dev/null 2>&1; }
 
+# ── Ayuda ──────────────────────────────────────────────────────
+usage() {
+  cat <<EOF
+Uso: $(basename "$0") [-t <directorio>] [-h]
+
+Instala Hax (spotlight/launcher) con todas sus dependencias.
+
+Opciones:
+  -t <directorio>   Ruta donde está tu shell basada en Ambxst
+                    (por defecto: \$AMBXST_SRC o ~/.local/src/ambxst)
+  -h                Muestra esta ayuda
+
+Ejemplos:
+  # Ambxst estándar
+  ./hax-install.sh
+
+  # Shell personalizada basada en Ambxst
+  ./hax-install.sh -t ~/Repos/mi-shell
+
+  # Misma ruta con variable de entorno
+  AMBXST_SRC=~/Repos/mi-shell ./hax-install.sh
+
+¿Cómo funciona?
+  Hax se inyecta en cualquier shell basada en Ambxst. No necesitas
+  tener Ambxst original — solo una shell que siga su misma estructura
+  de módulos (modules/widgets/spotlight, modules/services/, etc.).
+  Usa -t para apuntar a tu shell aunque sea un fork o custom.
+EOF
+  exit 0
+}
+
+# ── Parsear argumentos ─────────────────────────────────────────
+TARGET_DIR=""
+while getopts "t:h" opt; do
+  case "$opt" in
+    t) TARGET_DIR="$OPTARG" ;;
+    h) usage ;;
+    *) usage ;;
+  esac
+done
+
 # ── 1. Detectar distribución ──────────────────────────────────
 detect_distro() {
   [[ -f /etc/NIXOS ]] && echo "nixos" && return
@@ -38,41 +79,53 @@ detect_distro() {
 DISTRO=$(detect_distro)
 log_info "Distribución detectada: $DISTRO"
 
-# ── 2. Detectar / instalar Ambxst ─────────────────────────────
-AMBXST_SRC="${AMBXST_SRC:-$HOME/.local/src/ambxst}"
-
-install_ambxst() {
-  log_info "Ambxst no está instalado. Instalando..."
-  case "$DISTRO" in
-    arch|fedora|debian)
-      bash <(curl -sL get.axeni.de/ambxst)
-      ;;
-    nixos)
-      nix profile install github:Axenide/Ambxst --impure
-      ;;
-    *)
-      log_error "Distribución no soportada. Instala Ambxst manualmente."
-      exit 1
-      ;;
-  esac
-  log_success "Ambxst instalado correctamente."
-}
-
-if has_cmd ambxst || [[ -f /usr/local/bin/ambxst ]] || [[ -f "$HOME/.local/bin/ambxst" ]]; then
-  log_info "Ambxst ya está instalado."
+# ── 2. Determinar el directorio destino ───────────────────────
+if [[ -n "$TARGET_DIR" ]]; then
+  SHELL_SRC="$TARGET_DIR"
+  log_info "Usando directorio destino: $SHELL_SRC"
 else
-  install_ambxst
+  SHELL_SRC="${AMBXST_SRC:-$HOME/.local/src/ambxst}"
+
+  # Auto-detección: buscar shells basadas en Ambxst
+  if [[ ! -d "$SHELL_SRC" ]]; then
+    for candidate in "$HOME/.local/src/ambxst" "$HOME/.local/src/ax-shell" "$HOME/.local/src/mi-shell" "$HOME/Repos/ambxst" "$HOME/Repos/ax-shell"; do
+      if [[ -d "$candidate/modules/widgets" ]]; then
+        SHELL_SRC="$candidate"
+        log_info "Shell detectada en: $SHELL_SRC"
+        break
+      fi
+    done
+  fi
+
+  # Si no se encontró, preguntar
+  if [[ ! -d "$SHELL_SRC/modules/widgets" ]]; then
+    echo ""
+    log_warn "No se encontró ninguna shell basada en Ambxst."
+    echo ""
+    echo -e "${YELLOW}¿Dónde tienes tu shell?${NC}"
+    echo "Ejemplos:"
+    echo "  ~/.local/src/ambxst         (Ambxst original)"
+    echo "  ~/Repos/mi-shell            (tu fork personal)"
+    echo "  ~/.local/src/ax-shell       (Ax-shell)"
+    echo ""
+    read -r -p "👉 Ruta (o pulsa Enter para cancelar): " USER_PATH
+    echo ""
+    if [[ -z "$USER_PATH" ]]; then
+      log_error "Instalación cancelada."
+      exit 1
+    fi
+    SHELL_SRC="$USER_PATH"
+  fi
 fi
 
-# Si el source no existe, clonarlo
-if [[ ! -d "$AMBXST_SRC" ]]; then
-  log_info "Source de Ambxst no encontrado en $AMBXST_SRC. Clonando..."
-  mkdir -p "$(dirname "$AMBXST_SRC")"
-  git clone "https://github.com/fabiolopezperez-hue/ambxst-Hax.git" "$AMBXST_SRC"
-  log_success "ambxst-Hax clonado en $AMBXST_SRC."
+# Validar que exista
+if [[ ! -d "$SHELL_SRC/modules/widgets" ]]; then
+  log_error "No se encontró la estructura de módulos en $SHELL_SRC"
+  log_error "¿Seguro que es una shell basada en Ambxst? Debe contener modules/widgets/"
+  exit 1
 fi
 
-# ── 3. Verificar dependencias del sistema ─────────────────────
+log_success "Shell destino: $SHELL_SRC"
 log_info "Verificando dependencias del sistema..."
 
 DEPS_MISSING=()
@@ -121,27 +174,69 @@ else
   log_info "Todas las dependencias del sistema están presentes."
 fi
 
-# ── 4. Instalar / actualizar Hax + dependencias en Ambxst ─────
-log_info "Instalando Hax y sus dependencias en $AMBXST_SRC..."
+# ── 4. Verificar/instalar Ambxst (solo si es Ambxst original) ──
+if [[ "$SHELL_SRC" == "$HOME/.local/src/ambxst" ]] || [[ "$SHELL_SRC" == *"ambxst" ]]; then
+  if ! has_cmd ambxst && [[ ! -f /usr/local/bin/ambxst ]] && [[ ! -f "$HOME/.local/bin/ambxst" ]]; then
+    log_info "Ambxst no está instalado. Instalando..."
+    bash <(curl -sL get.axeni.de/ambxst)
+    log_success "Ambxst instalado correctamente."
+  else
+    log_info "Ambxst ya está instalado."
+  fi
 
-# Módulos
-cp -r "$REPO_DIR/modules/widgets/spotlight"   "$AMBXST_SRC/modules/widgets/"
-cp -r "$REPO_DIR/modules/services/"*          "$AMBXST_SRC/modules/services/"
-cp -r "$REPO_DIR/modules/globals/"*           "$AMBXST_SRC/modules/globals/"
-cp -r "$REPO_DIR/modules/theme/"*             "$AMBXST_SRC/modules/theme/"
-cp -r "$REPO_DIR/modules/components/"*        "$AMBXST_SRC/modules/components/"
+  # Si el source no existe y es Ambxst, clonar el repo
+  if [[ ! -d "$SHELL_SRC" ]]; then
+    log_info "Source no encontrado en $SHELL_SRC. Clonando ambxst-Hax..."
+    mkdir -p "$(dirname "$SHELL_SRC")"
+    git clone "https://github.com/fabiolopezperez-hue/ambxst-Hax.git" "$SHELL_SRC"
+    log_success "ambxst-Hax clonado en $SHELL_SRC."
+  fi
+else
+  log_info "Shell personalizada detectada — saltando instalación de Ambxst."
+fi
 
-# Config
-cp -r "$REPO_DIR/config/Config.qml"           "$AMBXST_SRC/config/Config.qml"
-cp -r "$REPO_DIR/config/defaults/"*           "$AMBXST_SRC/config/defaults/"
+# ── 5. Instalar Hax + dependencias en la shell ────────────────
+log_info "Instalando Hax en $SHELL_SRC..."
 
-# Entry point
-cp "$REPO_DIR/shell.qml"                      "$AMBXST_SRC/shell.qml"
+# Crear estructura de directorios si no existe
+mkdir -p "$SHELL_SRC/modules/widgets"
+mkdir -p "$SHELL_SRC/modules/services"
+mkdir -p "$SHELL_SRC/modules/globals"
+mkdir -p "$SHELL_SRC/modules/theme"
+mkdir -p "$SHELL_SRC/modules/components"
+mkdir -p "$SHELL_SRC/config/defaults"
 
-log_success "Hax y todas sus dependencias instalados en $AMBXST_SRC."
+# Módulos propios de Hax
+cp -r "$REPO_DIR/modules/widgets/spotlight"   "$SHELL_SRC/modules/widgets/"
 
-# ── 5. Configurar atajo de teclado (Super + /) ────────────────
-HAX_BIND="bind = SUPER, slash, exec, qs -p \"$AMBXST_SRC/modules/widgets/spotlight/SpotlightView.qml\""
+# Dependencias (servicios, theme, etc.)
+cp    "$REPO_DIR/modules/services/"*.qml      "$SHELL_SRC/modules/services/" 2>/dev/null || true
+cp    "$REPO_DIR/modules/globals/"*.qml       "$SHELL_SRC/modules/globals/" 2>/dev/null || true
+cp    "$REPO_DIR/modules/theme/"*.qml         "$SHELL_SRC/modules/theme/" 2>/dev/null || true
+cp    "$REPO_DIR/modules/components/"*.qml    "$SHELL_SRC/modules/components/" 2>/dev/null || true
+
+# Config (preservar la existente si la hay)
+if [[ -f "$SHELL_SRC/config/Config.qml" ]]; then
+  log_info "Config.qml ya existe — no se sobrescribe."
+  log_info "  Revisa manualmente si necesitas fusionar los cambios de Hax."
+else
+  cp "$REPO_DIR/config/Config.qml" "$SHELL_SRC/config/Config.qml"
+fi
+
+cp -n "$REPO_DIR/config/defaults/"*.js "$SHELL_SRC/config/defaults/" 2>/dev/null || true
+
+# Entry point (solo si no existe)
+if [[ ! -f "$SHELL_SRC/shell.qml" ]]; then
+  cp "$REPO_DIR/shell.qml" "$SHELL_SRC/shell.qml"
+  log_info "shell.qml creado como entry point con el Loader de Hax."
+else
+  log_info "shell.qml ya existe — no se sobrescribe."
+fi
+
+log_success "Hax instalado en $SHELL_SRC."
+
+# ── 6. Configurar atajo de teclado (Super + /) ────────────────
+HAX_BIND="bind = SUPER, slash, exec, qs -p \"$SHELL_SRC/modules/widgets/spotlight/SpotlightView.qml\""
 HYPR_CONFIG="$HOME/.config/hypr/hyprland.conf"
 
 if [[ -f "$HYPR_CONFIG" ]]; then
@@ -158,11 +253,18 @@ else
   echo "  $HAX_BIND"
 fi
 
-# ── 6. Mensaje final ─────────────────────────────────────────
+# ── 7. Mensaje final ─────────────────────────────────────────
 echo ""
 log_success "¡Instalación completada! 🎯"
+echo ""
+echo -e "${GREEN}📌  Hax está listo en:${NC}"
+echo -e "    $SHELL_SRC/modules/widgets/spotlight/SpotlightView.qml"
+echo ""
 echo -e "Presiona ${GREEN}Super + /${NC} para abrir Hax."
 echo -e "Si ya tienes Hyprland corriendo: ${BLUE}hyprctl reload${NC}"
 echo ""
-echo -e "${YELLOW}📌  Para lanzar Hax manualmente:${NC}"
-echo -e "    ${BLUE}qs -p $AMBXST_SRC/modules/widgets/spotlight/SpotlightView.qml${NC}"
+echo -e "${YELLOW}🔄  Para lanzar Hax manualmente:${NC}"
+echo -e "    ${BLUE}qs -p $SHELL_SRC/modules/widgets/spotlight/SpotlightView.qml${NC}"
+echo ""
+echo -e "${YELLOW}💡  ¿Usas un fork?${NC} La próxima vez puedes hacer:"
+echo -e "    ${BLUE}$(basename "$0") -t $SHELL_SRC${NC}"
