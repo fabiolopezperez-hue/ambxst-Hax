@@ -500,12 +500,28 @@ PanelWindow {
 
                         // Salida del comando
                         Flickable {
+                            id: cmdFlickable
                             width: parent.width
                             height: Math.min(cmdOutput.length * 20 + 8, 440)
                             contentHeight: cmdOutputText.length > 0
                                 ? cmdOutput.length * 20 + 8
                                 : 0
                             clip: true
+
+                            // Capturar rueda del mouse en cualquier parte de la terminal para hacer scroll
+                            MouseArea {
+                                anchors.fill: parent
+                                propagateComposedEvents: true
+                                preventStealing: false
+                                onWheel: (wheel) => {
+                                    // Desplazamiento suave con la rueda
+                                    var speed = 0.5;
+                                    cmdFlickable.contentY = Math.max(0, Math.min(
+                                        cmdFlickable.contentHeight - cmdFlickable.height,
+                                        cmdFlickable.contentY - wheel.angleDelta.y * speed
+                                    ));
+                                }
+                            }
 
                             Text {
                                 id: cmdOutputDisplay
@@ -519,12 +535,12 @@ PanelWindow {
                             }
 
                             ScrollBar.vertical: ScrollBar {
-                                width: 4
+                                width: 8
                                 policy: ScrollBar.AsNeeded
                                 contentItem: Rectangle {
-                                    radius: 2
+                                    radius: 4
                                     color: Styling.srItem("overprimary")
-                                    opacity: 0.3
+                                    opacity: 0.6
                                 }
                             }
                         }
