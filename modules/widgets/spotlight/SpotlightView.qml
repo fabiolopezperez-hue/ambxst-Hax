@@ -262,7 +262,9 @@ PanelWindow {
         // ── Altura total dinámica del Hax (depende de resultados) ──────────
         readonly property real fullHeight: 56 + 32
             + (cmdProcess !== null || isCommandMode || _lastCmdVisible || _forceTerminal
-                ? 8 + 36 + Math.min(cmdOutput.length * 20 + 20, 460)
+                ? cmdProcess !== null
+                    ? 8 + Math.max(240, 36 + Math.min(cmdOutput.length * 20 + 20, 460))
+                    : 8 + 36 + Math.min(cmdOutput.length * 20 + 20, 460)
                 : 0)
             + (_haxNotifications.length > 0
                 ? 8 + Math.min(_haxNotifications.length * 56 + 16, 200)
@@ -398,7 +400,9 @@ PanelWindow {
                     id: cmdContainer
                     width: contentColumn.width
                     height: isCommandMode || cmdProcess !== null || _lastCmdVisible || _forceTerminal
-                        ? 36 + Math.min(cmdOutput.length * 20 + 20, 460)
+                        ? cmdProcess !== null
+                            ? Math.max(240, 36 + Math.min(cmdOutput.length * 20 + 20, 460))
+                            : 36 + Math.min(cmdOutput.length * 20 + 20, 460)
                         : 0
                     variant: "pane"
                     radius: Styling.radius(12)
@@ -407,7 +411,7 @@ PanelWindow {
                     visible: opacity > 0
 
                     Behavior on height {
-                        enabled: Config.animDuration > 0
+                        enabled: Config.animDuration > 0 && cmdProcess === null
                         NumberAnimation {
                             duration: Config.animDuration * 3
                             easing.type: Easing.OutQuint
