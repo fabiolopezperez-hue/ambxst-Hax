@@ -4,8 +4,18 @@ set -euo pipefail
 # ═══════════════════════════════════════════════════════════════
 # Hax — Installer
 # ═══════════════════════════════════════════════════════════════
-# Instala Ambxst (si no está presente) y configura Hax,
-# el spotlight/launcher modular para Wayland.
+# Instala Hax (el spotlight/launcher de Axenide) con todas
+# sus dependencias sobre Ambxst.
+#
+# ¿Qué instala?
+#   • Hax (SpotlightView.qml) — buscador universal
+#   • Servicios: Visibilities, GlobalShortcuts, LockscreenService,
+#     Screenshot, WeatherService, AppSearch, AxctlService, SuspendManager
+#   • GlobalStates
+#   • Theme: Colors, Icons, Styling
+#   • Componentes: StyledRect
+#   • Config + defaults
+#   • shell.qml (entry point con el Loader de Hax)
 # ═══════════════════════════════════════════════════════════════
 
 REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -28,8 +38,10 @@ detect_distro() {
 DISTRO=$(detect_distro)
 log_info "Distribución detectada: $DISTRO"
 
-# ── 2. Instalar Ambxst si no está ─────────────────────────────
-if ! has_cmd ambxst && [[ ! -f /usr/local/bin/ambxst ]] && [[ ! -f "$HOME/.local/bin/ambxst" ]]; then
+# ── 2. Detectar / instalar Ambxst ─────────────────────────────
+AMBXST_SRC="${AMBXST_SRC:-$HOME/.local/src/ambxst}"
+
+install_ambxst() {
   log_info "Ambxst no está instalado. Instalando..."
   case "$DISTRO" in
     arch|fedora|debian)
@@ -44,12 +56,24 @@ if ! has_cmd ambxst && [[ ! -f /usr/local/bin/ambxst ]] && [[ ! -f "$HOME/.local
       ;;
   esac
   log_success "Ambxst instalado correctamente."
-else
+}
+
+if has_cmd ambxst || [[ -f /usr/local/bin/ambxst ]] || [[ -f "$HOME/.local/bin/ambxst" ]]; then
   log_info "Ambxst ya está instalado."
+else
+  install_ambxst
 fi
 
-# ── 3. Verificar dependencias de Hax ──────────────────────────
-log_info "Verificando dependencias de Hax..."
+# Si el source no existe, clonarlo
+if [[ ! -d "$AMBXST_SRC" ]]; then
+  log_info "Source de Ambxst no encontrado en $AMBXST_SRC. Clonando..."
+  mkdir -p "$(dirname "$AMBXST_SRC")"
+  git clone "https://github.com/fabiolopezperez-hue/ambxst-Hax.git" "$AMBXST_SRC"
+  log_success "ambxst-Hax clonado en $AMBXST_SRC."
+fi
+
+# ── 3. Verificar dependencias del sistema ─────────────────────
+log_info "Verificando dependencias del sistema..."
 
 DEPS_MISSING=()
 
@@ -63,13 +87,13 @@ if ! has_cmd qs; then
 fi
 
 # Herramientas esenciales para Hax
-ESSENTIAL_TOOLS=(fuzzel grim slurp jq playerctl wl-clipboard brightnessctl)
+ESSENTIAL_TOOLS=(grim slurp jq playerctl wl-clipboard brightnessctl)
 for tool in "${ESSENTIAL_TOOLS[@]}"; do
   has_cmd "$tool" || DEPS_MISSING+=("$tool")
 done
 
 if [[ ${#DEPS_MISSING[@]} -gt 0 ]]; then
-  log_info "Instalando dependencias faltantes: ${DEPS_MISSING[*]}"
+  log_info "Instalando dependencias: ${DEPS_MISSING[*]}"
   case "$DISTRO" in
     arch)
       AUR_HELPER=""
@@ -89,31 +113,35 @@ if [[ ${#DEPS_MISSING[@]} -gt 0 ]]; then
       sudo dnf install -y "${DEPS_MISSING[@]}"
       ;;
     *)
-      log_warn "Instala las dependencias manualmente: ${DEPS_MISSING[*]}"
+      log_warn "Instala manualmente: ${DEPS_MISSING[*]}"
       ;;
   esac
-  log_success "Dependencias instaladas."
+  log_success "Dependencias del sistema instaladas."
 else
-  log_info "Todas las dependencias están presentes."
+  log_info "Todas las dependencias del sistema están presentes."
 fi
 
-# ── 4. Instalar Hax (spotlight module) ────────────────────────
-INSTALL_PATH="$HOME/.local/src/ambxst"
+# ── 4. Instalar / actualizar Hax + dependencias en Ambxst ─────
+log_info "Instalando Hax y sus dependencias en $AMBXST_SRC..."
 
-if [[ -d "$INSTALL_PATH" ]]; then
-  log_info "Actualizando módulo Hax en Ambxst..."
-  cp -r "$REPO_DIR/modules/widgets/spotlight" "$INSTALL_PATH/modules/widgets/"
-  log_success "Hax actualizado."
-else
-  log_warn "No se encontró Ambxst en $INSTALL_PATH."
-  log_info "Clonando Ambxst con Hax integrado..."
-  mkdir -p "$(dirname "$INSTALL_PATH")"
-  git clone "https://github.com/fabiolopezperez-hue/ambxst-Hax.git" "$INSTALL_PATH"
-  log_success "Ambxst + Hax clonados en $INSTALL_PATH."
-fi
+# Módulos
+cp -r "$REPO_DIR/modules/widgets/spotlight"   "$AMBXST_SRC/modules/widgets/"
+cp -r "$REPO_DIR/modules/services/"*          "$AMBXST_SRC/modules/services/"
+cp -r "$REPO_DIR/modules/globals/"*           "$AMBXST_SRC/modules/globals/"
+cp -r "$REPO_DIR/modules/theme/"*             "$AMBXST_SRC/modules/theme/"
+cp -r "$REPO_DIR/modules/components/"*        "$AMBXST_SRC/modules/components/"
+
+# Config
+cp -r "$REPO_DIR/config/Config.qml"           "$AMBXST_SRC/config/Config.qml"
+cp -r "$REPO_DIR/config/defaults/"*           "$AMBXST_SRC/config/defaults/"
+
+# Entry point
+cp "$REPO_DIR/shell.qml"                      "$AMBXST_SRC/shell.qml"
+
+log_success "Hax y todas sus dependencias instalados en $AMBXST_SRC."
 
 # ── 5. Configurar atajo de teclado (Super + /) ────────────────
-HAX_BIND='bind = SUPER, slash, exec, qs -p "$HOME/.local/src/ambxst/modules/widgets/spotlight/SpotlightView.qml"'
+HAX_BIND="bind = SUPER, slash, exec, qs -p \"$AMBXST_SRC/modules/widgets/spotlight/SpotlightView.qml\""
 HYPR_CONFIG="$HOME/.config/hypr/hyprland.conf"
 
 if [[ -f "$HYPR_CONFIG" ]]; then
@@ -130,7 +158,11 @@ else
   echo "  $HAX_BIND"
 fi
 
+# ── 6. Mensaje final ─────────────────────────────────────────
 echo ""
 log_success "¡Instalación completada! 🎯"
 echo -e "Presiona ${GREEN}Super + /${NC} para abrir Hax."
 echo -e "Si ya tienes Hyprland corriendo: ${BLUE}hyprctl reload${NC}"
+echo ""
+echo -e "${YELLOW}📌  Para lanzar Hax manualmente:${NC}"
+echo -e "    ${BLUE}qs -p $AMBXST_SRC/modules/widgets/spotlight/SpotlightView.qml${NC}"
