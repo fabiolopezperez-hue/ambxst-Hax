@@ -9,21 +9,32 @@
 ## 📸 Galería
 
 <p align="center">
-  <img src="screenshots/hax-search-bar.png" alt="Hax — Barra de búsqueda" width="620">
+  <img src="screenshots/hax-search-bar.png" width="620">
 </p>
 
 <p align="center">
-  <img src="screenshots/hax-terminal.png" alt="Hax — Terminal integrada" width="620"> 
+  <img src="screenshots/hax-terminal.png" width="620"> 
   <br>
   <em>Búsqueda de apps, paquetes, comandos y más</em>
 </p>
 
 <p align="center">
- <img src="screenshots/hax-results.png" alt="Hax — Resultados de búsqueda" width="620">
+ <img src="screenshots/hax-results.png" width="620">
   <br>
   <em>Terminal integrada: ejecuta comandos con / y muestra la salida en vivo</em>
 </p>
 
+<p align="center">
+ <img src="screenshots/new-animation-Hax.mp4" width="620">
+  <br>
+  <em>Video: Demostracion de la nueva animacion que tiene el buscador inspirada en el Spotlight del **ipadOS 27**</em>
+</p>
+
+<p align="center">
+ <img src="screenshots/new-functions-Hax.mp4" width="620">
+  <br>
+  <em>Video: Demostracion del poder que tiene **Hax** y showcase de funciones implementadas recientemente</em>
+</p>
 ---
 
 ## ✨ Características
