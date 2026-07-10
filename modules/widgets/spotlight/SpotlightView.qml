@@ -260,7 +260,7 @@ PanelWindow {
 
         // ── Altura total dinámica del Hax (depende de resultados) ──────────
         readonly property real fullHeight: 56 + 32
-            + (cmdProcess !== null || isCommandMode
+            + (cmdProcess !== null || isCommandMode || _lastCmdVisible
                 ? 8 + 36 + Math.min(cmdOutput.length * 20 + 20, 460)
                 : 0)
             + (_haxNotifications.length > 0
@@ -280,7 +280,7 @@ PanelWindow {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.margins: 16
-            spacing: (results.length > 0 || cmdProcess !== null || isCommandMode || _haxNotifications.length > 0) ? 8 : 0
+            spacing: (results.length > 0 || cmdProcess !== null || isCommandMode || _lastCmdVisible || _haxNotifications.length > 0) ? 8 : 0
 
                 // ── Campo de búsqueda ──────────────────────────────────────────
                 StyledRect {
