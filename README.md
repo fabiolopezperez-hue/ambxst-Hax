@@ -13,13 +13,13 @@
 </p>
 
 <p align="center">
-  <img src="screenshots/hax-results.png" alt="Hax — Resultados de búsqueda" width="620">
+  <img src="screenshots/hax-terminal.png" alt="Hax — Terminal integrada" width="620"> 
   <br>
   <em>Búsqueda de apps, paquetes, comandos y más</em>
 </p>
 
 <p align="center">
-  <img src="screenshots/hax-terminal.png" alt="Hax — Terminal integrada" width="620">
+ <img src="screenshots/hax-results.png" alt="Hax — Resultados de búsqueda" width="620">
   <br>
   <em>Terminal integrada: ejecuta comandos con / y muestra la salida en vivo</em>
 </p>
