@@ -61,6 +61,7 @@ PanelWindow {
             results = [];
             cmdOutput = [];
             cmdOutputText = "";
+            _forceTerminal = false;
             _lastCmdVisible = false;
             _cmdLastLine = "";
             _cmdBusyTimer.running = false;
@@ -162,6 +163,7 @@ PanelWindow {
     property var cmdOutput: []         // líneas de salida capturadas
     property string cmdOutputText: ""  // salida como texto plano (forza bindings en QML)
     property bool _lastCmdVisible: false  // mantiene terminal visible tras finalizar
+    property bool _forceTerminal: false   // fuerza terminal visible durante/después de runCmd
     readonly property bool isCommandMode: searchText.trim().startsWith("/")
 
     // ── Clima ───────────────────────────────────────────────────────────────
@@ -260,7 +262,7 @@ PanelWindow {
 
         // ── Altura total dinámica del Hax (depende de resultados) ──────────
         readonly property real fullHeight: 56 + 32
-            + (cmdProcess !== null || isCommandMode || _lastCmdVisible
+            + (cmdProcess !== null || isCommandMode || _lastCmdVisible || _forceTerminal
                 ? 8 + 36 + Math.min(cmdOutput.length * 20 + 20, 460)
                 : 0)
             + (_haxNotifications.length > 0
@@ -280,7 +282,7 @@ PanelWindow {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.margins: 16
-            spacing: (results.length > 0 || cmdProcess !== null || isCommandMode || _lastCmdVisible || _haxNotifications.length > 0) ? 8 : 0
+            spacing: (results.length > 0 || cmdProcess !== null || isCommandMode || _lastCmdVisible || _forceTerminal || _haxNotifications.length > 0) ? 8 : 0
 
                 // ── Campo de búsqueda ──────────────────────────────────────────
                 StyledRect {
@@ -396,13 +398,13 @@ PanelWindow {
                 StyledRect {
                     id: cmdContainer
                     width: contentColumn.width
-                    height: isCommandMode || cmdProcess !== null || _lastCmdVisible
+                    height: isCommandMode || cmdProcess !== null || _lastCmdVisible || _forceTerminal
                         ? 36 + Math.min(cmdOutput.length * 20 + 20, 460)
                         : 0
                     variant: "pane"
                     radius: Styling.radius(12)
                     clip: true
-                    opacity: (cmdProcess !== null || isCommandMode || _lastCmdVisible) ? 1 : 0
+                    opacity: (cmdProcess !== null || isCommandMode || _lastCmdVisible || _forceTerminal) ? 1 : 0
                     visible: opacity > 0
 
                     Behavior on height {
@@ -833,6 +835,7 @@ PanelWindow {
 
         if (cmd.trim().length === 0) return;
 
+        _forceTerminal = true;  // <-- FORZAR terminal visible desde ya
         cmdOutput = [];
         cmdOutputText = "";
         _cmdLastLine = "";
@@ -884,6 +887,7 @@ PanelWindow {
 
         proc.onExited.connect(function(code) {
             _cmdBusyTimer.running = false;
+            _forceTerminal = false;  // <-- ya no hace falta, _lastCmdVisible lo mantiene
             var arr = cmdOutput;
             // Si no hubo salida, mostrar el error directamente
             if (arr.length === 0) {
@@ -930,6 +934,7 @@ PanelWindow {
 
     function cancelCmdProcess() {
         _cmdBusyTimer.running = false;
+        _forceTerminal = false;
         _lastCmdVisible = false;
         if (cmdProcess) {
             cmdProcess.running = false;
