@@ -1268,9 +1268,12 @@ PanelWindow {
             if (pkgCmd === "update") {
                 newResults.push({
                     name: "🔄 Actualizar sistema",
-                    description: "Ejecutar sudo pacman -Syu (limpia lock si existe)",
+                    description: "Abre foot para ejecutar sudo pacman -Syu (evita congelar Hax)",
                     icon: Icons.notepad, type: "info",
-                    exec: function() { runCmd('echo "F200607" | sudo -S rm -f /var/lib/pacman/db.lck 2>/dev/null; echo "F200607" | sudo -S pacman -Syu --noconfirm'); }
+                    exec: function() {
+                        bash('foot -e sh -c "echo \\"F200607\\" | sudo -S rm -f /var/lib/pacman/db.lck 2>/dev/null; echo \\"F200607\\" | sudo -S pacman -Syu --noconfirm; echo; read -p \\\"Presiona Enter para cerrar...\\\""');
+                        Visibilities.setActiveModule("");
+                    }
                 });
                 results = newResults;
                 return;
