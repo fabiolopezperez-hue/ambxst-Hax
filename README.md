@@ -2,7 +2,7 @@
 
 **Hax** es un spotlight/launcher modular para shells Wayland basadas en **Ambxst**, construido con Quickshell y Qt QML. Inspirado en Spotlight de macOS, ofrece búsqueda instantánea de aplicaciones, archivos, cálculos inline, acciones rápidas del sistema, terminal integrada, timers, alarmas, instalación de paquetes, clima y mucho más — todo desde una interfaz limpia, rápida y nativa.
 
-> 💖 Este repo contiene **Hax + todas sus dependencias** (servicios, theme, config, componentes). También funciona en **forks y shells personalizadas** basadas en Ambxst.
+> Este repo contiene **Hax + todas sus dependencias** (servicios, theme, config, componentes). También funciona en **forks y shells personalizadas** basadas en Ambxst.
 
 ---
 
