@@ -851,8 +851,8 @@ PanelWindow {
         proc.workingDirectory = Quickshell.env("HOME") || "/tmp";
 
         proc.stdout.onRead.connect(function(data) {
+            var arr = cmdOutput.slice();  // clonar para que QML detecte cambio
             var lines = data.trim().split("\n");
-            var arr = cmdOutput;
             for (var i = 0; i < lines.length; i++) {
                 if (lines[i].length > 0) arr.push(lines[i]);
             }
@@ -862,7 +862,7 @@ PanelWindow {
 
         proc.onExited.connect(function(code) {
             _forceTerminal = false;
-            var arr = cmdOutput;
+            var arr = cmdOutput.slice();
             arr.push("✦ Hecho (código: " + code + ")");
             cmdOutput = arr;
             cmdOutputText = arr.join("\n");
