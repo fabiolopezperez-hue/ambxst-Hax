@@ -183,7 +183,7 @@ hl.bind("SUPER + Slash", hl.dsp.exec_cmd('qs -p "/ruta/a/tu-shell/modules/widget
 ## 🧱 Estructura del repo
 
 ```
-ambxst-Hax/
+`ambxst-Hax/
 ├── hax-install.sh                        # Instalador automático
 ├── shell.qml                             # Entry point (Loader de Hax)
 ├── version                               # Versión de Ambxst
@@ -253,7 +253,7 @@ ambxst-Hax/
     ├── hax-results.png
     ├── hax-terminal.png
     ├── new-animation-Hax.mp4
-    └── new-functions-Hax.mp4
+    └── new-functions-Hax.mp4`
 ```
 
 **Nota:** A diferencia de otros launchers, Hax es **monolítico** por diseño — todo el código vive en un solo archivo `SpotlightView.qml` (~2274 líneas). Esto evita la fragmentación y hace que sea fácil de mantener y modificar.
