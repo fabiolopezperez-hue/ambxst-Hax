@@ -2349,9 +2349,6 @@ PanelWindow {
                 type: "debug",
                 exec: function() {
                     spotlight.showDebug = true;
-                    searchInput.text = "";
-                    spotlight.searchText = "";
-                    spotlight.results = [];
                 }
             });
         }
