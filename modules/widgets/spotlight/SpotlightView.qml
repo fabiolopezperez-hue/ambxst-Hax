@@ -85,6 +85,7 @@ PanelWindow {
             openAnim.stop();
             stopMonitor();
             stopClipWatcher();
+            showPreview = false;
             closeAnim.start();
         }
     }
@@ -368,6 +369,9 @@ PanelWindow {
             + (showMonitor
                 ? 8 + 260
                 : 0)
+            + (showPreview
+                ? 8 + 300
+                : 0)
 
         // ── Contenido que aparece dentro mientras se transforma ────────────
         Column {
@@ -456,6 +460,8 @@ PanelWindow {
                             Keys.onEscapePressed: {
                                 if (spotlight.showMonitor) {
                                     spotlight.stopMonitor();
+                                } else if (spotlight.showPreview) {
+                                    spotlight.showPreview = false;
                                 } else if (text.length > 0) {
                                     clear();
                                 } else {
@@ -510,6 +516,8 @@ PanelWindow {
                                             var sel = spotlight.results[spotlight.selectedIndex];
                                             if (sel.type === "calc" || sel.type === "history") {
                                                 spotlight.copyResult(sel);
+                                            } else if (sel.type === "file") {
+                                                spotlight.openPreview(sel);
                                             } else if (sel.exec) {
                                                 spotlight.executeItem(sel);
                                             }
@@ -881,11 +889,21 @@ PanelWindow {
                                 anchors.fill: parent
                                 hoverEnabled: true
 
+                                // Hover → previsualiza el archivo en vivo (Quick Look)
+                                // dentro de la sección de previsualización.
+                                onEntered: {
+                                    if (modelData.type === "file") {
+                                        spotlight.openPreview(modelData);
+                                    }
+                                }
+
                                 onClicked: {
                                     spotlight.selectedIndex = index;
-                                    // Si tiene exec (stats, etc.) → ejecutar.
-                                    // History → copiar. Info sin exec → no hacer nada. Resto → ejecutar.
-                                    if (modelData.exec) {
+                                    // Archivo → previsualizar (Quick Look) dentro de Hax.
+                                    // History → copiar. Si tiene exec (stats, etc.) → ejecutar.
+                                    if (modelData.type === "file") {
+                                        spotlight.openPreview(modelData);
+                                    } else if (modelData.exec) {
                                         spotlight.executeItem(modelData);
                                     } else if (modelData.type === "history") {
                                         spotlight.copyResult(modelData);
@@ -1214,8 +1232,130 @@ PanelWindow {
                         }
                     }
                 }
+                // ── Previsualización rápida (Quick Look) ───────────────────────
+                // Dentro de contentColumn (en el flujo), igual que el Monitor.
+                // Cabecera (nombre + ruta) arriba + contenido (imagen/texto) abajo.
+                StyledRect {
+                    id: previewContainer
+                    width: contentColumn.width
+                    height: showPreview ? 300 : 0
+                    visible: showPreview
+                    variant: "pane"
+                    radius: Styling.radius(12)
+                    clip: true
+                    opacity: showPreview ? 1 : 0
+
+                    Behavior on height { NumberAnimation { duration: 200; easing.type: Easing.OutQuint } }
+                    Behavior on opacity { NumberAnimation { duration: 150 } }
+
+                    // Cabecera (nombre + ruta) — anclada arriba
+                    Column {
+                        id: previewHeaderCol
+                        anchors.top: parent.top
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.margins: 14
+                        spacing: 8
+
+                        RowLayout {
+                            width: parent.width
+                            spacing: 8
+
+                            Text {
+                                Layout.fillWidth: true
+                                text: "👁 " + (spotlight.previewName || "Quick Look")
+                                elide: Text.ElideRight
+                                font.bold: true
+                                font.pixelSize: Config.theme.fontSize + 1
+                                color: Styling.srItem("text")
+                            }
+
+                            Text {
+                                text: "✕"
+                                font.pixelSize: Config.theme.fontSize + 2
+                                font.bold: true
+                                color: Styling.srItem("text")
+                                opacity: 0.5
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: spotlight.showPreview = false
+                                    onEntered: parent.opacity = 1
+                                    onExited: parent.opacity = 0.5
+                                }
+                            }
+                        }
+
+                        Text {
+                            id: previewPathText
+                            width: parent.width
+                            text: previewPath
+                            font.family: "monospace"
+                            font.pixelSize: Config.theme.fontSize - 2
+                            color: Styling.srItem("overprimary")
+                            opacity: 0.7
+                            elide: Text.ElideMiddle
+                        }
+                    }
+
+                    // Contenido (imagen o texto) — rellena debajo de la cabecera
+                    Item {
+                        id: previewContent
+                        anchors.top: previewHeaderCol.bottom
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.bottom: parent.bottom
+                        anchors.margins: 14
+
+                        // Imagen — Image con layer.enabled para evitar el bug de Quickshell
+                        Image {
+                            id: previewImg
+                            anchors.fill: parent
+                            source: previewImageSrc
+                            fillMode: Image.PreserveAspectFit
+                            visible: previewType === "image"
+                            mipmap: true
+                            smooth: true
+                            layer.enabled: true
+                            layer.smooth: true
+                        }
+
+                        // Texto / binario
+                        Flickable {
+                            anchors.fill: parent
+                            contentHeight: previewTextArea.height
+                            clip: true
+                            visible: previewType !== "image"
+                            boundsBehavior: Flickable.StopAtBounds
+
+                            Text {
+                                id: previewTextArea
+                                width: parent.width
+                                text: previewText
+                                font.family: "monospace"
+                                font.pixelSize: Config.theme.fontSize - 2
+                                color: Styling.srItem("text")
+                                opacity: 0.85
+                                wrapMode: Text.WrapAnywhere
+                            }
+
+                            ScrollBar.vertical: ScrollBar {
+                                width: 6
+                                policy: ScrollBar.AsNeeded
+                                contentItem: Rectangle {
+                                    radius: 3
+                                    color: Styling.srItem("overprimary")
+                                    opacity: 0.4
+                                }
+                            }
+                        }
+                    }
+                }
+
             }
-        }
+                }
+
+
 
     // ── Terminal integrada ─────────────────────────────────────────────────
 
@@ -1288,6 +1428,9 @@ PanelWindow {
     // ── Lógica de búsqueda ─────────────────────────────────────────────────
 
     function updateResults() {
+        // Cerrar previsualización al cambiar la búsqueda
+        spotlight.showPreview = false;
+
         // En modo comando, no mostrar resultados normales
         if (isCommandMode) {
             results = [];
@@ -1923,6 +2066,55 @@ PanelWindow {
         }
     }
 
+    // ── Previsualización rápida (Quick Look) ─────────────────────────────
+    // Al pulsar Enter/clic sobre un archivo, muestra su contenido DENTRO de
+    // Hax (ruta + texto/imagen) sin cerrar el buscador.
+    function openPreview(item) {
+        if (!item || item.type !== "file") return;
+        var path = item.description || "";
+        if (!path) return;
+
+        spotlight.previewPath = path;
+        spotlight.previewName = item.name || (path.split("/").pop());
+        spotlight.previewType = "text";
+        spotlight.previewText = "Cargando…";
+        spotlight.previewImageSrc = "";
+        spotlight.showPreview = true;
+
+        var safePath = path.replace(/'/g, "'\\''");
+
+        // Imágenes: mostrar directamente (layer.enabled evita el bug de Quickshell
+        // que dibuja el Image file:// en (0,0) de la ventana).
+        if (path.match(/\.(png|jpe?g|gif|bmp|webp|svg)$/i)) {
+            spotlight.previewType = "image";
+            spotlight.previewImageSrc = "file://" + path;
+            spotlight.previewText = "";
+            return;
+        }
+
+        // Texto/binario: leer con cat, detectando binarios
+        var proc = Qt.createQmlObject(
+            'import Quickshell.Io; Process { stdout: SplitParser {} }',
+            spotlight
+        );
+        var lines = [];
+        proc.stdout.onRead.connect(function(d) { lines.push(d); });
+        proc.onExited.connect(function() {
+            var joined = lines.join("");
+            if (joined.indexOf("__BINARY__") !== -1) {
+                spotlight.previewType = "binary";
+                spotlight.previewText = "🔒 Archivo binario — no se puede previsualizar el contenido de texto.";
+            } else {
+                spotlight.previewType = "text";
+                spotlight.previewText = joined;
+            }
+            proc.destroy();
+        });
+        proc.command = ["bash", "-c",
+            "if file --mime-encoding -- '" + safePath + "' 2>/dev/null | grep -qi binary; then echo '__BINARY__'; else cat -- '" + safePath + "' 2>/dev/null | head -c 200000; fi"];
+        proc.running = true;
+    }
+
     function copyResult(item) {
         if (!item) return;
         var p = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
@@ -1960,6 +2152,14 @@ PanelWindow {
     }
 
     property string _copyFeedback: ""
+
+    // ── Previsualización rápida (Quick Look) ───────────────────────────────
+    property bool showPreview: false
+    property string previewPath: ""
+    property string previewName: ""
+    property string previewType: ""    // "image" | "text" | "binary"
+    property string previewText: ""
+    property string previewImageSrc: ""
 
     // ── Historial inteligente ──────────────────────────────────────────────
     property var _historyItems: []

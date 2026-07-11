@@ -60,6 +60,11 @@
 | 🗑️ **Desinstalar** | `remove paquete` |
 | 🌐 **Búsqueda web** | Cualquier texto que no sea comando se busca en Google |
 | 📖 **Ayuda integrada** | Escribe `ayuda`, `help` o `?` para ver todos los comandos |
+| 👁 **Vista rápida (Quick Look)** | Pasa el ratón o pulsa **Enter** sobre un archivo para previsualizarlo dentro de Hax: imágenes renderizadas en el panel y texto/binario leído al instante. Cierra con ✕ |
+| 📜 **Historial inteligente** | `historial`, `clip` o `portapapeles` muestra todo lo copiado, ordenado por uso, con borrado individual al hover |
+| 📋 **Copiar al portapapeles** | **Enter** copia el resultado, **Shift+Enter** lo ejecuta/abre. También Ctrl+C o el botón ⎘ al hover |
+| 🎯 **Autocompletado inline** | Mientras escribes, Hax sugiere en gris el resultado que coincide; acepta con **Tab** / **→** |
+| 🔍 **Google Lens** | `scripts/google_lens.sh` sube capturas a Google Lens para búsqueda visual |
 
 ---
 
@@ -183,6 +188,16 @@ hl.bind("SUPER + Slash", hl.dsp.exec_cmd('qs -p "/ruta/a/tu-shell/modules/widget
 
 
 ```
+### 👁 Vista rápida (Quick Look)
+
+Pasa el ratón por encima de un **archivo** en los resultados (o pulsa **Enter** / clic) y Hax lo **previsualiza dentro del propio buscador**, sin abrir nada externo:
+
+- 🖼️ **Imágenes** (`png`, `jpg`, `gif`, `webp`, `svg`…): se muestran dentro del panel, centradas y con su proporción.
+- 📄 **Texto**: se lee el contenido al instante (con `cat`) y se muestra con scroll.
+- 🔒 **Binarios**: avisan de que no se pueden previsualizar.
+
+El panel de previsualización aparece en el mismo sitio que el Monitor del sistema (abajo, integrado en el buscador) y se cierra con el botón **✕** o **Esc**.
+
 ## 🧱 Estructura del repo
 
 
@@ -228,7 +243,7 @@ ambxst-Hax/
 ├── modules/
 │   ├── widgets/spotlight/
 │   │   ├── qmldir                       # Registro del módulo
-│   │   └── SpotlightView.qml             # 🧠 Todo Hax (~2274 líneas)
+│   │   └── SpotlightView.qml             # 🧠 Todo Hax (~2852 líneas)
 │   ├── services/
 │   │   ├── AppSearch.qml                 # Búsqueda de apps
 │   │   ├── AxctlService.qml              # Abstracción del compositor
@@ -261,7 +276,7 @@ ambxst-Hax/
 
 **Nota:** A diferencia de otros launchers, Hax es **monolítico** por diseño — todo el código vive en un solo archivo `SpotlightView.qml` (~2274 líneas). Esto evita la fragmentación y hace que sea fácil de mantener y modificar.
 
-> El repo incluye archivos de **soporte** (`config/`, `assets/`, `modules/tools/`, `version`) para que Hax funcione correctamente incluso en shells personalizadas que no tengan estos archivos. Si tu shell ya los tiene, el instalador no los sobrescribe. En total, el repositorio autocontenido tiene **~13.259 líneas** de código entre QML, JS, JSON y scripts.
+> El repo incluye archivos de **soporte** (`config/`, `assets/`, `modules/tools/`, `version`) para que Hax funcione correctamente incluso en shells personalizadas que no tengan estos archivos. Si tu shell ya los tiene, el instalador no los sobrescribe. En total, el repositorio autocontenido tiene **~13.093 líneas** de código entre QML, JS, JSON y scripts.
 
 ---
 
@@ -285,6 +300,12 @@ El instalador:
 ---
 
 ## 📋 Changelog
+
+### v2.4 — Julio 2026
+
+- **👁 Vista rápida (Quick Look)** — Pasa el ratón o pulsa **Enter** sobre un archivo para previsualizarlo **dentro de Hax** (sin abrir nada externo). Imágenes renderizadas en el panel (centradas y con su proporción), texto leído al instante con `cat` y binarios marcados como no previsualizables. El panel se abre integrado en el buscador, en la misma posición que el Monitor del sistema, y se cierra con ✕ o **Esc**.
+- **🐛 Posición de la previsualización corregida** — El panel de Quick Look se renderizaba en la esquina superior izquierda de la ventana porque estaba fuera del flujo de layout (`contentColumn`). Ahora vive dentro de `contentColumn`, igual que el Monitor, así que aparece siempre en su sitio.
+- **🖼️ Imágenes sin escapes** — Se usa `layer.enabled` en el `Image` para evitar el bug de Quickshell que dibujaba las texturas `file://` en `(0,0)` de la ventana.
 
 ### v2.3 — Julio 2026
 
