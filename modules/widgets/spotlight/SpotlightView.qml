@@ -504,12 +504,16 @@ PanelWindow {
                                     } else if (event.modifiers & Qt.ShiftModifier) {
                                         spotlight.executeSelected();
                                     } else {
-                                        // Enter → copiar al portapapeles (solo si no es info)
+                                        // Enter → los "info" con acción (monitor) se ejecutan;
+                                        // el resto (apps, archivos, web, calc, history) se copia
                                         if (spotlight.selectedIndex >= 0 && spotlight.selectedIndex < spotlight.results.length) {
                                             var sel = spotlight.results[spotlight.selectedIndex];
-                                            if (sel.type !== "info") {
+                                            if (sel.type === "info" && sel.exec) {
+                                                spotlight.executeItem(sel);
+                                            } else if (sel.type !== "info") {
                                                 spotlight.copyResult(sel);
                                             }
+                                            // info sin exec → no hacer nada
                                         }
                                     }
                                     event.accepted = true;
@@ -879,11 +883,12 @@ PanelWindow {
 
                                 onClicked: {
                                     spotlight.selectedIndex = index;
-                                    // History: copiar. Info: no hacer nada. Resto: ejecutar.
-                                    if (modelData.type === "history") {
-                                        spotlight.copyResult(modelData);
-                                    } else if (modelData.type !== "info") {
+                                    // Si tiene exec (stats, etc.) → ejecutar.
+                                    // History → copiar. Info sin exec → no hacer nada. Resto → ejecutar.
+                                    if (modelData.exec) {
                                         spotlight.executeItem(modelData);
+                                    } else if (modelData.type === "history") {
+                                        spotlight.copyResult(modelData);
                                     }
                                 }
                             }
