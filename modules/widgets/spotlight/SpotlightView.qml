@@ -146,6 +146,13 @@ PanelWindow {
     // ── Estados internos ───────────────────────────────────────────────────
     property string searchText: ""
     property int selectedIndex: 0
+
+    // Seguir la selección en la lista de resultados (scroll automático)
+    onSelectedIndexChanged: {
+        if (resultsList && selectedIndex >= 0) {
+            resultsList.positionViewAtIndex(selectedIndex, ListView.Center);
+        }
+    }
     property var results: []
     property int searchGeneration: 0  // evita race conditions en async
     property string _lastSearchQuery: "" // última búsqueda de paquetes
@@ -357,11 +364,36 @@ PanelWindow {
                             }
 
                             Keys.onUpPressed: {
-                                if (spotlight.selectedIndex > 0) spotlight.selectedIndex--;
+                                if (cmdProcess !== null || _lastCmdVisible || _forceTerminal) {
+                                    // Scroll terminal
+                                    var ts = 60;
+                                    cmdFlickable.contentY = Math.max(0, cmdFlickable.contentY - ts);
+                                } else {
+                                    if (spotlight.selectedIndex > 0) {
+                                        spotlight.selectedIndex--;
+                                        if (resultsList) {
+                                            resultsList.positionViewAtIndex(spotlight.selectedIndex, ListView.Center);
+                                        }
+                                    }
+                                }
                             }
 
                             Keys.onDownPressed: {
-                                if (spotlight.selectedIndex < spotlight.results.length - 1) spotlight.selectedIndex++;
+                                if (cmdProcess !== null || _lastCmdVisible || _forceTerminal) {
+                                    // Scroll terminal
+                                    var ts = 60;
+                                    cmdFlickable.contentY = Math.min(
+                                        Math.max(0, cmdFlickable.contentHeight - cmdFlickable.height),
+                                        cmdFlickable.contentY + ts
+                                    );
+                                } else {
+                                    if (spotlight.selectedIndex < spotlight.results.length - 1) {
+                                        spotlight.selectedIndex++;
+                                        if (resultsList) {
+                                            resultsList.positionViewAtIndex(spotlight.selectedIndex, ListView.Center);
+                                        }
+                                    }
+                                }
                             }
 
                             // Tab → autocompletar con el primer resultado
@@ -665,9 +697,22 @@ PanelWindow {
                         id: resultsList
                         width: parent.width
                         height: parent.height
+                        clip: true
+                        boundsBehavior: Flickable.StopAtBounds
 
                         model: results
                         spacing: 2
+
+                        // Scrollbar vertical para la lista de resultados
+                        ScrollBar.vertical: ScrollBar {
+                            width: 6
+                            policy: ScrollBar.AsNeeded
+                            contentItem: Rectangle {
+                                radius: 3
+                                color: Styling.srItem("overprimary")
+                                opacity: 0.4
+                            }
+                        }
 
                         delegate: Item {
                             width: resultsList.width
@@ -821,18 +866,6 @@ PanelWindow {
                                 color: Styling.srItem("text")
                                 opacity: 0.06
                                 visible: index < results.length - 1
-                            }
-                        }
-
-                        // Scrollbar
-                        ScrollBar.vertical: ScrollBar {
-                            width: 6
-                            policy: ScrollBar.AsNeeded
-
-                            contentItem: Rectangle {
-                                radius: 3
-                                color: Styling.srItem("overprimary")
-                                opacity: 0.4
                             }
                         }
                     }
