@@ -177,9 +177,12 @@ hl.bind("SUPER + Slash", hl.dsp.exec_cmd('qs -p "/ruta/a/tu-shell/modules/widget
 |-------|--------|
 | Super + / | Abrir Hax |
 | ↑ / ↓ | Navegar resultados / scroll en terminal |
-| Enter | Abrir selección / ejecutar |
+| Enter | Copiar selección al portapapeles |
+| Shift+Enter | Abrir / ejecutar selección |
+| Ctrl+C | Copiar selección al portapapeles |
 | Tab / → | Aceptar sugerencia de autocompletado |
 | Esc | Cerrar / cerrar monitor |
+| historial / clip | Muestra el historial de copias |
 
 
 ```
