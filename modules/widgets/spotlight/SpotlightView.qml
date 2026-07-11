@@ -460,14 +460,6 @@ PanelWindow {
                                 }
                             }
 
-                            Keys.onReturnPressed: {
-                                if (spotlight.isCommandMode && text.trim().length > 1) {
-                                    spotlight.runCmd(text.trim().substring(1));
-                                } else {
-                                    spotlight.executeSelected();
-                                }
-                            }
-
                             Keys.onUpPressed: {
                                 if (cmdProcess !== null || _lastCmdVisible || _forceTerminal) {
                                     // Scroll terminal
@@ -501,9 +493,22 @@ PanelWindow {
                                 }
                             }
 
-                            // Tab / Flecha derecha → autocompletar
+                            // Enter, Tab, flecha derecha, Ctrl+C
                             Keys.onPressed: (event) => {
-                                if ((event.key === Qt.Key_Tab || event.key === Qt.Key_Right)
+                                if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                                    if (spotlight.isCommandMode && text.trim().length > 1) {
+                                        spotlight.runCmd(text.trim().substring(1));
+                                    } else if (event.modifiers & Qt.ShiftModifier) {
+                                        // Shift+Enter → ejecutar/abrir
+                                        spotlight.executeSelected();
+                                    } else {
+                                        // Enter → copiar al portapapeles
+                                        if (spotlight.selectedIndex >= 0 && spotlight.selectedIndex < spotlight.results.length) {
+                                            spotlight.copyResult(spotlight.results[spotlight.selectedIndex]);
+                                        }
+                                    }
+                                    event.accepted = true;
+                                } else if ((event.key === Qt.Key_Tab || event.key === Qt.Key_Right)
                                     && autoCompleteSuffix.length > 0
                                     && cursorPosition === text.length) {
                                     // Aceptar sugerencia
