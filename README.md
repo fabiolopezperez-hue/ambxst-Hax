@@ -288,6 +288,8 @@ El instalador:
 
 ### v2.3 — Julio 2026
 
+- **🧠 Historial inteligente** — Todo lo que copias con Enter o Ctrl+C se guarda automáticamente en `~/.local/share/hax/history.json`. Escribe `historial`, `clip` o `portapapeles` para verlo. También aparecen coincidencias del historial en cualquier búsqueda. Los items más usados salen primero (aprende de tu uso).
+- **📋 Copiar al portapapeles** — **Enter** copia el resultado seleccionado, **Shift+Enter** lo ejecuta/abre. También Ctrl+C o el botón **⎘** al hover. Apps → nombre, archivos → ruta (imágenes → la imagen), calculadora → resultado.
 - **🎯 Autocompletado inline** — Mientras escribes, Hax te sugiere en gris el nombre del resultado que coincide con lo que escribes. Acepta con **Tab** o **→**. Escanea **todos los resultados** (apps, archivos, webs...), no solo el primero. Así `virt` → sugiere `ualBox` aunque VirtualBox no sea el primer resultado.
 - **🐛 RAM stats corregido** — Mostraba valores incorrectos; ahora divide entre 1048576 (bytes → MB) en vez de 1024
 - **🌡️ Temperatura corregida** — Ya no se queda pillada en 20°C (sensor `acpitz`). Ahora lee `k10temp`/`coretemp`/`cpu_thermal` desde `/sys/class/hwmon/` para CPUs AMD/Intel
