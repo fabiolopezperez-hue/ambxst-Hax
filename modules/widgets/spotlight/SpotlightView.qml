@@ -480,6 +480,8 @@ PanelWindow {
                                         if (resultsList) {
                                             resultsList.positionViewAtIndex(spotlight.selectedIndex, ListView.Center);
                                         }
+                                        // Navegación por teclado → previsualiza el archivo (Quick Look)
+                                        spotlight._previewSelectedIfFile();
                                     }
                                 }
                             }
@@ -498,6 +500,8 @@ PanelWindow {
                                         if (resultsList) {
                                             resultsList.positionViewAtIndex(spotlight.selectedIndex, ListView.Center);
                                         }
+                                        // Navegación por teclado → previsualiza el archivo (Quick Look)
+                                        spotlight._previewSelectedIfFile();
                                     }
                                 }
                             }
@@ -887,16 +891,9 @@ PanelWindow {
                             MouseArea {
                                 id: mouseArea
                                 anchors.fill: parent
-                                hoverEnabled: true
 
-                                // Hover → previsualiza el archivo en vivo (Quick Look)
-                                // dentro de la sección de previsualización.
-                                onEntered: {
-                                    if (modelData.type === "file") {
-                                        spotlight.openPreview(modelData);
-                                    }
-                                }
-
+                                // Hax es 100% teclado: el ratón NO dispara la previsualización.
+                                // (El ratón solo se usa en el Historial para borrar copias antiguas.)
                                 onClicked: {
                                     spotlight.selectedIndex = index;
                                     // Archivo → previsualizar (Quick Look) dentro de Hax.
@@ -1374,7 +1371,11 @@ PanelWindow {
             spotlight
         );
 
-        proc.command = ["bash", "-c", cmd + " 2>&1"];
+        // Usar el shell por defecto del usuario en modo interactivo (-i) para
+        // respetar sus alias (p. ej. los de fish en config.fish / fish_greeting.fish).
+        // Probado: `fish -i -c` carga los alias y no escupe el saludo en la salida.
+        var shellBin = Quickshell.env("SHELL") || "bash";
+        proc.command = [shellBin, "-i", "-c", cmd + " 2>&1"];
         proc.workingDirectory = Quickshell.env("HOME") || "/tmp";
 
         proc.stdout.onRead.connect(function(data) {
@@ -2063,6 +2064,18 @@ PanelWindow {
     function executeItem(item) {
         if (item && item.exec) {
             item.exec();
+        }
+    }
+
+    // Previsualiza (Quick Look) el archivo actualmente resaltado, si lo es.
+    // Se usa al navegar con las flechas del teclado, para no depender del ratón.
+    function _previewSelectedIfFile() {
+        if (selectedIndex >= 0 && selectedIndex < results.length) {
+            var sel = results[selectedIndex];
+            if (sel && sel.type === "file") {
+                var p = sel.description || "";
+                if (p && p !== spotlight.previewPath) openPreview(sel);
+            }
         }
     }
 
