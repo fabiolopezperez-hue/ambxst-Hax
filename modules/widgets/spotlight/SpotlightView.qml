@@ -463,7 +463,7 @@ PanelWindow {
             + (_haxNotifications.length > 0
                 ? 8 + Math.min(_haxNotifications.length * 56 + 16, 200)
                 : 0)
-            + (results.length > 0 && !isCommandMode && !spotlight.showDebug
+            + (results.length > 0 && !isCommandMode
                 ? 8 + Math.min(results.length * 54, 400)
                 : 0)
             + (showMonitor
