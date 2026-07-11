@@ -715,11 +715,28 @@ PanelWindow {
                         anchors { left: parent.left; right: parent.right; top: parent.top; margins: 10 }
                         spacing: 10
 
-                        Text {
-                            text: "🐞 Modo desarrollador (debug)"
-                            font.bold: true
-                            font.pixelSize: Config.theme.fontSize
-                            color: Styling.srItem("text")
+                        RowLayout {
+                            width: parent.width
+                            Text {
+                                Layout.fillWidth: true
+                                text: "🐞 Modo desarrollador (debug)"
+                                font.bold: true
+                                font.pixelSize: Config.theme.fontSize
+                                color: Styling.srItem("text")
+                                elide: Text.ElideRight
+                            }
+                            Text {
+                                text: "✕"
+                                font.pixelSize: Config.theme.fontSize + 2
+                                font.bold: true
+                                color: Styling.srItem("text")
+                                opacity: 0.5
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: spotlight.showDebug = false
+                                }
+                            }
                         }
 
                         // ⚙️ Recursos
@@ -1159,7 +1176,7 @@ PanelWindow {
                     width: contentColumn.width
                     height: results.length > 0 ? Math.min(results.length * 54, 400) : 0
                     opacity: results.length > 0 ? 1 : 0
-                    visible: opacity > 0 && !spotlight.showDebug
+                    visible: opacity > 0
                     clip: true
                     Behavior on opacity {
                         enabled: Config.animDuration > 0
