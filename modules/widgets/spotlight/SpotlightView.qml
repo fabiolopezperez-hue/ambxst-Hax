@@ -504,14 +504,14 @@ PanelWindow {
                                     } else if (event.modifiers & Qt.ShiftModifier) {
                                         spotlight.executeSelected();
                                     } else {
-                                        // Enter → los "info" con acción (monitor) se ejecutan;
-                                        // el resto (apps, archivos, web, calc, history) se copia
+                                        // Enter → apps/archivos/web/monitor se ABREN (ejecutan);
+                                        // calc e historial se COPIAN al portapapeles
                                         if (spotlight.selectedIndex >= 0 && spotlight.selectedIndex < spotlight.results.length) {
                                             var sel = spotlight.results[spotlight.selectedIndex];
-                                            if (sel.type === "info" && sel.exec) {
-                                                spotlight.executeItem(sel);
-                                            } else if (sel.type !== "info") {
+                                            if (sel.type === "calc" || sel.type === "history") {
                                                 spotlight.copyResult(sel);
+                                            } else if (sel.exec) {
+                                                spotlight.executeItem(sel);
                                             }
                                             // info sin exec → no hacer nada
                                         }
