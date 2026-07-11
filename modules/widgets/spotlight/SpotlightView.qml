@@ -438,12 +438,7 @@ PanelWindow {
 
                             Keys.onReturnPressed: {
                                 if (spotlight.isCommandMode && text.trim().length > 1) {
-                                    var cmd = text.trim().substring(1); // quitar el /
-                                    if (cmd.match(/^(stats|monitor|sistema)$/i)) {
-                                        spotlight.toggleMonitor();
-                                    } else {
-                                        spotlight.runCmd(cmd);
-                                    }
+                                    spotlight.runCmd(text.trim().substring(1));
                                 } else {
                                     spotlight.executeSelected();
                                 }
@@ -1263,6 +1258,21 @@ PanelWindow {
                 { name: "/stats", description: "Abre el monitor del sistema en vivo (CPU, RAM, disco, temp)", icon: Icons.notepad, type: "info", exec: null },
                 { name: "❓ ayuda / help / h / ?", description: "Muestra esta ayuda", icon: Icons.notepad, type: "info", exec: null }
             ];
+            results = newResults;
+            return;
+        }
+
+        // ── Monitor del sistema ──────────────────────────────────────────────
+        var statsMatch = query.match(/^(stats|monitor|sistema)$/i);
+        if (statsMatch) {
+            newResults.push({
+                name: showMonitor ? "📊 Cerrar monitor del sistema" : "📊 Monitor del Sistema",
+                description: showMonitor
+                    ? "Toca para cerrar el monitor en vivo"
+                    : "Muestra CPU, RAM, disco y temperatura en tiempo real",
+                icon: Icons.notepad, type: "info",
+                exec: function() { toggleMonitor(); }
+            });
             results = newResults;
             return;
         }
