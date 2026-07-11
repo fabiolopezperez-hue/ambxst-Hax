@@ -157,7 +157,7 @@ hl.bind("SUPER + Slash", hl.dsp.exec_cmd('qs -p "/ruta/a/tu-shell/modules/widget
 | timer pizza 10m | Timer con nombre "pizza", 10 minutos |
 | alarm 8:00 | Alarma a las 8:00 |
 | alarm 7:30 l-v | Alarma a las 7:30 de lunes a viernes |
-| `weather | Clima actual |
+| weather | Clima actual |
 | weather Madrid | Clima de Madrid |
 | lock / bloquear | Bloquear pantalla |
 | apagar / shutdown | Apagar sistema |
