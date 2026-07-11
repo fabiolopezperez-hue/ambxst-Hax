@@ -10,6 +10,7 @@ import qs.modules.theme
 import qs.modules.services
 import qs.modules.components
 import qs.config
+import QMLTermWidget 2.0
 
 // ─── Hax — El buscador de Axenide ──────────────────────────────────────────
 // Spotlight nativo para Ambxst + Ax-shell.
@@ -158,6 +159,7 @@ PanelWindow {
     // ── Estados internos ───────────────────────────────────────────────────
     property string searchText: ""
     property int selectedIndex: 0
+    property bool showTerminal: false
 
     // Seguir la selección en la lista de resultados (scroll automático)
     onSelectedIndexChanged: {
@@ -372,6 +374,9 @@ PanelWindow {
             + (showPreview
                 ? 8 + 300
                 : 0)
+            + (spotlight.showTerminal
+                ? 8 + 392
+                : 0)
 
         // ── Contenido que aparece dentro mientras se transforma ────────────
         Column {
@@ -448,6 +453,12 @@ PanelWindow {
                             }
 
                             onTextChanged: {
+                                if (text === "/") {
+                                    // "/" abre la terminal integrada (embebida, 100% operativa)
+                                    spotlight.openTerminal();
+                                    searchInput.text = "";
+                                    return;
+                                }
                                 spotlight.searchText = text;
                                 spotlight.selectedIndex = 0;
                                 // Cancelar proceso al salir del modo comando
@@ -462,6 +473,8 @@ PanelWindow {
                                     spotlight.stopMonitor();
                                 } else if (spotlight.showPreview) {
                                     spotlight.showPreview = false;
+                                } else if (spotlight.showTerminal) {
+                                    spotlight.closeTerminal();
                                 } else if (text.length > 0) {
                                     clear();
                                 } else {
@@ -573,6 +586,95 @@ PanelWindow {
                             color: Styling.srItem("overprimary")
                             opacity: 0.6
                             visible: results.length > 0
+                        }
+                    }
+                }
+
+                // ── Terminal embebida (100% operativa) — se abre con "/" ───────
+                StyledRect {
+                    id: termPane
+                    width: contentColumn.width
+                    height: spotlight.showTerminal ? 392 : 0
+                    variant: "pane"
+                    radius: Styling.radius(12)
+                    clip: true
+                    visible: spotlight.showTerminal
+                    opacity: spotlight.showTerminal ? 1 : 0
+                    Behavior on opacity {
+                        enabled: Config.animDuration > 0
+                        NumberAnimation { duration: Config.animDuration * 2 }
+                    }
+
+                    Column {
+                        anchors.fill: parent
+                        anchors.margins: 10
+                        spacing: 8
+
+                        // Cabecera coherente con el resto de Hax
+                        RowLayout {
+                            width: parent.width
+                            spacing: 8
+
+                            Text {
+                                text: ">_"
+                                font.family: "monospace"
+                                font.bold: true
+                                font.pixelSize: Config.theme.fontSize - 2
+                                color: Styling.srItem("overprimary")
+                                opacity: 0.7
+                            }
+                            Text {
+                                Layout.fillWidth: true
+                                text: "Terminal — fish"
+                                font.family: Config.theme.font
+                                font.pixelSize: Config.theme.fontSize - 2
+                                color: Styling.srItem("text")
+                                opacity: 0.6
+                                elide: Text.ElideRight
+                            }
+                            Text {
+                                text: "✕"
+                                font.pixelSize: Config.theme.fontSize + 2
+                                font.bold: true
+                                color: Styling.srItem("text")
+                                opacity: 0.5
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: spotlight.closeTerminal()
+                                }
+                            }
+                        }
+
+                        // Terminal embebido (QWidget real dentro de QML)
+                        Loader {
+                            id: termLoader
+                            width: parent.width
+                            height: 330
+                            active: spotlight.showTerminal
+                            clip: true
+                            sourceComponent: termComponent
+                        }
+                    }
+                }
+
+                Component {
+                    id: termComponent
+                    QMLTermWidget {
+                        id: termEmbed
+                        anchors.fill: parent
+                        font.family: "Monospace"
+                        font.pointSize: 12
+                        colorScheme: "Linux"
+                        session: QMLTermSession {
+                            id: termSession
+                            shellProgram: Quickshell.env("SHELL") || "/bin/bash"
+                            initialWorkingDirectory: Quickshell.env("HOME") || "/tmp"
+                            onFinished: spotlight.closeTerminal()
+                        }
+                        Component.onCompleted: {
+                            termSession.startShellProgram();
+                            termEmbed.forceActiveFocus();
                         }
                     }
                 }
@@ -1426,6 +1528,21 @@ PanelWindow {
         proc.running = true;
     }
 
+    // ── Terminal embebida (QMLTermWidget) ────────────────────────────────────
+    // Se abre escribiendo "/" en el buscador. Es un terminal real (fish + alias)
+    // corriendo en un PTY, 100% operativo (vim, htop, sudo, TAB...).
+    function openTerminal() {
+        spotlight.showTerminal = true;
+        spotlight.showPreview = false;
+        spotlight.showMonitor = false;
+        spotlight.cancelCmdProcess();
+        spotlight.searchText = "";
+    }
+    function closeTerminal() {
+        spotlight.showTerminal = false;
+        searchInput.forceActiveFocus();
+    }
+
     // ── Lógica de búsqueda ─────────────────────────────────────────────────
 
     function updateResults() {
@@ -1532,7 +1649,7 @@ PanelWindow {
                 { name: "📸 c / capturar / screenshot", description: "Capturar pantalla", icon: Icons.notepad, type: "info", exec: null },
                 { name: "🔍 Buscar archivos", description: "Escribe cualquier nombre de archivo (mín 2 caracteres)", icon: Icons.notepad, type: "info", exec: null },
                 { name: "🌐 Buscar en web", description: "Cualquier texto que no sea comando se busca en Google", icon: Icons.notepad, type: "info", exec: null },
-                { name: "/comando", description: "Escribe / seguido de un comando para ejecutarlo en la terminal integrada", icon: Icons.notepad, type: "info", exec: null },
+                { name: "/", description: "Abre la terminal integrada (fish) dentro de Hax — 100% operativa (vim, htop, sudo...)", icon: Icons.notepad, type: "info", exec: null },
                 { name: "/stats", description: "Abre el monitor del sistema en vivo (CPU, RAM, disco, temp)", icon: Icons.notepad, type: "info", exec: null },
                 { name: "❓ ayuda / help / h / ?", description: "Muestra esta ayuda", icon: Icons.notepad, type: "info", exec: null }
             ];
