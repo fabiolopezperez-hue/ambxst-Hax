@@ -11,6 +11,12 @@ import qs.modules.services
 import qs.modules.components
 import qs.config
 
+// ─── Hax — El buscador de Axenide ──────────────────────────────────────────
+// Spotlight nativo para Ambxst + Ax-shell.
+// Busca apps, calcula, encuentra archivos y navega por la web.
+// Hecho con amor por Fabio y Maria 💖
+// ─────────────────────────────────────────────────────────────────────────────
+
 PanelWindow {
     id: spotlight
 
@@ -60,6 +66,7 @@ PanelWindow {
             searchText = "";
             selectedIndex = 0;
             cancelCmdProcess();
+            stopMonitor();
             if (weatherSearch) weatherSearch.destroy();
             weatherSearch = null;
 
@@ -74,6 +81,7 @@ PanelWindow {
             searchInput.forceActiveFocus();
         } else {
             openAnim.stop();
+            stopMonitor();
             closeAnim.start();
         }
     }
@@ -171,7 +179,76 @@ PanelWindow {
     // ── Paquetes ─────────────────────────────────────────────────────────────
     property var _pkgSearchProcesses: [] // procesos de búsqueda de paquetes activos
 
-    // ── Timers & Alarmas ──────────────────────────────────────────────────
+    // ── Monitor del sistema ───────────────────────────────────────────────
+    property bool showMonitor: false
+    property real monCpu: 0
+    property real monRamPct: 0
+    property real monRamUsed: 0
+    property real monRamTotal: 0
+    property real monDisk: 0
+    property int monTemp: 0
+    property int monProcs: 0
+    property string monUptime: ""
+    property var monProcess: null
+
+    function startMonitor() {
+        if (monProcess) return; // ya corriendo
+        var proc = Qt.createQmlObject(
+            'import Quickshell.Io; Process { stdout: SplitParser {} }',
+            spotlight
+        );
+        proc.command = ["bash", "-c",
+            "while true; do "
+            + "cpu=$(LC_ALL=C top -bn1 2>/dev/null | awk '/%Cpu/{print 100 - $8}'); "
+            + "ram=$(LC_ALL=C free 2>/dev/null | awk 'NR==2{printf \"%d %d\", $3, $2}'); "
+            + "disk=$(df / 2>/dev/null | awk 'NR==2{print $5}' | tr -d '%'); "
+            + "temp=$(cat /sys/class/thermal/thermal_zone*/temp 2>/dev/null | head -1 | head -c 2); "
+            + "procs=$(ps aux 2>/dev/null | wc -l); "
+            + "uptime=$(LC_ALL=C uptime -p 2>/dev/null); "
+            + "echo '{\"cpu\":'$cpu',\"ram_used\":'$(echo $ram | cut -d' ' -f1)',\"ram_total\":'$(echo $ram | cut -d' ' -f2)',\"disk\":'$disk',\"temp\":'$temp',\"procs\":'$procs',\"uptime\":\"'$uptime'\"}'; "
+            + "sleep 2; "
+            + "done"
+        ];
+        proc.stdout.onRead.connect(function(data) {
+            try {
+                var j = JSON.parse(data.trim());
+                if (j.cpu !== undefined) monCpu = parseFloat(j.cpu) || 0;
+                if (j.ram_used !== undefined && j.ram_total !== undefined) {
+                    monRamUsed = parseInt(j.ram_used) || 0;
+                    monRamTotal = parseInt(j.ram_total) || 1;
+                    monRamPct = monRamTotal > 0 ? (monRamUsed / monRamTotal * 100) : 0;
+                }
+                if (j.disk !== undefined) monDisk = parseFloat(j.disk) || 0;
+                if (j.temp !== undefined) monTemp = parseInt(j.temp) || 0;
+                if (j.procs !== undefined) monProcs = parseInt(j.procs) || 0;
+                if (j.uptime !== undefined) monUptime = j.uptime || "";
+            } catch(e) {}
+        });
+        proc.onExited.connect(function() {
+            proc.destroy();
+            monProcess = null;
+        });
+        monProcess = proc;
+        proc.running = true;
+    }
+
+    function stopMonitor() {
+        showMonitor = false;
+        if (monProcess) {
+            monProcess.running = false;
+            monProcess.destroy();
+            monProcess = null;
+        }
+    }
+
+    function toggleMonitor() {
+        if (showMonitor) {
+            stopMonitor();
+        } else {
+            showMonitor = true;
+            startMonitor();
+        }
+    }
     property var activeTimers: []      // [{id, label, totalSeconds, endTime, createdAt}]
     property int _timerNextId: 1
     property var activeAlarms: []      // [{id, label, hour, minute, days, enabled, lastTriggered}]
@@ -273,6 +350,9 @@ PanelWindow {
             + (results.length > 0 && !isCommandMode
                 ? 8 + Math.min(results.length * 54, 400)
                 : 0)
+            + (showMonitor
+                ? 8 + 260
+                : 0)
 
         // ── Contenido que aparece dentro mientras se transforma ────────────
         Column {
@@ -284,7 +364,7 @@ PanelWindow {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.margins: 16
-            spacing: (results.length > 0 || cmdProcess !== null || isCommandMode || _lastCmdVisible || _forceTerminal || _haxNotifications.length > 0) ? 8 : 0
+            spacing: (results.length > 0 || cmdProcess !== null || isCommandMode || _lastCmdVisible || _forceTerminal || _haxNotifications.length > 0 || showMonitor) ? 8 : 0
 
                 // ── Campo de búsqueda ──────────────────────────────────────────
                 StyledRect {
@@ -347,7 +427,9 @@ PanelWindow {
                             }
 
                             Keys.onEscapePressed: {
-                                if (text.length > 0) {
+                                if (spotlight.showMonitor) {
+                                    spotlight.stopMonitor();
+                                } else if (text.length > 0) {
                                     clear();
                                 } else {
                                     Visibilities.setActiveModule("");
@@ -357,7 +439,11 @@ PanelWindow {
                             Keys.onReturnPressed: {
                                 if (spotlight.isCommandMode && text.trim().length > 1) {
                                     var cmd = text.trim().substring(1); // quitar el /
-                                    spotlight.runCmd(cmd);
+                                    if (cmd.match(/^(stats|monitor|sistema)$/i)) {
+                                        spotlight.toggleMonitor();
+                                    } else {
+                                        spotlight.runCmd(cmd);
+                                    }
                                 } else {
                                     spotlight.executeSelected();
                                 }
@@ -870,6 +956,135 @@ PanelWindow {
                         }
                     }
                 }
+
+                // ── Monitor del sistema (/stats) ───────────────────────────────
+                StyledRect {
+                    id: monitorContainer
+                    width: contentColumn.width
+                    height: showMonitor ? 260 : 0
+                    visible: showMonitor
+                    variant: "pane"
+                    radius: Styling.radius(12)
+                    clip: true
+                    opacity: showMonitor ? 1 : 0
+
+                    Behavior on height { NumberAnimation { duration: 200; easing.type: Easing.OutQuint } }
+                    Behavior on opacity { NumberAnimation { duration: 150 } }
+
+                    Column {
+                        width: parent.width
+                        anchors.fill: parent
+                        anchors.margins: 14
+                        spacing: 8
+
+                        // ── Header ─────────────────────────────────────────────
+                        RowLayout {
+                            width: parent.width
+                            spacing: 8
+
+                            Text {
+                                text: "📊 Monitor del Sistema"
+                                font.bold: true
+                                font.pixelSize: Config.theme.fontSize + 2
+                                color: Styling.srItem("text")
+                                Layout.fillWidth: true
+                            }
+
+                            // Indicador en vivo
+                            Rectangle {
+                                width: 8; height: 8; radius: 4
+                                color: "#4ade80"
+                                SequentialAnimation on opacity {
+                                    loops: Animation.Infinite
+                                    NumberAnimation { to: 0.3; duration: 800 }
+                                    NumberAnimation { to: 1; duration: 800 }
+                                }
+                            }
+                            Text {
+                                text: "EN VIVO"
+                                font.pixelSize: Config.theme.fontSize - 4
+                                font.bold: true
+                                color: "#4ade80"
+                                opacity: 0.7
+                            }
+
+                            // Botón cerrar
+                            Text {
+                                text: "✕"
+                                font.pixelSize: Config.theme.fontSize + 2
+                                font.bold: true
+                                color: Styling.srItem("text")
+                                opacity: 0.5
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: stopMonitor()
+                                    onEntered: parent.opacity = 1
+                                    onExited: parent.opacity = 0.5
+                                }
+                            }
+                        }
+
+                        // ── CPU ────────────────────────────────────────────────
+                        RowLayout { width: parent.width; spacing: 8
+                            Text { text: "💻 CPU"; font.pixelSize: Config.theme.fontSize - 1; color: Styling.srItem("text"); Layout.preferredWidth: 50 }
+                            Item { Layout.fillWidth: true; height: 10
+                                Rectangle { anchors.fill: parent; radius: 5; color: "#2a2a2a"
+                                    Rectangle { height: parent.height; radius: 5; width: parent.width * Math.min(monCpu / 100, 1)
+                                        color: monCpu < 50 ? "#4ade80" : monCpu < 80 ? "#facc15" : "#ef4444"
+                                    }
+                                }
+                            }
+                            Text { text: monCpu.toFixed(1) + "%"; font.pixelSize: Config.theme.fontSize - 2; color: Styling.srItem("overprimary"); Layout.preferredWidth: 48; horizontalAlignment: Text.AlignRight }
+                        }
+
+                        // ── RAM ────────────────────────────────────────────────
+                        RowLayout { width: parent.width; spacing: 8
+                            Text { text: "📦 RAM"; font.pixelSize: Config.theme.fontSize - 1; color: Styling.srItem("text"); Layout.preferredWidth: 50 }
+                            Item { Layout.fillWidth: true; height: 10
+                                Rectangle { anchors.fill: parent; radius: 5; color: "#2a2a2a"
+                                    Rectangle { height: parent.height; radius: 5; width: parent.width * Math.min(monRamPct / 100, 1)
+                                        color: monRamPct < 50 ? "#4ade80" : monRamPct < 80 ? "#facc15" : "#ef4444"
+                                    }
+                                }
+                            }
+                            Text { text: (monRamUsed / 1024).toFixed(1) + "/" + (monRamTotal / 1024).toFixed(1) + " GB"; font.pixelSize: Config.theme.fontSize - 2; color: Styling.srItem("overprimary"); Layout.preferredWidth: 110; horizontalAlignment: Text.AlignRight }
+                        }
+
+                        // ── Disco ──────────────────────────────────────────────
+                        RowLayout { width: parent.width; spacing: 8
+                            Text { text: "💾 Disco"; font.pixelSize: Config.theme.fontSize - 1; color: Styling.srItem("text"); Layout.preferredWidth: 50 }
+                            Item { Layout.fillWidth: true; height: 10
+                                Rectangle { anchors.fill: parent; radius: 5; color: "#2a2a2a"
+                                    Rectangle { height: parent.height; radius: 5; width: parent.width * Math.min(monDisk / 100, 1)
+                                        color: monDisk < 50 ? "#4ade80" : monDisk < 80 ? "#facc15" : "#ef4444"
+                                    }
+                                }
+                            }
+                            Text { text: monDisk.toFixed(0) + "%"; font.pixelSize: Config.theme.fontSize - 2; color: Styling.srItem("overprimary"); Layout.preferredWidth: 48; horizontalAlignment: Text.AlignRight }
+                        }
+
+                        // ── Temperatura ─────────────────────────────────────────
+                        RowLayout { width: parent.width; spacing: 8
+                            Text { text: "🌡️ Temp"; font.pixelSize: Config.theme.fontSize - 1; color: Styling.srItem("text"); Layout.preferredWidth: 50 }
+                            Item { Layout.fillWidth: true; height: 10
+                                Rectangle { anchors.fill: parent; radius: 5; color: "#2a2a2a"
+                                    Rectangle { height: parent.height; radius: 5; width: parent.width * Math.min(monTemp / 100, 1)
+                                        color: monTemp < 60 ? "#4ade80" : monTemp < 80 ? "#facc15" : "#ef4444"
+                                    }
+                                }
+                            }
+                            Text { text: monTemp + "°C"; font.pixelSize: Config.theme.fontSize - 2; color: Styling.srItem("overprimary"); Layout.preferredWidth: 48; horizontalAlignment: Text.AlignRight }
+                        }
+
+                        // ── Info extra ─────────────────────────────────────────
+                        RowLayout { width: parent.width; spacing: 16
+                            Text { text: "🔄 " + monProcs + " procesos"; font.pixelSize: Config.theme.fontSize - 2; color: Styling.srItem("overprimary"); opacity: 0.7 }
+                            Text { text: "⏰ " + monUptime; font.pixelSize: Config.theme.fontSize - 2; color: Styling.srItem("overprimary"); opacity: 0.7; Layout.fillWidth: true; elide: Text.ElideRight }
+                            Text { text: "⏱ cada 2s"; font.pixelSize: Config.theme.fontSize - 3; color: Styling.srItem("overprimary"); opacity: 0.4 }
+                        }
+                    }
+                }
             }
         }
 
@@ -1045,6 +1260,7 @@ PanelWindow {
                 { name: "🔍 Buscar archivos", description: "Escribe cualquier nombre de archivo (mín 2 caracteres)", icon: Icons.notepad, type: "info", exec: null },
                 { name: "🌐 Buscar en web", description: "Cualquier texto que no sea comando se busca en Google", icon: Icons.notepad, type: "info", exec: null },
                 { name: "/comando", description: "Escribe / seguido de un comando para ejecutarlo en la terminal integrada", icon: Icons.notepad, type: "info", exec: null },
+                { name: "/stats", description: "Abre el monitor del sistema en vivo (CPU, RAM, disco, temp)", icon: Icons.notepad, type: "info", exec: null },
                 { name: "❓ ayuda / help / h / ?", description: "Muestra esta ayuda", icon: Icons.notepad, type: "info", exec: null }
             ];
             results = newResults;
