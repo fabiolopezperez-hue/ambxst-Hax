@@ -164,10 +164,12 @@ PanelWindow {
     property var results: []
     property string autoCompleteSuffix: {
         if (searchInput && searchInput.text.length > 0 && results.length > 0) {
-            var txt = searchInput.text;
-            var firstName = results[0].name || "";
-            if (firstName.toLowerCase().indexOf(txt.toLowerCase()) === 0 && firstName.length > txt.length) {
-                return firstName.substring(txt.length);
+            var txt = searchInput.text.toLowerCase();
+            for (var i = 0; i < results.length; i++) {
+                var name = results[i].name || "";
+                if (name.toLowerCase().indexOf(txt) === 0 && name.length > txt.length) {
+                    return name.substring(txt.length);
+                }
             }
         }
         return "";
@@ -501,17 +503,10 @@ PanelWindow {
 
                             // Tab / Flecha derecha → autocompletar
                             Keys.onPressed: (event) => {
-                                if (event.key === Qt.Key_Tab && results.length > 0) {
-                                    var completion = results[0].name || "";
-                                    if (completion.length > searchText.length) {
-                                        searchInput.text = completion;
-                                        searchInput.cursorPosition = completion.length;
-                                    }
-                                    event.accepted = true;
-                                } else if (event.key === Qt.Key_Right
-                                           && autoCompleteSuffix.length > 0
-                                           && cursorPosition === text.length) {
-                                    // Flecha derecha → aceptar sugerencia
+                                if ((event.key === Qt.Key_Tab || event.key === Qt.Key_Right)
+                                    && autoCompleteSuffix.length > 0
+                                    && cursorPosition === text.length) {
+                                    // Aceptar sugerencia
                                     searchInput.text = text + autoCompleteSuffix;
                                     searchInput.cursorPosition = searchInput.text.length;
                                     event.accepted = true;
