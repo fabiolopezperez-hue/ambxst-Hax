@@ -60,7 +60,7 @@
 | 🗑️ **Desinstalar** | `remove paquete` |
 | 🌐 **Búsqueda web** | Cualquier texto que no sea comando se busca en Google |
 | 📖 **Ayuda integrada** | Escribe `ayuda`, `help` o `?` para ver todos los comandos |
-| 👁 **Vista rápida (Quick Look)** | Pasa el ratón o pulsa **Enter** sobre un archivo para previsualizarlo dentro de Hax: imágenes renderizadas en el panel y texto/binario leído al instante. Cierra con ✕ |
+| 👁 **Vista rápida (Quick Look)** | 100% teclado: navega con **↑/↓** y los archivos se previsualizan solos dentro de Hax (imágenes renderizadas, texto/binario leído al instante). Cierra con ✕ o **Esc** |
 | 📜 **Historial inteligente** | `historial`, `clip` o `portapapeles` muestra todo lo copiado, ordenado por uso, con borrado individual al hover |
 | 📋 **Copiar al portapapeles** | **Enter** copia el resultado, **Shift+Enter** lo ejecuta/abre. También Ctrl+C o el botón ⎘ al hover |
 | 🎯 **Autocompletado inline** | Mientras escribes, Hax sugiere en gris el resultado que coincide; acepta con **Tab** / **→** |
@@ -190,7 +190,7 @@ hl.bind("SUPER + Slash", hl.dsp.exec_cmd('qs -p "/ruta/a/tu-shell/modules/widget
 ```
 ### 👁 Vista rápida (Quick Look)
 
-Pasa el ratón por encima de un **archivo** en los resultados (o pulsa **Enter** / clic) y Hax lo **previsualiza dentro del propio buscador**, sin abrir nada externo:
+**Hax es 100% teclado.** Navega con **↑/↓** por los resultados y, al resaltar un **archivo**, Hax lo **previsualiza dentro del propio buscador** automáticamente, sin tocar el ratón. También puedes pulsar **Enter** sobre el archivo para previsualizarlo. (El ratón solo se usa en el Historial para borrar copias antiguas.)
 
 - 🖼️ **Imágenes** (`png`, `jpg`, `gif`, `webp`, `svg`…): se muestran dentro del panel, centradas y con su proporción.
 - 📄 **Texto**: se lee el contenido al instante (con `cat`) y se muestra con scroll.
