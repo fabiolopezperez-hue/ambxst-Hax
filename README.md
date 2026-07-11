@@ -178,6 +178,7 @@ hl.bind("SUPER + Slash", hl.dsp.exec_cmd('qs -p "/ruta/a/tu-shell/modules/widget
 | Super + / | Abrir Hax |
 | ↑ / ↓ | Navegar resultados / scroll en terminal |
 | Enter | Abrir selección / ejecutar |
+| Tab / → | Aceptar sugerencia de autocompletado |
 | Esc | Cerrar / cerrar monitor |
 
 
@@ -284,6 +285,16 @@ El instalador:
 ---
 
 ## 📋 Changelog
+
+### v2.3 — Julio 2026
+
+- **🎯 Autocompletado inline** — Mientras escribes, Hax te sugiere en gris el nombre del resultado que coincide con lo que escribes. Acepta con **Tab** o **→**. Escanea **todos los resultados** (apps, archivos, webs...), no solo el primero. Así `virt` → sugiere `ualBox` aunque VirtualBox no sea el primer resultado.
+- **🐛 RAM stats corregido** — Mostraba valores incorrectos; ahora divide entre 1048576 (bytes → MB) en vez de 1024
+- **🌡️ Temperatura corregida** — Ya no se queda pillada en 20°C (sensor `acpitz`). Ahora lee `k10temp`/`coretemp`/`cpu_thermal` desde `/sys/class/hwmon/` para CPUs AMD/Intel
+- **📜 Google Lens** — Nuevo script `scripts/google_lens.sh` para subir capturas a Google Lens y buscarlas
+- **🌤️ Clima vía Open-Meteo** — Nuevo script `scripts/weather.sh` usando Open-Meteo API (sin API key, gratuita)
+- **🔧 Instalador mejorado** — `hax-install.sh` ahora copia también los `scripts/*.sh` al destino
+- **💡 Ideas trackeadas** — Archivo `ideas/notas-hax` con ideas anotadas para futuras mejoras (plugins, snippets, historial, debug mode, traducciones, etc.)
 
 ### v2.2 — Julio 2026
 
