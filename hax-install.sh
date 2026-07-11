@@ -15,6 +15,7 @@ set -euo pipefail
 #   • Theme: Colors, Icons, Styling
 #   • Componentes: StyledRect
 #   • Config + defaults
+#   • Scripts: google_lens.sh, weather.sh
 #   • shell.qml (entry point con el Loader de Hax)
 # ═══════════════════════════════════════════════════════════════
 
@@ -216,6 +217,7 @@ mkdir -p "$SHELL_SRC/modules/theme"
 mkdir -p "$SHELL_SRC/modules/components"
 mkdir -p "$SHELL_SRC/modules/tools"
 mkdir -p "$SHELL_SRC/config/defaults"
+mkdir -p "$SHELL_SRC/scripts"
 mkdir -p "$SHELL_SRC/assets/presets"
 
 # Módulos propios de Hax
@@ -227,6 +229,9 @@ cp    "$REPO_DIR/modules/globals/"*.qml       "$SHELL_SRC/modules/globals/" 2>/d
 cp    "$REPO_DIR/modules/theme/"*.qml         "$SHELL_SRC/modules/theme/" 2>/dev/null || true
 cp    "$REPO_DIR/modules/components/"*.qml    "$SHELL_SRC/modules/components/" 2>/dev/null || true
 cp -n "$REPO_DIR/modules/tools/"*.qml         "$SHELL_SRC/modules/tools/" 2>/dev/null || true
+
+# Scripts de servicio (google_lens.sh, weather.sh)
+cp -n "$REPO_DIR/scripts/"*.sh                "$SHELL_SRC/scripts/" 2>/dev/null || true
 
 # JS de configuración (KeybindActions, ConfigValidator)
 cp -n "$REPO_DIR/config/"*.js                 "$SHELL_SRC/config/" 2>/dev/null || true
