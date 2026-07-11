@@ -510,8 +510,33 @@ PanelWindow {
                                     searchInput.text = text + autoCompleteSuffix;
                                     searchInput.cursorPosition = searchInput.text.length;
                                     event.accepted = true;
+                                } else if (event.key === Qt.Key_C && (event.modifiers & Qt.ControlModifier)) {
+                                    // Ctrl+C → copiar resultado seleccionado
+                                    if (selectedIndex >= 0 && selectedIndex < results.length) {
+                                        copyResult(results[selectedIndex]);
+                                    }
+                                    event.accepted = true;
                                 }
                             }
+                        }
+
+                        // Feedback de "Copiado"
+                        Text {
+                            visible: _copyFeedback.length > 0
+                            text: "✓ Copiado"
+                            font.family: Config.theme.font
+                            font.pixelSize: Config.theme.fontSize - 2
+                            color: "#4ade80"
+                            font.bold: true
+                            opacity: _copyFeedbackTimer.running ? 1 : 0
+                            Behavior on opacity { NumberAnimation { duration: 200 } }
+                        }
+
+                        // Timer para ocultar el feedback
+                        Timer {
+                            id: _copyFeedbackTimer
+                            interval: 1500
+                            onTriggered: spotlight._copyFeedback = ""
                         }
 
                         // Contador de resultados
@@ -956,6 +981,37 @@ PanelWindow {
                                         font.pixelSize: Config.theme.fontSize - 4
                                         color: Styling.srItem("text")
                                         opacity: 0.5
+                                    }
+                                }
+
+                                // Botón copiar (visible al hover)
+                                Rectangle {
+                                    Layout.preferredWidth: 28
+                                    Layout.preferredHeight: 28
+                                    Layout.alignment: Qt.AlignVCenter
+                                    Layout.rightMargin: 4
+                                    radius: Styling.radius(-4)
+                                    color: mouseArea.containsMouse ? Qt.rgba(1, 1, 1, 0.12) : "transparent"
+                                    opacity: mouseArea.containsMouse ? 1 : 0
+                                    visible: modelData.type !== "calc" // calc ya copia solo
+
+                                    Behavior on opacity { NumberAnimation { duration: 120 } }
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "⎘"  // símbolo de copiar
+                                        font.pixelSize: 14
+                                        color: Styling.srItem("text")
+                                        opacity: 0.7
+                                    }
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            spotlight.copyResult(modelData);
+                                            mouse.accepted = true;
+                                        }
                                     }
                                 }
                             }
@@ -1767,6 +1823,33 @@ PanelWindow {
             item.exec();
         }
     }
+
+    function copyResult(item) {
+        if (!item) return;
+        var p = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+        if (item.type === "file") {
+            var path = item.description || "";
+            // Si es imagen, copiar la imagen al portapapeles
+            if (path.match(/\.(png|jpg|jpeg|gif|bmp|webp|svg)$/i)) {
+                p.command = ["bash", "-c", "wl-copy < " + path.replace(/'/g, "'\\''")];
+            } else {
+                p.command = ["wl-copy", path];
+            }
+        } else if (item.type === "calc") {
+            // Ya copia al hacer clic, pero por si acaso
+            var parts = (item.name || "").split(" = ");
+            p.command = ["wl-copy", parts.length > 1 ? parts[1] : parts[0]];
+        } else {
+            p.command = ["wl-copy", item.name || ""];
+        }
+        p.onExited.connect(() => p.destroy());
+        p.running = true;
+        // Feedback visual: mostrar "Copiado" brevemente
+        _copyFeedback = item.name || "";
+        _copyFeedbackTimer.restart();
+    }
+
+    property string _copyFeedback: ""
 
     // ── Búsqueda de archivos ───────────────────────────────────────────────
     property var currentSearch: null
