@@ -168,9 +168,6 @@ PanelWindow {
     // Se activa escribiendo "d" / "dev" / "debug" y pulsando Enter.
     property bool showDebug: false
     onShowDebugChanged: {
-        if (showDebug) {
-            showMonitor = true;
-        }
         try {
             var _df = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
             _df.command = ["bash", "-c", "echo " + (showDebug ? "ON" : "OFF") + " > /tmp/hax-debug-state 2>/dev/null"];
@@ -698,140 +695,6 @@ PanelWindow {
                     }
                 }
 
-                // ── Modo desarrollador (debug) — "d"/"dev"/"debug" + Enter ───────
-                StyledRect {
-                    id: debugPane
-                    width: contentColumn.width
-                    variant: "pane"
-                    radius: Styling.radius(12)
-                    clip: true
-                    visible: spotlight.showDebug
-                    opacity: spotlight.showDebug ? 1 : 0
-                    height: spotlight.showDebug ? Math.max(debugContent.implicitHeight + 20, 120) : 0
-                    Behavior on opacity {
-                        enabled: Config.animDuration > 0
-                        NumberAnimation { duration: Config.animDuration * 2 }
-                    }
-
-                    Column {
-                        id: debugContent
-                        anchors { left: parent.left; right: parent.right; top: parent.top; margins: 10 }
-                        spacing: 10
-
-                        RowLayout {
-                            width: parent.width
-                            Text {
-                                Layout.fillWidth: true
-                                text: "🐞 Modo desarrollador (debug)"
-                                font.bold: true
-                                font.pixelSize: Config.theme.fontSize
-                                color: Styling.srItem("text")
-                                elide: Text.ElideRight
-                            }
-                            Text {
-                                text: "✕"
-                                font.pixelSize: Config.theme.fontSize + 2
-                                font.bold: true
-                                color: Styling.srItem("text")
-                                opacity: 0.5
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: spotlight.showDebug = false
-                                }
-                            }
-                        }
-
-                        // ⚙️ Recursos
-                        Column {
-                            spacing: 4
-                            width: parent.width
-                            Text {
-                                text: "⚙️ Recursos"
-                                font.bold: true
-                                font.pixelSize: Config.theme.fontSize - 1
-                                color: Styling.srItem("overprimary")
-                                opacity: 0.85
-                            }
-                            Text {
-                                text: "Memoria (RSS): " + (spotlight.debugMemMB > 0 ? spotlight.debugMemMB.toFixed(1) : "—") + " MB"
-                                font.family: "monospace"
-                                font.pixelSize: Config.theme.fontSize - 2
-                                color: Styling.srItem("text")
-                            }
-                            Text {
-                                text: "CPU: " + (spotlight.debugCpuPct > 0 ? spotlight.debugCpuPct.toFixed(1) : "0.0") + " %"
-                                font.family: "monospace"
-                                font.pixelSize: Config.theme.fontSize - 2
-                                color: Styling.srItem("text")
-                            }
-                        }
-
-                        // ⏱️ Tiempos
-                        Column {
-                            spacing: 4
-                            width: parent.width
-                            Text {
-                                text: "⏱️ Tiempos"
-                                font.bold: true
-                                font.pixelSize: Config.theme.fontSize - 1
-                                color: Styling.srItem("overprimary")
-                                opacity: 0.85
-                            }
-                            Text {
-                                text: "Apertura (open→listo): " + (spotlight.debugOpenMs >= 0 ? spotlight.debugOpenMs + " ms" : "—")
-                                font.family: "monospace"
-                                font.pixelSize: Config.theme.fontSize - 2
-                                color: Styling.srItem("text")
-                            }
-                            Text {
-                                text: "Última búsqueda: " + (spotlight.debugLastSearchMs >= 0 ? spotlight.debugLastSearchMs + " ms" : "—")
-                                font.family: "monospace"
-                                font.pixelSize: Config.theme.fontSize - 2
-                                color: Styling.srItem("text")
-                            }
-                            Text {
-                                text: "Sesión abierta: " + spotlight.debugSessionS + " s"
-                                font.family: "monospace"
-                                font.pixelSize: Config.theme.fontSize - 2
-                                color: Styling.srItem("text")
-                            }
-                        }
-
-                        // 🚨 Errores capturados
-                        Column {
-                            spacing: 4
-                            width: parent.width
-                            Text {
-                                text: "🚨 Errores capturados (" + spotlight.debugErrorLog.length + ")"
-                                font.bold: true
-                                font.pixelSize: Config.theme.fontSize - 1
-                                color: Styling.srItem("overprimary")
-                                opacity: 0.85
-                            }
-                            Repeater {
-                                model: spotlight.debugErrorLog
-                                delegate: Text {
-                                    required property var modelData
-                                    width: parent.width
-                                    text: "• [" + modelData.t + "] " + modelData.ctx + ": " + modelData.msg
-                                    font.family: "monospace"
-                                    font.pixelSize: Config.theme.fontSize - 3
-                                    color: "#ff8a80"
-                                    wrapMode: Text.WrapAnywhere
-                                }
-                            }
-                            Text {
-                                visible: spotlight.debugErrorLog.length === 0
-                                text: "✅ Sin errores"
-                                font.family: "monospace"
-                                font.pixelSize: Config.theme.fontSize - 2
-                                color: Styling.srItem("text")
-                                opacity: 0.7
-                            }
-                        }
-                    }
-                }
 
                 // ── Terminal embebida (100% operativa) — se abre con "/" ───────
                 StyledRect {
@@ -1578,6 +1441,142 @@ PanelWindow {
                         }
                     }
                 }
+                // ── Modo desarrollador (debug) — "d"/"dev"/"debug" + Enter ───────
+                // Se muestra EN EL MISMO SITIO que el monitor del sistema (debajo de resultados).
+                StyledRect {
+                    id: debugPane
+                    width: contentColumn.width
+                    variant: "pane"
+                    radius: Styling.radius(12)
+                    clip: true
+                    visible: spotlight.showDebug
+                    opacity: spotlight.showDebug ? 1 : 0
+                    height: spotlight.showDebug ? Math.max(debugContent.implicitHeight + 20, 120) : 0
+                    Behavior on opacity {
+                        enabled: Config.animDuration > 0
+                        NumberAnimation { duration: Config.animDuration * 2 }
+                    }
+
+                    Column {
+                        id: debugContent
+                        anchors { left: parent.left; right: parent.right; top: parent.top; margins: 10 }
+                        spacing: 10
+
+                        RowLayout {
+                            width: parent.width
+                            Text {
+                                Layout.fillWidth: true
+                                text: "🐞 Modo desarrollador (debug)"
+                                font.bold: true
+                                font.pixelSize: Config.theme.fontSize
+                                color: Styling.srItem("text")
+                                elide: Text.ElideRight
+                            }
+                            Text {
+                                text: "✕"
+                                font.pixelSize: Config.theme.fontSize + 2
+                                font.bold: true
+                                color: Styling.srItem("text")
+                                opacity: 0.5
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: spotlight.showDebug = false
+                                }
+                            }
+                        }
+
+                        // ⚙️ Recursos
+                        Column {
+                            spacing: 4
+                            width: parent.width
+                            Text {
+                                text: "⚙️ Recursos"
+                                font.bold: true
+                                font.pixelSize: Config.theme.fontSize - 1
+                                color: Styling.srItem("overprimary")
+                                opacity: 0.85
+                            }
+                            Text {
+                                text: "Memoria (RSS): " + (spotlight.debugMemMB > 0 ? spotlight.debugMemMB.toFixed(1) : "—") + " MB"
+                                font.family: "monospace"
+                                font.pixelSize: Config.theme.fontSize - 2
+                                color: Styling.srItem("text")
+                            }
+                            Text {
+                                text: "CPU: " + (spotlight.debugCpuPct > 0 ? spotlight.debugCpuPct.toFixed(1) : "0.0") + " %"
+                                font.family: "monospace"
+                                font.pixelSize: Config.theme.fontSize - 2
+                                color: Styling.srItem("text")
+                            }
+                        }
+
+                        // ⏱️ Tiempos
+                        Column {
+                            spacing: 4
+                            width: parent.width
+                            Text {
+                                text: "⏱️ Tiempos"
+                                font.bold: true
+                                font.pixelSize: Config.theme.fontSize - 1
+                                color: Styling.srItem("overprimary")
+                                opacity: 0.85
+                            }
+                            Text {
+                                text: "Apertura (open→listo): " + (spotlight.debugOpenMs >= 0 ? spotlight.debugOpenMs + " ms" : "—")
+                                font.family: "monospace"
+                                font.pixelSize: Config.theme.fontSize - 2
+                                color: Styling.srItem("text")
+                            }
+                            Text {
+                                text: "Última búsqueda: " + (spotlight.debugLastSearchMs >= 0 ? spotlight.debugLastSearchMs + " ms" : "—")
+                                font.family: "monospace"
+                                font.pixelSize: Config.theme.fontSize - 2
+                                color: Styling.srItem("text")
+                            }
+                            Text {
+                                text: "Sesión abierta: " + spotlight.debugSessionS + " s"
+                                font.family: "monospace"
+                                font.pixelSize: Config.theme.fontSize - 2
+                                color: Styling.srItem("text")
+                            }
+                        }
+
+                        // 🚨 Errores capturados
+                        Column {
+                            spacing: 4
+                            width: parent.width
+                            Text {
+                                text: "🚨 Errores capturados (" + spotlight.debugErrorLog.length + ")"
+                                font.bold: true
+                                font.pixelSize: Config.theme.fontSize - 1
+                                color: Styling.srItem("overprimary")
+                                opacity: 0.85
+                            }
+                            Repeater {
+                                model: spotlight.debugErrorLog
+                                delegate: Text {
+                                    required property var modelData
+                                    width: parent.width
+                                    text: "• [" + modelData.t + "] " + modelData.ctx + ": " + modelData.msg
+                                    font.family: "monospace"
+                                    font.pixelSize: Config.theme.fontSize - 3
+                                    color: "#ff8a80"
+                                    wrapMode: Text.WrapAnywhere
+                                }
+                            }
+                            Text {
+                                visible: spotlight.debugErrorLog.length === 0
+                                text: "✅ Sin errores"
+                                font.family: "monospace"
+                                font.pixelSize: Config.theme.fontSize - 2
+                                color: Styling.srItem("text")
+                                opacity: 0.7
+                            }
+                        }
+                    }
+                }
+
                 // ── Previsualización rápida (Quick Look) ───────────────────────
                 // Dentro de contentColumn (en el flujo), igual que el Monitor.
                 // Cabecera (nombre + ruta) arriba + contenido (imagen/texto) abajo.
