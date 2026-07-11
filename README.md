@@ -182,8 +182,8 @@ hl.bind("SUPER + Slash", hl.dsp.exec_cmd('qs -p "/ruta/a/tu-shell/modules/widget
 
 ## 🧱 Estructura del repo
 
-```
-`ambxst-Hax/
+
+ambxst-Hax/
 ├── hax-install.sh                        # Instalador automático
 ├── shell.qml                             # Entry point (Loader de Hax)
 ├── version                               # Versión de Ambxst
