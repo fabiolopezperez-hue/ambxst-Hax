@@ -494,18 +494,20 @@ PanelWindow {
                                 }
                             }
 
-                            // Enter, Tab, flecha derecha, Ctrl+C
+                            // Enter, Tab, flecha derecha, Ctrl+C, Esc
                             Keys.onPressed: (event) => {
                                 if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
                                     if (spotlight.isCommandMode && text.trim().length > 1) {
                                         spotlight.runCmd(text.trim().substring(1));
                                     } else if (event.modifiers & Qt.ShiftModifier) {
-                                        // Shift+Enter → ejecutar/abrir
                                         spotlight.executeSelected();
                                     } else {
-                                        // Enter → copiar al portapapeles
+                                        // Enter → copiar al portapapeles (solo si no es info)
                                         if (spotlight.selectedIndex >= 0 && spotlight.selectedIndex < spotlight.results.length) {
-                                            spotlight.copyResult(spotlight.results[spotlight.selectedIndex]);
+                                            var sel = spotlight.results[spotlight.selectedIndex];
+                                            if (sel.type !== "info") {
+                                                spotlight.copyResult(sel);
+                                            }
                                         }
                                     }
                                     event.accepted = true;
@@ -1711,10 +1713,10 @@ PanelWindow {
         }
 
         // ── Historial inteligente ──────────────────────────────────────────
-        // Si busca "historial", "clip", etc. → mostrar todo el historial
+        // Si busca "historial", "clip", etc. → mostrar TODO el historial
         var histMatch = query.match(/^(historial|history|clip|clipboard|portapapeles)$/i);
         if (histMatch) {
-            var histItems = searchHistory("");
+            var histItems = searchHistory(""); // sin límite, devuelve todos
             for (var hi = 0; hi < histItems.length; hi++) {
                 var hItem = histItems[hi];
                 newResults.push({
@@ -1729,7 +1731,7 @@ PanelWindow {
             if (newResults.length === 0) {
                 newResults.push({
                     name: "📋 Historial vacío",
-                    description: "Copia algo con Enter o Ctrl+C para que aparezca aquí",
+                    description: "Copia algo con Enter o Ctrl+C y aparecerá aquí",
                     icon: Icons.notepad,
                     type: "info",
                     exec: null
@@ -1741,7 +1743,7 @@ PanelWindow {
 
         // Buscar coincidencias en el historial para cualquier query
         if (query.length >= 2 && _historyItems.length > 0) {
-            var histMatches = searchHistory(query);
+            var histMatches = searchHistory(query, 3);
             for (var hi2 = 0; hi2 < histMatches.length; hi2++) {
                 var hItem2 = histMatches[hi2];
                 newResults.push({
@@ -1992,19 +1994,23 @@ PanelWindow {
         proc.running = true;
     }
 
-    function searchHistory(query) {
+    function searchHistory(query, maxResults) {
         if (!_historyItems || _historyItems.length === 0) return [];
         if (!query || query.length === 0) {
-            // Sin query: devolver los más usados (top 5)
-            return _historyItems.slice(0, 5);
+            // Sin query: devolver todos (o hasta maxResults si se especifica)
+            if (maxResults && maxResults > 0) {
+                return _historyItems.slice(0, maxResults);
+            }
+            return _historyItems;
         }
         var q = query.toLowerCase();
         var results = [];
+        var limit = maxResults || 3;
         for (var i = 0; i < _historyItems.length; i++) {
             var item = _historyItems[i];
             if (item.text.toLowerCase().indexOf(q) !== -1) {
                 results.push(item);
-                if (results.length >= 3) break;
+                if (results.length >= limit) break;
             }
         }
         return results;
