@@ -31,13 +31,13 @@
 <p align="center">
  <video src="https://github.com/user-attachments/assets/9b14eecc-a359-438f-9041-73d1e3866318" width="100%" controls></video>
   <br>
-  <em>Video: Demostracion de la nueva animacion que tiene el buscador inspirada en el Spotlight del **ipadOS 27**</em>
+  <em>Video: Demostracion de la nueva animacion que tiene el buscador inspirada en el Spotlight del <strong>ipadOS 27</strong></em>
 </p>
 
 <p align="center">
  <video src="https://github.com/user-attachments/assets/2ec3f49d-d599-4b62-a8e6-8ff708fbc6db" width="100%" controls></video>
   <br>
-  <em>Video: Demostracion del poder que tiene **Hax** y showcase de funciones implementadas recientemente</em>
+  <em>Video: Demostracion del poder que tiene <strong>Hax</strong> y showcase de funciones implementadas recientemente</em>
 </p>
 ---
 
