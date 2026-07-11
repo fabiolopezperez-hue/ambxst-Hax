@@ -248,21 +248,35 @@ fi
 log_success "Hax instalado en $SHELL_SRC."
 
 # ── 6. Configurar atajo de teclado (Super + /) ────────────────
-HAX_BIND="bind = SUPER, slash, exec, qs -p \"$SHELL_SRC/modules/widgets/spotlight/SpotlightView.qml\""
-HYPR_CONFIG="$HOME/.config/hypr/hyprland.conf"
+# Soporta tanto hyprland.conf (hyprlang) como hyprland.lua (nuevo formato 0.55+)
+HAX_CMD="qs -p \"$SHELL_SRC/modules/widgets/spotlight/SpotlightView.qml\""
+HAX_CONF_BIND="bind = SUPER, slash, exec, $HAX_CMD"
+HAX_LUA_BIND="hl.bind(\"SUPER + Slash\", hl.dsp.exec_cmd('$HAX_CMD'))"
 
-if [[ -f "$HYPR_CONFIG" ]]; then
-  if ! grep -q "spotlight\|SpotlightView\|hax" "$HYPR_CONFIG" 2>/dev/null; then
-    log_info "Añadiendo atajo Super + / para Hax..."
-    printf "\n# Hax — Spotlight launcher\n%s\n" "$HAX_BIND" >> "$HYPR_CONFIG"
+HYPR_CONF="$HOME/.config/hypr/hyprland.conf"
+HYPR_LUA="$HOME/.config/hypr/hyprland.lua"
+
+if [[ -f "$HYPR_LUA" ]]; then
+  if ! grep -q "spotlight\|SpotlightView\|hax" "$HYPR_LUA" 2>/dev/null; then
+    log_info "Añadiendo atajo Super + / para Hax (formato Lua)..."
+    printf "\n-- Hax — Spotlight launcher\n%s\n" "$HAX_LUA_BIND" >> "$HYPR_LUA"
     log_success "Atajo configurado. Recarga Hyprland con 'hyprctl reload'."
   else
-    log_info "El atajo de Hax ya existe en la configuración."
+    log_info "El atajo de Hax ya existe en hyprland.lua."
+  fi
+elif [[ -f "$HYPR_CONF" ]]; then
+  if ! grep -q "spotlight\|SpotlightView\|hax" "$HYPR_CONF" 2>/dev/null; then
+    log_info "Añadiendo atajo Super + / para Hax (formato hyprlang)..."
+    printf "\n# Hax — Spotlight launcher\n%s\n" "$HAX_CONF_BIND" >> "$HYPR_CONF"
+    log_success "Atajo configurado. Recarga Hyprland con 'hyprctl reload'."
+  else
+    log_info "El atajo de Hax ya existe en hyprland.conf."
   fi
 else
-  log_warn "No se encontró $HYPR_CONFIG."
-  log_info "Añade manualmente esta línea a tu configuración de Hyprland:"
-  echo "  $HAX_BIND"
+  log_warn "No se encontró hyprland.lua ni hyprland.conf."
+  log_info "Añade manualmente a tu configuración de Hyprland:"
+  log_info "  Formato hyprlang (.conf):  $HAX_CONF_BIND"
+  log_info "  Formato Lua (.lua):        $HAX_LUA_BIND"
 fi
 
 # ── 7. Mensaje final ─────────────────────────────────────────

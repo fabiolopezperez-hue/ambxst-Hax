@@ -127,7 +127,18 @@ cp    modules/tools/*.qml         /ruta/a/tu-shell/modules/tools/
 cp    config/*.js                 /ruta/a/tu-shell/config/
 
 # Y añade a tu config de Hyprland:
+
+**Formato hyprlang (`.conf`):**
+```conf
 bind = SUPER, slash, exec, qs -p "/ruta/a/tu-shell/modules/widgets/spotlight/SpotlightView.qml"
+```
+
+**Formato Lua (`hyprland.lua`, Hyprland 0.55+):**
+```lua
+hl.bind("SUPER + Slash", hl.dsp.exec_cmd('qs -p "/ruta/a/tu-shell/modules/widgets/spotlight/SpotlightView.qml"'))
+```
+
+> El instalador detecta automáticamente si usas `hyprland.lua` o `hyprland.conf` y configura el atajo en el formato correcto.
 ```
 
 ---
@@ -249,7 +260,8 @@ El instalador:
 - **🐛 Instalador arreglado** — `hax-install.sh` ahora clona el Ambxst original (`Axenide/Ambxst`) en vez de clonarse a sí mismo
 - **➕ Archivos de soporte** — Añadidos `config/KeybindActions.js`, `config/ConfigValidator.js`, `version`, `modules/tools/*.qml` y `assets/presets/Ambxst Default/*.json` como fallback para shells personalizadas
 - **🔧 Compatible con cualquier shell** — Hax se instala en forks y shells custom con `-t`, sin necesidad de Ambxst
-- **📖 README actualizado** — Instrucciones claras para Ambxst original y shells personalizadas
+- **📜 Soporte para hyprland.lua** — El instalador detecta automáticamente si usas el nuevo formato Lua (Hyprland 0.55+) y configura el atajo `Super + /` en la sintaxis correcta
+- **📖 README actualizado** — Instrucciones claras para Ambxst original, shells personalizadas y ambos formatos de Hyprland
 
 ### v2.1 — Julio 2026
 
