@@ -184,12 +184,12 @@ if [[ "$SHELL_SRC" == "$HOME/.local/src/ambxst" ]] || [[ "$SHELL_SRC" == *"ambxs
     log_info "Ambxst ya está instalado."
   fi
 
-  # Si el source no existe y es Ambxst, clonar el repo
+  # Si el source no existe, clonar Ambxst original
   if [[ ! -d "$SHELL_SRC" ]]; then
-    log_info "Source no encontrado en $SHELL_SRC. Clonando ambxst-Hax..."
+    log_info "Source no encontrado en $SHELL_SRC. Clonando Ambxst original..."
     mkdir -p "$(dirname "$SHELL_SRC")"
-    git clone "https://github.com/fabiolopezperez-hue/ambxst-Hax.git" "$SHELL_SRC"
-    log_success "ambxst-Hax clonado en $SHELL_SRC."
+    git clone "https://github.com/Axenide/Ambxst.git" "$SHELL_SRC"
+    log_success "Ambxst original clonado en $SHELL_SRC."
   fi
 else
   log_info "Shell personalizada detectada — saltando instalación de Ambxst."
@@ -204,7 +204,9 @@ mkdir -p "$SHELL_SRC/modules/services"
 mkdir -p "$SHELL_SRC/modules/globals"
 mkdir -p "$SHELL_SRC/modules/theme"
 mkdir -p "$SHELL_SRC/modules/components"
+mkdir -p "$SHELL_SRC/modules/tools"
 mkdir -p "$SHELL_SRC/config/defaults"
+mkdir -p "$SHELL_SRC/assets/presets"
 
 # Módulos propios de Hax
 cp -r "$REPO_DIR/modules/widgets/spotlight"   "$SHELL_SRC/modules/widgets/"
@@ -214,6 +216,10 @@ cp    "$REPO_DIR/modules/services/"*.qml      "$SHELL_SRC/modules/services/" 2>/
 cp    "$REPO_DIR/modules/globals/"*.qml       "$SHELL_SRC/modules/globals/" 2>/dev/null || true
 cp    "$REPO_DIR/modules/theme/"*.qml         "$SHELL_SRC/modules/theme/" 2>/dev/null || true
 cp    "$REPO_DIR/modules/components/"*.qml    "$SHELL_SRC/modules/components/" 2>/dev/null || true
+cp -n "$REPO_DIR/modules/tools/"*.qml         "$SHELL_SRC/modules/tools/" 2>/dev/null || true
+
+# JS de configuración (KeybindActions, ConfigValidator)
+cp -n "$REPO_DIR/config/"*.js                 "$SHELL_SRC/config/" 2>/dev/null || true
 
 # Config (preservar la existente si la hay)
 if [[ -f "$SHELL_SRC/config/Config.qml" ]]; then
@@ -224,6 +230,12 @@ else
 fi
 
 cp -n "$REPO_DIR/config/defaults/"*.js "$SHELL_SRC/config/defaults/" 2>/dev/null || true
+
+# Assets (presets para configuración inicial)
+cp -rn "$REPO_DIR/assets/"* "$SHELL_SRC/assets/" 2>/dev/null || true
+
+# Archivo de versión
+cp -n "$REPO_DIR/version" "$SHELL_SRC/version" 2>/dev/null || true
 
 # Entry point (solo si no existe)
 if [[ ! -f "$SHELL_SRC/shell.qml" ]]; then

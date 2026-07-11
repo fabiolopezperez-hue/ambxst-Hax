@@ -75,13 +75,13 @@
 
 ## 🚀 Instalación
 
-### 🔹 Ambxst original (automático)
+### 🔹 Ambxst original (automático — recomendado)
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/fabiolopezperez-hue/ambxst-Hax/main/hax-install.sh | bash
 ```
 
-O localmente:
+O localmente (te permite elegir rama):
 
 ```bash
 git clone https://github.com/fabiolopezperez-hue/ambxst-Hax.git
@@ -89,6 +89,12 @@ cd ambxst-Hax
 chmod +x hax-install.sh
 ./hax-install.sh
 ```
+
+**¿Qué hace?**
+1. Si no tienes Ambxst instalado, lo instala (binario + fuente desde `Axenide/Ambxst`)
+2. Copia Hax y sus dependencias (spotlight, servicios, theme, componentes)
+3. Configura el atajo `Super + /` en Hyprland
+4. Si ya tenías Ambxst, no sobrescribe tu `shell.qml` ni `Config.qml`
 
 ### 🔹 Fork / shell personalizada
 
@@ -102,27 +108,25 @@ O con variable de entorno:
 AMBXST_SRC=~/Repos/mi-shell ./hax-install.sh
 ```
 
-El instalador:
-- **No instala Ambxst** si no es necesario (forks)
-- **No sobrescribe** tu `Config.qml` ni `shell.qml` si ya existen
-- **Pregunta interactivamente** si no encuentra la ruta
-- Configura el atajo `Super + /` en Hyprland
+**¿Qué hace?**
+- Copia solo los archivos de Hax en tu shell
+- **No toca** tu `shell.qml` ni `Config.qml` si ya existen
+- **No instala Ambxst** (asume que ya tienes tu propia shell)
+- **No necesita** que tu shell sea Ambxst — funciona en cualquier shell con estructura de módulos de Quickshell
 
 ### 🔹 Manual
 
-Copia los archivos del repo a tu shell:
-
 ```bash
+# Copia Hax y todas sus dependencias
 cp -r modules/widgets/spotlight   /ruta/a/tu-shell/modules/widgets/
 cp    modules/services/*.qml      /ruta/a/tu-shell/modules/services/
 cp    modules/globals/*.qml       /ruta/a/tu-shell/modules/globals/
 cp    modules/theme/*.qml         /ruta/a/tu-shell/modules/theme/
 cp    modules/components/*.qml    /ruta/a/tu-shell/modules/components/
-```
+cp    modules/tools/*.qml         /ruta/a/tu-shell/modules/tools/
+cp    config/*.js                 /ruta/a/tu-shell/config/
 
-Y añade a tu config de Hyprland:
-
-```conf
+# Y añade a tu config de Hyprland:
 bind = SUPER, slash, exec, qs -p "/ruta/a/tu-shell/modules/widgets/spotlight/SpotlightView.qml"
 ```
 
@@ -171,12 +175,17 @@ bind = SUPER, slash, exec, qs -p "/ruta/a/tu-shell/modules/widgets/spotlight/Spo
 ambxst-Hax/
 ├── hax-install.sh                        # Instalador automático
 ├── shell.qml                             # Entry point (Loader de Hax)
+├── version                               # Versión de Ambxst
 ├── config/
 │   ├── Config.qml                        # Config central
+│   ├── KeybindActions.js                 # Acciones de atajos
+│   ├── ConfigValidator.js                # Validación de config
 │   └── defaults/*.js                     # Valores por defecto
+├── assets/
+│   └── presets/Ambxst Default/*.json     # Presets de configuración inicial
 ├── modules/
 │   ├── widgets/spotlight/
-│   │   ├── SpotlightView.qml             # 🧠 Todo Hax (~1967 líneas)
+│   │   ├── SpotlightView.qml             # 🧠 Todo Hax (~2274 líneas)
 │   │   └── qmldir                       # Registro del módulo
 │   ├── services/
 │   │   ├── Visibilities.qml              # Abrir/cerrar Hax
@@ -193,8 +202,13 @@ ambxst-Hax/
 │   │   ├── Colors.qml                    # Paleta de colores
 │   │   ├── Icons.qml                     # Iconos Phosphor
 │   │   └── Styling.qml                   # Estilos compartidos
-│   └── components/
-│       └── StyledRect.qml                # Contenedor base con theming
+│   ├── components/
+│   │   └── StyledRect.qml                # Contenedor base con theming
+│   └── tools/
+│       ├── ScreenrecordTool.qml          # Grabación de pantalla
+│       ├── ScreenshotTool.qml            # Captura de pantalla
+│       ├── ScreenshotOverlay.qml         # Overlay de captura
+│       └── MirrorWindow.qml              # Espejo de ventana
 ├── screenshots/
 │   ├── hax-search-bar.png
 │   ├── hax-results.png
@@ -202,11 +216,13 @@ ambxst-Hax/
 └── README.md
 ```
 
-**Nota:** A diferencia de otros launchers, Hax es **monolítico** por diseño — todo el código vive en un solo archivo `SpotlightView.qml` (~2265 líneas). Esto evita la fragmentación y hace que sea fácil de mantener y modificar.
+**Nota:** A diferencia de otros launchers, Hax es **monolítico** por diseño — todo el código vive en un solo archivo `SpotlightView.qml` (~2274 líneas). Esto evita la fragmentación y hace que sea fácil de mantener y modificar.
+
+> El repo incluye archivos de **soporte** (`config/*.js`, `assets/presets/`, `modules/tools/`, `version`) para que Hax funcione correctamente incluso en shells personalizadas que no tengan estos archivos. Si tu shell ya los tiene, el instalador no los sobrescribe.
 
 ---
 
-## 🔧 ¿Usas un fork de Ambxst?
+## 🔧 ¿Usas una shell personalizada (fork, custom, etc)?
 
 ¡Funciona igual! Solo usa el flag `-t`:
 
@@ -214,15 +230,26 @@ ambxst-Hax/
 ./hax-install.sh -t /ruta/a/tu-shell
 ```
 
+**No necesitas tener Ambxst.** Hax se instala en cualquier shell basada en Quickshell que tenga la estructura de módulos (`modules/widgets/`, `modules/services/`, etc.).
+
 El instalador:
-- Copia Hax y sus dependencias en tu shell
-- No toca tu `Config.qml` ni `shell.qml` si ya existen
-- No instala Ambxst (porque ya tienes tu propia shell)
-- Te pregunta si no encuentra la ruta
+- Copia Hax y todas sus dependencias en tu shell
+- **No toca** tu `Config.qml` ni `shell.qml` si ya existen
+- **No instala Ambxst** — respeta tu shell actual
+- **Añade archivos de soporte** (KeybindActions.js, ConfigValidator.js, assets/presets) solo si no los tienes
+- Configura el atajo `Super + /` en Hyprland si no existe
 
 ---
 
 ## 📋 Changelog
+
+### v2.2 — Julio 2026
+
+- **📦 Repositorio auto-contenido** — Añadidos archivos faltantes para que Hax funcione al clonar desde GitHub sin necesidad de tener Ambxst pre-instalado
+- **🐛 Instalador arreglado** — `hax-install.sh` ahora clona el Ambxst original (`Axenide/Ambxst`) en vez de clonarse a sí mismo
+- **➕ Archivos de soporte** — Añadidos `config/KeybindActions.js`, `config/ConfigValidator.js`, `version`, `modules/tools/*.qml` y `assets/presets/Ambxst Default/*.json` como fallback para shells personalizadas
+- **🔧 Compatible con cualquier shell** — Hax se instala en forks y shells custom con `-t`, sin necesidad de Ambxst
+- **📖 README actualizado** — Instrucciones claras para Ambxst original y shells personalizadas
 
 ### v2.1 — Julio 2026
 
