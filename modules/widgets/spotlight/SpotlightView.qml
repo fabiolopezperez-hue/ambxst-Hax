@@ -376,7 +376,6 @@ PanelWindow {
                 proc.destroy();
             });
             proc.onExited.connect(function() { try { proc.destroy(); } catch (e) {} });
-            proc.onError.connect(function() { try { proc.destroy(); } catch (e) {} });
             // $PPID es el PID de Quickshell (padre del proceso lanzado por Process)
             proc.command = ["bash", "-c",
                 "P=$(awk '{print $2}' /proc/$PPID/statm 2>/dev/null); " +
