@@ -46,6 +46,7 @@
 | Característica | Descripción |
 |----------------|-------------|
 | 🔍 **Búsqueda de apps** | Encuentra apps instaladas con resultados ordenados por uso |
+| 📊 **Monitor del sistema** | `stats` — muestra CPU, RAM, disco y temperatura en vivo con barras de progreso |
 | 📦 **Buscador de paquetes** | `install firefox` — busca en pacman + AUR (yay) + flatpak a la vez |
 | ⏱️ **Timers** | `timer 5m`, `timer pizza 10m`, `timer 30s` — con notificación al terminar |
 | 🔔 **Alarmas** | `alarm 8:00`, `alarm 7:30 l-v`, `alarm 14:30 comida` |
@@ -148,6 +149,7 @@ bind = SUPER, slash, exec, qs -p "/ruta/a/tu-shell/modules/widgets/spotlight/Spo
 | `capturar` / `screenshot` | Capturar pantalla |
 | `update` | Actualizar sistema (pacman -Syu) |
 | `remove firefox` | Desinstalar paquete |
+| `stats` / `monitor` | Monitor del sistema con CPU, RAM, disco y temperatura en vivo |
 | `ayuda` / `help` / `?` | Muestra la ayuda completa |
 | `/comando` | Ejecuta un comando en la terminal integrada |
 | `23*4` | Calcula y muestra el resultado inline |
@@ -157,9 +159,9 @@ bind = SUPER, slash, exec, qs -p "/ruta/a/tu-shell/modules/widgets/spotlight/Spo
 | Tecla | Acción |
 |-------|--------|
 | `Super + /` | Abrir Hax |
-| `↑` / `↓` | Navegar resultados |
+| `↑` / `↓` | Navegar resultados / scroll en terminal |
 | `Enter` | Abrir selección / ejecutar |
-| `Esc` | Cerrar |
+| `Esc` | Cerrar / cerrar monitor |
 
 ---
 
@@ -200,7 +202,7 @@ ambxst-Hax/
 └── README.md
 ```
 
-**Nota:** A diferencia de otros launchers, Hax es **monolítico** por diseño — todo el código vive en un solo archivo `SpotlightView.qml` (~1967 líneas). Esto evita la fragmentación y hace que sea fácil de mantener y modificar.
+**Nota:** A diferencia de otros launchers, Hax es **monolítico** por diseño — todo el código vive en un solo archivo `SpotlightView.qml` (~2265 líneas). Esto evita la fragmentación y hace que sea fácil de mantener y modificar.
 
 ---
 
@@ -221,6 +223,13 @@ El instalador:
 ---
 
 ## 📋 Changelog
+
+### v2.1 — Julio 2026
+
+- **📊 Monitor del sistema** — `stats` / `monitor` abre un panel con CPU, RAM, disco y temperatura en vivo, con barras de progreso coloreadas (verde/amarillo/rojo) que se actualizan cada 2 segundos
+- **🔁 Scroll con flechas** — Navegación por resultados y scroll en terminal con ↑↓, scroll en terminal con la rueda del ratón
+- **🖥️ Terminal integrada estable** — Animación de altura desactivada durante procesos, altura mínima de 240px, `.slice()` para que QML detecte cambios en el array de salida
+- **⬆️⬇️ Scroll en terminal** — Flechas arriba/abajo hacen scroll cuando la terminal está activa
 
 ### v2.0 — Julio 2026
 
