@@ -81,6 +81,8 @@
 curl -sSL https://raw.githubusercontent.com/fabiolopezperez-hue/ambxst-Hax/main/hax-install.sh | bash
 ```
 
+> El instalador funciona incluso desde `curl | bash`: detecta que se ejecuta desde un pipe, clona el repo temporalmente y hace la instalación completa. Cuando termina, se limpia solo.
+
 O localmente (te permite elegir rama):
 
 ```bash
@@ -92,8 +94,8 @@ chmod +x hax-install.sh
 
 **¿Qué hace?**
 1. Si no tienes Ambxst instalado, lo instala (binario + fuente desde `Axenide/Ambxst`)
-2. Copia Hax y sus dependencias (spotlight, servicios, theme, componentes)
-3. Configura el atajo `Super + /` en Hyprland
+2. Copia Hax y sus dependencias (spotlight, servicios, theme, componentes, tools, config, assets)
+3. Configura el atajo `Super + /` en Hyprland (soporta `.lua` y `.conf`)
 4. Si ya tenías Ambxst, no sobrescribe tu `shell.qml` ni `Config.qml`
 
 ### 🔹 Fork / shell personalizada

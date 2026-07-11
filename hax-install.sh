@@ -18,7 +18,7 @@ set -euo pipefail
 #   • shell.qml (entry point con el Loader de Hax)
 # ═══════════════════════════════════════════════════════════════
 
-REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 GREEN='\033[0;32m'; BLUE='\033[0;34m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'
 log_info()    { echo -e "${BLUE}ℹ  $1${NC}" >&2; }
 log_success() { echo -e "${GREEN}✔  $1${NC}" >&2; }
@@ -26,6 +26,16 @@ log_warn()    { echo -e "${YELLOW}⚠  $1${NC}" >&2; }
 log_error()   { echo -e "${RED}✖  $1${NC}" >&2; }
 
 has_cmd() { command -v "$1" >/dev/null 2>&1; }
+
+# ── Si el script se ejecuta via curl | bash, clonar el repo ────
+if [[ ! -d "$SCRIPT_DIR/modules/widgets/spotlight" ]]; then
+  REPO_DIR="$(mktemp -d)"
+  log_info "Ejecutando desde pipe — clonando ambxst-Hax temporalmente..."
+  git clone --depth 1 "https://github.com/fabiolopezperez-hue/ambxst-Hax.git" "$REPO_DIR"
+  trap "rm -rf '$REPO_DIR'" EXIT
+else
+  REPO_DIR="$SCRIPT_DIR"
+fi
 
 # ── Ayuda ──────────────────────────────────────────────────────
 usage() {
