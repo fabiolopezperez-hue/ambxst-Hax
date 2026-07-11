@@ -627,13 +627,6 @@ PanelWindow {
                             // Enter, Tab, flecha derecha, Ctrl+C, Esc
                             Keys.onPressed: (event) => {
                 if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                    var _dbgQ = searchInput.text.trim().toLowerCase();
-                    if (_dbgQ === "d" || _dbgQ === "dev" || _dbgQ === "debug") {
-                        spotlight.showDebug = !spotlight.showDebug;
-                        searchInput.clear();
-                        event.accepted = true;
-                        return;
-                    }
                     if (spotlight.isCommandMode && text.trim().length > 1) {
                                         spotlight.runCmd(text.trim().substring(1));
                                     } else if (event.modifiers & Qt.ShiftModifier) {
@@ -2327,6 +2320,24 @@ PanelWindow {
                 Visibilities.setActiveModule("");
             }
         });
+
+        // ── Opción de modo desarrollador (debug) ──
+        // Aparece como resultado al escribir "d" / "dev" / "debug".
+        // Solo entra al modo debug al pulsar Enter sobre esta opción.
+        if (query === "d" || query === "dev" || query === "debug") {
+            newResults.unshift({
+                name: "🐞 Modo desarrollador (debug)",
+                description: "Ver errores, tiempos y recursos de Hax en pantalla",
+                icon: Icons.notepad,
+                type: "debug",
+                exec: function() {
+                    spotlight.showDebug = true;
+                    searchInput.text = "";
+                    spotlight.searchText = "";
+                    spotlight.results = [];
+                }
+            });
+        }
 
         // Asignar para que QML detecte el cambio
         results = newResults;
