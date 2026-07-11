@@ -25,7 +25,7 @@
 <p align="center">
  <img src="screenshots/hax-results.png" width="620">
   <br>
-  <em>Terminal integrada: ejecuta comandos con / y muestra la salida en vivo</em>
+  <em>Terminal embebida: escribe / y abre una terminal real (PTY) dentro de Hax</em>
 </p>
 
 <p align="center">
@@ -53,7 +53,7 @@
 | 🌤️ **Clima** | `weather`, `weather Madrid` — pronóstico actual |
 | 🧮 **Calculadora inline** | Escribe `23*4` → muestra `= 92` al instante |
 | ⚡ **Acciones rápidas** | `lock`, `apagar`, `reiniciar`, `suspender`, `capturar` |
-| 💻 **Terminal integrada** | `/comando` + `Enter` — ejecuta y ve la salida en vivo |
+| 💻 **Terminal embebida** | Escribe `/` para abrir una **terminal real (PTY)** dentro de Hax (tu shell por defecto, p. ej. fish) — cierra con `exit` o `Esc` |
 | 🔒 **Lockscreen** | Bloqueo de pantalla integrado |
 | 📸 **Screenshot** | Captura de pantalla con un comando |
 | 🔄 **Actualizar sistema** | `update` — pacman -Syu |
@@ -75,6 +75,7 @@
 - Qt6 (base, declarative, wayland, svg)
 - **Hyprland** u otro compositor Wayland compatible
 - Herramientas: `grim`, `slurp`, `jq`, `playerctl`, `wl-clipboard`, `brightnessctl`
+- **Para la terminal embebida:** el instalador compila e instala [`qmltermwidget`](https://github.com/Swordfish90/qmltermwidget) (plugin QML para Qt6) automáticamente. En instalación manual, instálalo tú mismo.
 
 ---
 
@@ -173,7 +174,7 @@ hl.bind("SUPER + Slash", hl.dsp.exec_cmd('qs -p "/ruta/a/tu-shell/modules/widget
 | remove firefox | Desinstalar paquete |
 | stats / monitor | Monitor del sistema con CPU, RAM, disco y temperatura en vivo |
 | ayuda / help / ? | Muestra la ayuda completa |
-| /comando | Ejecuta un comando en la terminal integrada |
+| / | Abre la **terminal embebida** (PTY real) dentro de Hax |
 | 23*4 | Calcula y muestra el resultado inline 
 
  Atajos de teclado
@@ -300,6 +301,13 @@ El instalador:
 ---
 
 ## 📋 Changelog
+
+### v2.5 — Julio 2026
+
+- **🖥️ Terminal embebida (PTY real)** — Escribe `/` en el buscador para abrir una **terminal real** dentro de Hax (emulador PTY con `qmltermwidget`, usando tu shell por defecto como fish). Cierra con `exit` o `Esc`. Ya no es un `runCmd` que solo mostraba salida: ahora es interactiva y completa.
+- **⌨️ Hax 100% teclado** — La vista rápida (Quick Look) se activa al **navegar con ↑/↓** por los resultados, sin tocar el ratón (el ratón solo se usa para borrar copias en el Historial).
+- **🐟 Alias del shell en comandos** — `runCmd` ahora ejecuta con `$SHELL -i -c`, así que respeta tus alias (p. ej. `ls` → `eza` en fish).
+- **🔧 Instalador: qmltermwidget automático** — `hax-install.sh` compila e instala el plugin `qmltermwidget` (Qt6) de forma idempotente, para que la terminal embebida funcione en un clone limpio sin pasos manuales.
 
 ### v2.4 — Julio 2026
 
