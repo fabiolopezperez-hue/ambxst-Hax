@@ -1031,6 +1031,38 @@ PanelWindow {
                                         }
                                     }
                                 }
+
+                                // Botón eliminar del historial (solo para items history, visible al hover)
+                                Rectangle {
+                                    Layout.preferredWidth: 28
+                                    Layout.preferredHeight: 28
+                                    Layout.alignment: Qt.AlignVCenter
+                                    Layout.rightMargin: 4
+                                    radius: Styling.radius(-4)
+                                    color: delMouse.containsMouse ? Qt.rgba(1, 0.3, 0.3, 0.2) : "transparent"
+                                    opacity: (mouseArea.containsMouse && modelData.type === "history") ? 1 : 0
+                                    visible: modelData.type === "history"
+
+                                    Behavior on opacity { NumberAnimation { duration: 120 } }
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "✕"
+                                        font.pixelSize: 13
+                                        color: "#f87171"
+                                        opacity: 0.8
+                                    }
+
+                                    MouseArea {
+                                        id: delMouse
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            spotlight.removeFromHistory(modelData.historyText || modelData.name);
+                                            mouse.accepted = true;
+                                        }
+                                    }
+                                }
                             }
 
                             // Separador
@@ -1998,6 +2030,20 @@ PanelWindow {
             proc.destroy();
         });
         proc.running = true;
+    }
+
+    function removeFromHistory(text) {
+        if (!text) return;
+        for (var i = 0; i < _historyItems.length; i++) {
+            if (_historyItems[i].text === text) {
+                _historyItems.splice(i, 1);
+                break;
+            }
+        }
+        _writeHistory();
+        // Refrescar la lista de resultados para que desaparezca
+        selectedIndex = 0;
+        updateResults();
     }
 
     // ── Vigilante del portapapeles ─────────────────────────────────────────
