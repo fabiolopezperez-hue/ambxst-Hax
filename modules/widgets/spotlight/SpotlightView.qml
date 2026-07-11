@@ -1043,7 +1043,7 @@ PanelWindow {
                                     }
                                 }
                             }
-                            Text { text: (monRamUsed / 1024).toFixed(1) + "/" + (monRamTotal / 1024).toFixed(1) + " GB"; font.pixelSize: Config.theme.fontSize - 2; color: Styling.srItem("overprimary"); Layout.preferredWidth: 110; horizontalAlignment: Text.AlignRight }
+                            Text { text: (monRamUsed / 1048576).toFixed(1) + "/" + (monRamTotal / 1048576).toFixed(1) + " GB"; font.pixelSize: Config.theme.fontSize - 2; color: Styling.srItem("overprimary"); Layout.preferredWidth: 110; horizontalAlignment: Text.AlignRight }
                         }
 
                         // ── Disco ──────────────────────────────────────────────
