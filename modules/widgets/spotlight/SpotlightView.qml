@@ -167,6 +167,14 @@ PanelWindow {
     // ── Modo desarrollador (debug) ──────────────────────────────────────────
     // Se activa escribiendo "d" / "dev" / "debug" y pulsando Enter.
     property bool showDebug: false
+    onShowDebugChanged: {
+        try {
+            var _df = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+            _df.command = ["bash", "-c", "echo " + (showDebug ? "ON" : "OFF") + " > /tmp/hax-debug-state 2>/dev/null"];
+            _df.onExited.connect(function() { try { _df.destroy(); } catch (e) {} });
+            _df.running = true;
+        } catch (e) {}
+    }
     property var debugErrorLog: []
     property int debugOpenMs: -1
     property int debugLastSearchMs: -1
@@ -619,10 +627,10 @@ PanelWindow {
                             // Enter, Tab, flecha derecha, Ctrl+C, Esc
                             Keys.onPressed: (event) => {
                 if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                    var _dbgQ = text.trim().toLowerCase();
+                    var _dbgQ = searchInput.text.trim().toLowerCase();
                     if (_dbgQ === "d" || _dbgQ === "dev" || _dbgQ === "debug") {
                         spotlight.showDebug = !spotlight.showDebug;
-                        clear();
+                        searchInput.clear();
                         event.accepted = true;
                         return;
                     }
@@ -703,7 +711,7 @@ PanelWindow {
                     clip: true
                     visible: spotlight.showDebug
                     opacity: spotlight.showDebug ? 1 : 0
-                    height: spotlight.showDebug ? debugContent.implicitHeight + 20 : 0
+                    height: spotlight.showDebug ? Math.max(debugContent.implicitHeight + 20, 120) : 0
                     Behavior on opacity {
                         enabled: Config.animDuration > 0
                         NumberAnimation { duration: Config.animDuration * 2 }
