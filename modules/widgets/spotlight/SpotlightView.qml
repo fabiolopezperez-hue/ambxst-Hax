@@ -2342,9 +2342,9 @@ PanelWindow {
         // ── Opción de modo desarrollador (debug) ──
         // Aparece como resultado al escribir "d" / "dev" / "debug".
         // Solo entra al modo debug al pulsar Enter sobre esta opción.
-        // Se coloca al FINAL de la lista para que apps y demás queden arriba.
+        // Se coloca al PRINCIPIO de la lista (arriba) para entrar rápido con Enter.
         if (query === "d" || query === "dev" || query === "debug") {
-            newResults.push({
+            newResults.unshift({
                 name: "🐞 Modo desarrollador (debug)",
                 description: "Ver errores, tiempos y recursos de Hax en pantalla",
                 icon: Icons.notepad,
