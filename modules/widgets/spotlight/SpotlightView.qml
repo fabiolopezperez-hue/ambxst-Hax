@@ -168,6 +168,9 @@ PanelWindow {
     // Se activa escribiendo "d" / "dev" / "debug" y pulsando Enter.
     property bool showDebug: false
     onShowDebugChanged: {
+        if (showDebug) {
+            showMonitor = true;
+        }
         try {
             var _df = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
             _df.command = ["bash", "-c", "echo " + (showDebug ? "ON" : "OFF") + " > /tmp/hax-debug-state 2>/dev/null"];
@@ -2341,8 +2344,9 @@ PanelWindow {
         // ── Opción de modo desarrollador (debug) ──
         // Aparece como resultado al escribir "d" / "dev" / "debug".
         // Solo entra al modo debug al pulsar Enter sobre esta opción.
+        // Se coloca al FINAL de la lista para que apps y demás queden arriba.
         if (query === "d" || query === "dev" || query === "debug") {
-            newResults.unshift({
+            newResults.push({
                 name: "🐞 Modo desarrollador (debug)",
                 description: "Ver errores, tiempos y recursos de Hax en pantalla",
                 icon: Icons.notepad,
