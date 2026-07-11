@@ -162,6 +162,16 @@ PanelWindow {
         }
     }
     property var results: []
+    property string autoCompleteSuffix: {
+        if (searchInput && searchInput.text.length > 0 && results.length > 0) {
+            var txt = searchInput.text;
+            var firstName = results[0].name || "";
+            if (firstName.toLowerCase().indexOf(txt.toLowerCase()) === 0 && firstName.length > txt.length) {
+                return firstName.substring(txt.length);
+            }
+        }
+        return "";
+    }
     property int searchGeneration: 0  // evita race conditions en async
     property string _lastSearchQuery: "" // última búsqueda de paquetes
 
@@ -416,6 +426,18 @@ PanelWindow {
                                 visible: parent.text.length === 0
                             }
 
+                            // Sugerencia de autocompletado (en gris, al lado del texto escrito)
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                x: parent.cursorRectangle.x + 1
+                                text: autoCompleteSuffix
+                                font: parent.font
+                                color: Styling.srItem("text")
+                                opacity: 0.3
+                                visible: autoCompleteSuffix.length > 0 && parent.activeFocus
+                                z: -1
+                            }
+
                             onTextChanged: {
                                 spotlight.searchText = text;
                                 spotlight.selectedIndex = 0;
@@ -477,7 +499,7 @@ PanelWindow {
                                 }
                             }
 
-                            // Tab → autocompletar con el primer resultado
+                            // Tab / Flecha derecha → autocompletar
                             Keys.onPressed: (event) => {
                                 if (event.key === Qt.Key_Tab && results.length > 0) {
                                     var completion = results[0].name || "";
@@ -485,6 +507,13 @@ PanelWindow {
                                         searchInput.text = completion;
                                         searchInput.cursorPosition = completion.length;
                                     }
+                                    event.accepted = true;
+                                } else if (event.key === Qt.Key_Right
+                                           && autoCompleteSuffix.length > 0
+                                           && cursorPosition === text.length) {
+                                    // Flecha derecha → aceptar sugerencia
+                                    searchInput.text = text + autoCompleteSuffix;
+                                    searchInput.cursorPosition = searchInput.text.length;
                                     event.accepted = true;
                                 }
                             }
