@@ -68,6 +68,7 @@ PanelWindow {
             cancelCmdProcess();
             stopMonitor();
             loadHistory();
+            startClipWatcher();
             if (weatherSearch) weatherSearch.destroy();
             weatherSearch = null;
 
@@ -83,6 +84,7 @@ PanelWindow {
         } else {
             openAnim.stop();
             stopMonitor();
+            stopClipWatcher();
             closeAnim.start();
         }
     }
@@ -1913,6 +1915,8 @@ PanelWindow {
         p.running = true;
         // Guardar en el historial inteligente
         saveToHistory(copyText, item.type || "text");
+        // Marcar para que el vigilante del portapapeles no lo cuente doble
+        _lastClipboard = copyText;
         // Feedback visual
         _copyFeedback = item.name || copyText || "";
         _copyFeedbackTimer.restart();
@@ -1923,6 +1927,8 @@ PanelWindow {
     // ── Historial inteligente ──────────────────────────────────────────────
     property var _historyItems: []
     property var _historyLoaded: false
+    property string _lastClipboard: ""
+    property var _clipTimer: null
 
     function loadHistory() {
         if (_historyLoaded) return;
@@ -1992,6 +1998,55 @@ PanelWindow {
             proc.destroy();
         });
         proc.running = true;
+    }
+
+    // ── Vigilante del portapapeles ─────────────────────────────────────────
+    // Guarda en el historial TODO lo que copies, venga de donde venga
+    function _readClipboard(cb) {
+        var proc = Qt.createQmlObject('import Quickshell.Io; Process { stdout: SplitParser {} }', spotlight);
+        var lines = [];
+        proc.stdout.onRead.connect(function(d) { lines.push(d); });
+        proc.onExited.connect(function() {
+            var content = lines.join("\n").trim();
+            proc.destroy();
+            if (cb) cb(content);
+        });
+        // -n = no añade salto de línea final; si está vacío, devuelve error y se ignora
+        proc.command = ["wl-paste", "-n"];
+        proc.running = true;
+    }
+
+    function startClipWatcher() {
+        if (_clipTimer !== null) return;
+        // Capturar el contenido actual (al abrir Hax)
+        _readClipboard(function(content) {
+            if (content.length > 0 && content.length < 100000) {
+                _lastClipboard = content;
+                saveToHistory(content, "text");
+            }
+        });
+        // Polling cada 1.5s para detectar cambios
+        _clipTimer = Qt.createQmlObject('import QtQuick; Timer { }', spotlight);
+        _clipTimer.interval = 1500;
+        _clipTimer.repeat = true;
+        _clipTimer.triggered.connect(function() {
+            _readClipboard(function(content) {
+                if (content.length > 0 && content.length < 100000 && content !== _lastClipboard) {
+                    _lastClipboard = content;
+                    saveToHistory(content, "text");
+                }
+            });
+        });
+        _clipTimer.start();
+    }
+
+    function stopClipWatcher() {
+        if (_clipTimer !== null) {
+            _clipTimer.stop();
+            _clipTimer.destroy();
+            _clipTimer = null;
+        }
+        _lastClipboard = "";
     }
 
     function searchHistory(query, maxResults) {
