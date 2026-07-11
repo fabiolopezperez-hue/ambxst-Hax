@@ -67,6 +67,7 @@ PanelWindow {
             selectedIndex = 0;
             cancelCmdProcess();
             stopMonitor();
+            loadHistory();
             if (weatherSearch) weatherSearch.destroy();
             weatherSearch = null;
 
@@ -874,7 +875,12 @@ PanelWindow {
 
                                 onClicked: {
                                     spotlight.selectedIndex = index;
-                                    spotlight.executeItem(modelData);
+                                    // History: copiar. Info: no hacer nada. Resto: ejecutar.
+                                    if (modelData.type === "history") {
+                                        spotlight.copyResult(modelData);
+                                    } else if (modelData.type !== "info") {
+                                        spotlight.executeItem(modelData);
+                                    }
                                 }
                             }
 
@@ -915,7 +921,7 @@ PanelWindow {
                                         visible: modelData.type === "app"
                                     }
 
-                                    // Icono Phosphor (para calc, web, archivos y fallback)
+                                    // Icono Phosphor (para calc, web, archivos, history y fallback)
                                     Text {
                                         id: phosphorIcon
                                         anchors.centerIn: parent
@@ -924,6 +930,7 @@ PanelWindow {
                                                 case "calc": return Icons.notepad;
                                                 case "web":  return Icons.globe;
                                                 case "file": return Icons.file;
+                                                case "history": return Icons.notepad;
                                                 default:     return Icons.apps;
                                             }
                                         }
@@ -979,6 +986,7 @@ PanelWindow {
                                                 case "calc": return "=";
                                                 case "file": return "📁";
                                                 case "web": return "🌐";
+                                                case "history": return "📋";
                                                 default: return "";
                                             }
                                         }
@@ -998,7 +1006,7 @@ PanelWindow {
                                     radius: Styling.radius(-4)
                                     color: mouseArea.containsMouse ? Qt.rgba(1, 1, 1, 0.12) : "transparent"
                                     opacity: mouseArea.containsMouse ? 1 : 0
-                                    visible: modelData.type !== "calc" // calc ya copia solo
+                                    visible: modelData.type !== "calc" && modelData.type !== "info"
 
                                     Behavior on opacity { NumberAnimation { duration: 120 } }
 
@@ -1702,6 +1710,51 @@ PanelWindow {
             return;
         }
 
+        // ── Historial inteligente ──────────────────────────────────────────
+        // Si busca "historial", "clip", etc. → mostrar todo el historial
+        var histMatch = query.match(/^(historial|history|clip|clipboard|portapapeles)$/i);
+        if (histMatch) {
+            var histItems = searchHistory("");
+            for (var hi = 0; hi < histItems.length; hi++) {
+                var hItem = histItems[hi];
+                newResults.push({
+                    name: "📋 " + hItem.text,
+                    description: "Copiado " + hItem.count + " vez" + (hItem.count !== 1 ? "es" : ""),
+                    icon: Icons.notepad,
+                    type: "history",
+                    historyText: hItem.text,
+                    exec: null
+                });
+            }
+            if (newResults.length === 0) {
+                newResults.push({
+                    name: "📋 Historial vacío",
+                    description: "Copia algo con Enter o Ctrl+C para que aparezca aquí",
+                    icon: Icons.notepad,
+                    type: "info",
+                    exec: null
+                });
+            }
+            results = newResults;
+            return;
+        }
+
+        // Buscar coincidencias en el historial para cualquier query
+        if (query.length >= 2 && _historyItems.length > 0) {
+            var histMatches = searchHistory(query);
+            for (var hi2 = 0; hi2 < histMatches.length; hi2++) {
+                var hItem2 = histMatches[hi2];
+                newResults.push({
+                    name: "📋 " + hItem2.text,
+                    description: "Historial — " + hItem2.count + " vez" + (hItem2.count !== 1 ? "es" : ""),
+                    icon: Icons.notepad,
+                    type: "history",
+                    historyText: hItem2.text,
+                    exec: null
+                });
+            }
+        }
+
         // 1. Apps (ordenadas por uso — las que más abres primero)
         const appResults = AppSearch.fuzzyQuery(query);
         var seenIds = {};
@@ -1832,8 +1885,10 @@ PanelWindow {
     function copyResult(item) {
         if (!item) return;
         var p = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+        var copyText = "";
         if (item.type === "file") {
             var path = item.description || "";
+            copyText = path;
             // Si es imagen, copiar la imagen al portapapeles
             if (path.match(/\.(png|jpg|jpeg|gif|bmp|webp|svg)$/i)) {
                 p.command = ["bash", "-c", "wl-copy < " + path.replace(/'/g, "'\\''")];
@@ -1841,20 +1896,119 @@ PanelWindow {
                 p.command = ["wl-copy", path];
             }
         } else if (item.type === "calc") {
-            // Ya copia al hacer clic, pero por si acaso
             var parts = (item.name || "").split(" = ");
-            p.command = ["wl-copy", parts.length > 1 ? parts[1] : parts[0]];
+            copyText = parts.length > 1 ? parts[1] : parts[0];
+            p.command = ["wl-copy", copyText];
+        } else if (item.type === "history") {
+            // Items del historial: copiar el texto guardado
+            copyText = item.historyText || item.name || "";
+            p.command = ["wl-copy", copyText];
         } else {
-            p.command = ["wl-copy", item.name || ""];
+            copyText = item.name || "";
+            p.command = ["wl-copy", copyText];
         }
         p.onExited.connect(() => p.destroy());
         p.running = true;
-        // Feedback visual: mostrar "Copiado" brevemente
-        _copyFeedback = item.name || "";
+        // Guardar en el historial inteligente
+        saveToHistory(copyText, item.type || "text");
+        // Feedback visual
+        _copyFeedback = item.name || copyText || "";
         _copyFeedbackTimer.restart();
     }
 
     property string _copyFeedback: ""
+
+    // ── Historial inteligente ──────────────────────────────────────────────
+    property var _historyItems: []
+    property var _historyLoaded: false
+
+    function loadHistory() {
+        if (_historyLoaded) return;
+        var path = Quickshell.env("HOME") + "/.local/share/hax/history.json";
+        var proc = Qt.createQmlObject(
+            'import Quickshell.Io; Process { stdout: SplitParser {} }',
+            spotlight
+        );
+        proc.command = ["bash", "-c", "cat " + path + " 2>/dev/null || echo '[]'"];
+        var lines = [];
+        proc.stdout.onRead.connect(function(data) {
+            lines.push(data);
+        });
+        proc.onExited.connect(function() {
+            try {
+                _historyItems = JSON.parse(lines.join("")) || [];
+            } catch(e) {
+                _historyItems = [];
+            }
+            _historyLoaded = true;
+            proc.destroy();
+        });
+        proc.running = true;
+    }
+
+    function saveToHistory(text, type) {
+        if (!text || text.length === 0) return;
+        // Buscar si ya existe
+        var idx = -1;
+        for (var i = 0; i < _historyItems.length; i++) {
+            if (_historyItems[i].text === text) {
+                idx = i;
+                break;
+            }
+        }
+        var now = new Date().toISOString();
+        if (idx >= 0) {
+            _historyItems[idx].count = (_historyItems[idx].count || 1) + 1;
+            _historyItems[idx].lastUsed = now;
+        } else {
+            _historyItems.unshift({
+                text: text,
+                type: type || "text",
+                count: 1,
+                lastUsed: now
+            });
+            // Máximo 50 items
+            if (_historyItems.length > 50) _historyItems.pop();
+        }
+        // Ordenar: más usado primero, luego más reciente
+        _historyItems.sort(function(a, b) {
+            if (a.count !== b.count) return b.count - a.count;
+            return b.lastUsed.localeCompare(a.lastUsed);
+        });
+        // Guardar a disco
+        _writeHistory();
+    }
+
+    function _writeHistory() {
+        var json = JSON.stringify(_historyItems);
+        var path = Quickshell.env("HOME") + "/.local/share/hax/history.json";
+        var proc = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+        // Usar Python para escribir el archivo JSON de forma segura (como hace Ambxst)
+        var pyCode = "import json,sys,pathlib; pathlib.Path(sys.argv[1]).parent.mkdir(parents=True,exist_ok=True); pathlib.Path(sys.argv[1]).write_text(sys.argv[2])";
+        proc.command = ["python3", "-c", pyCode, path, json];
+        proc.onExited.connect(function() {
+            proc.destroy();
+        });
+        proc.running = true;
+    }
+
+    function searchHistory(query) {
+        if (!_historyItems || _historyItems.length === 0) return [];
+        if (!query || query.length === 0) {
+            // Sin query: devolver los más usados (top 5)
+            return _historyItems.slice(0, 5);
+        }
+        var q = query.toLowerCase();
+        var results = [];
+        for (var i = 0; i < _historyItems.length; i++) {
+            var item = _historyItems[i];
+            if (item.text.toLowerCase().indexOf(q) !== -1) {
+                results.push(item);
+                if (results.length >= 3) break;
+            }
+        }
+        return results;
+    }
 
     // ── Búsqueda de archivos ───────────────────────────────────────────────
     property var currentSearch: null
