@@ -187,26 +187,54 @@ ambxst-Hax/
 ├── hax-install.sh                        # Instalador automático
 ├── shell.qml                             # Entry point (Loader de Hax)
 ├── version                               # Versión de Ambxst
+├── README.md
 ├── config/
 │   ├── Config.qml                        # Config central
 │   ├── KeybindActions.js                 # Acciones de atajos
 │   ├── ConfigValidator.js                # Validación de config
-│   └── defaults/*.js                     # Valores por defecto
+│   └── defaults/
+│       ├── ai.js
+│       ├── bar.js
+│       ├── compositor.js
+│       ├── desktop.js
+│       ├── dock.js
+│       ├── lockscreen.js
+│       ├── notch.js
+│       ├── overview.js
+│       ├── performance.js
+│       ├── prefix.js
+│       ├── system.js
+│       ├── theme.js
+│       ├── weather.js
+│       └── workspaces.js
 ├── assets/
-│   └── presets/Ambxst Default/*.json     # Presets de configuración inicial
+│   └── presets/
+│       └── Ambxst Default/
+│           ├── bar.json
+│           ├── compositor.json
+│           ├── desktop.json
+│           ├── dock.json
+│           ├── info.json
+│           ├── lockscreen.json
+│           ├── notch.json
+│           ├── overview.json
+│           ├── performance.json
+│           ├── system.json
+│           ├── theme.json
+│           └── workspaces.json
 ├── modules/
 │   ├── widgets/spotlight/
-│   │   ├── SpotlightView.qml             # 🧠 Todo Hax (~2274 líneas)
-│   │   └── qmldir                       # Registro del módulo
+│   │   ├── qmldir                       # Registro del módulo
+│   │   └── SpotlightView.qml             # 🧠 Todo Hax (~2274 líneas)
 │   ├── services/
-│   │   ├── Visibilities.qml              # Abrir/cerrar Hax
+│   │   ├── AppSearch.qml                 # Búsqueda de apps
+│   │   ├── AxctlService.qml              # Abstracción del compositor
 │   │   ├── GlobalShortcuts.qml           # Atajo de teclado
 │   │   ├── LockscreenService.qml         # Bloquear pantalla
 │   │   ├── Screenshot.qml                # Capturas
-│   │   ├── WeatherService.qml            # Clima
-│   │   ├── AppSearch.qml                 # Búsqueda de apps
-│   │   ├── AxctlService.qml              # Abstracción del compositor
-│   │   └── SuspendManager.qml            # Gestión de suspensión
+│   │   ├── SuspendManager.qml            # Gestión de suspensión
+│   │   ├── Visibilities.qml              # Abrir/cerrar Hax
+│   │   └── WeatherService.qml            # Clima
 │   ├── globals/
 │   │   └── GlobalStates.qml              # Estado global transitorio
 │   ├── theme/
@@ -216,20 +244,21 @@ ambxst-Hax/
 │   ├── components/
 │   │   └── StyledRect.qml                # Contenedor base con theming
 │   └── tools/
+│       ├── MirrorWindow.qml              # Espejo de ventana
 │       ├── ScreenrecordTool.qml          # Grabación de pantalla
-│       ├── ScreenshotTool.qml            # Captura de pantalla
 │       ├── ScreenshotOverlay.qml         # Overlay de captura
-│       └── MirrorWindow.qml              # Espejo de ventana
-├── screenshots/
-│   ├── hax-search-bar.png
-│   ├── hax-results.png
-│   └── hax-terminal.png
-└── README.md
+│       └── ScreenshotTool.qml            # Captura de pantalla
+└── screenshots/
+    ├── hax-search-bar.png
+    ├── hax-results.png
+    ├── hax-terminal.png
+    ├── new-animation-Hax.mp4
+    └── new-functions-Hax.mp4
 ```
 
 **Nota:** A diferencia de otros launchers, Hax es **monolítico** por diseño — todo el código vive en un solo archivo `SpotlightView.qml` (~2274 líneas). Esto evita la fragmentación y hace que sea fácil de mantener y modificar.
 
-> El repo incluye archivos de **soporte** (`config/*.js`, `assets/presets/`, `modules/tools/`, `version`) para que Hax funcione correctamente incluso en shells personalizadas que no tengan estos archivos. Si tu shell ya los tiene, el instalador no los sobrescribe.
+> El repo incluye archivos de **soporte** (`config/`, `assets/`, `modules/tools/`, `version`) para que Hax funcione correctamente incluso en shells personalizadas que no tengan estos archivos. Si tu shell ya los tiene, el instalador no los sobrescribe. En total, el repositorio autocontenido tiene **~13.259 líneas** de código entre QML, JS, JSON y scripts.
 
 ---
 
