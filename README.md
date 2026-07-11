@@ -61,6 +61,7 @@
 | 🌐 **Búsqueda web** | Cualquier texto que no sea comando se busca en Google |
 | 📖 **Ayuda integrada** | Escribe `ayuda`, `help` o `?` para ver todos los comandos |
 | 👁 **Vista rápida (Quick Look)** | 100% teclado: navega con **↑/↓** y los archivos se previsualizan solos dentro de Hax (imágenes renderizadas, texto/binario leído al instante). Cierra con ✕ o **Esc** |
+| 🐞 **Modo desarrollador (debug)** | Escribe `d`, `dev` o `debug` y pulsa **Enter** para abrir un panel con errores capturados, tiempos de carga (apertura + última búsqueda) y consumo de recursos del propio Hax (memoria/CPU). Cierra con **Esc** |
 | 📜 **Historial inteligente** | `historial`, `clip` o `portapapeles` muestra todo lo copiado, ordenado por uso, con borrado individual al hover |
 | 📋 **Copiar al portapapeles** | **Enter** copia el resultado, **Shift+Enter** lo ejecuta/abre. También Ctrl+C o el botón ⎘ al hover |
 | 🎯 **Autocompletado inline** | Mientras escribes, Hax sugiere en gris el resultado que coincide; acepta con **Tab** / **→** |
@@ -301,6 +302,10 @@ El instalador:
 ---
 
 ## 📋 Changelog
+
+### v2.6 — Julio 2026
+
+- **🐞 Modo desarrollador (debug)** — Escribe `d`, `dev` o `debug` y pulsa **Enter** para entrar en modo debug (igual que `lock` o `apagar`). Muestra un panel con: errores capturados en pantalla (de `executeItem`, `openPreview`, `copyResult`, `runCmd` y la terminal), **tiempos de carga** (apertura open→listo y última búsqueda en ms) y **consumo de recursos** del propio Hax (memoria RSS y CPU leídos de `/proc/$PPID`, ya que Quickshell es el padre del proceso). Se cierra con **Esc** o repitiendo el comando.
 
 ### v2.5 — Julio 2026
 

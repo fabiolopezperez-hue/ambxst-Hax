@@ -82,6 +82,11 @@ PanelWindow {
             openAnim.start();
             searchInput.clear();
             searchInput.forceActiveFocus();
+
+            // ── Debug: marcar inicio de apertura ──
+            _debugOpenStart = Date.now();
+            debugOpenMs = -1;
+            _debugOpenTimer.restart();
         } else {
             openAnim.stop();
             stopMonitor();
@@ -158,6 +163,26 @@ PanelWindow {
 
     // ── Estados internos ───────────────────────────────────────────────────
     property string searchText: ""
+
+    // ── Modo desarrollador (debug) ──────────────────────────────────────────
+    // Se activa escribiendo "d" / "dev" / "debug" y pulsando Enter.
+    property bool showDebug: false
+    property var debugErrorLog: []
+    property int debugOpenMs: -1
+    property int debugLastSearchMs: -1
+    property int debugSessionS: 0
+    property real debugMemMB: 0
+    property real debugCpuPct: 0
+    property int _debugOpenStart: 0
+    property int _debugPrevUtime: -1
+    property int _debugPrevStime: -1
+    property int _debugPrevTs: 0
+
+    function debugLogError(ctx, e) {
+        var msg = (e && e.message) ? e.message : String(e);
+        debugErrorLog.push({ t: Qt.formatTime(new Date(), "hh:mm:ss"), ctx: ctx, msg: msg });
+        debugErrorLog = debugErrorLog.slice(-50);
+    }
     property int selectedIndex: 0
     property bool showTerminal: false
 
@@ -288,6 +313,71 @@ PanelWindow {
         }
     }
 
+    // ── Timers del modo debug (apertura + recursos) ─────────────────────────
+    Timer {
+        id: _debugOpenTimer
+        interval: 30
+        repeat: false
+        onTriggered: {
+            if (spotlight.debugOpenMs < 0)
+                spotlight.debugOpenMs = Date.now() - spotlight._debugOpenStart;
+        }
+    }
+
+    Timer {
+        id: _debugResTimer
+        interval: 1000
+        repeat: true
+        running: spotlight.showDebug
+        onRunningChanged: {
+            if (running) {
+                spotlight._debugPrevUtime = -1;
+                spotlight._debugPrevStime = -1;
+                spotlight._debugPrevTs = 0;
+            }
+        }
+        onTriggered: {
+            spotlight.debugSessionS = Math.round((Date.now() - spotlight._debugOpenStart) / 1000);
+            var proc;
+            try {
+                proc = Qt.createQmlObject(
+                    'import Quickshell.Io; Process { stdout: SplitParser {} }',
+                    spotlight
+                );
+            } catch (e) {
+                return;
+            }
+            proc.stdout.onRead.connect(function(d) {
+                var parts = d.trim().split(/\s+/);
+                if (parts.length >= 3) {
+                    var rssPages = parseInt(parts[0], 10) || 0;
+                    var utime = parseInt(parts[1], 10) || 0;
+                    var stime = parseInt(parts[2], 10) || 0;
+                    spotlight.debugMemMB = (rssPages * 4096) / (1024 * 1024);
+                    var now = Date.now();
+                    var dTms = now - spotlight._debugPrevTs;
+                    if (spotlight._debugPrevUtime >= 0 && dTms > 0 && dTms < 3000) {
+                        var dCpu = (utime - spotlight._debugPrevUtime) + (stime - spotlight._debugPrevStime);
+                        var dT = dTms / 1000 * 100;
+                        spotlight.debugCpuPct = Math.max(0, Math.min(100, (dCpu / dT) * 100));
+                    }
+                    spotlight._debugPrevUtime = utime;
+                    spotlight._debugPrevStime = stime;
+                    spotlight._debugPrevTs = now;
+                }
+                proc.destroy();
+            });
+            proc.onExited.connect(function() { try { proc.destroy(); } catch (e) {} });
+            proc.onError.connect(function() { try { proc.destroy(); } catch (e) {} });
+            // $PPID es el PID de Quickshell (padre del proceso lanzado por Process)
+            proc.command = ["bash", "-c",
+                "P=$(awk '{print $2}' /proc/$PPID/statm 2>/dev/null); " +
+                "C=$(awk '{print $14+$15}' /proc/$PPID/stat 2>/dev/null); " +
+                "echo \"$P $C\""];
+            proc.running = true;
+        }
+    }
+
     // ── Puntito que baja del notch y se TRANSFORMA en Hax ─────────────────
     //
     // Una sola cosa que muta: empieza como círculo de 20px en el notch,
@@ -365,7 +455,7 @@ PanelWindow {
             + (_haxNotifications.length > 0
                 ? 8 + Math.min(_haxNotifications.length * 56 + 16, 200)
                 : 0)
-            + (results.length > 0 && !isCommandMode
+            + (results.length > 0 && !isCommandMode && !spotlight.showDebug
                 ? 8 + Math.min(results.length * 54, 400)
                 : 0)
             + (showMonitor
@@ -376,6 +466,9 @@ PanelWindow {
                 : 0)
             + (spotlight.showTerminal
                 ? 8 + 392
+                : 0)
+            + (spotlight.showDebug
+                ? 8 + debugPane.height
                 : 0)
 
         // ── Contenido que aparece dentro mientras se transforma ────────────
@@ -388,7 +481,7 @@ PanelWindow {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.margins: 16
-            spacing: (results.length > 0 || cmdProcess !== null || isCommandMode || _lastCmdVisible || _forceTerminal || _haxNotifications.length > 0 || showMonitor) ? 8 : 0
+            spacing: (results.length > 0 || cmdProcess !== null || isCommandMode || _lastCmdVisible || _forceTerminal || _haxNotifications.length > 0 || showMonitor || spotlight.showDebug) ? 8 : 0
 
                 // ── Campo de búsqueda ──────────────────────────────────────────
                 StyledRect {
@@ -465,7 +558,9 @@ PanelWindow {
                                 if (!text.trim().startsWith("/")) {
                                     spotlight.cancelCmdProcess();
                                 }
+                                var _t0 = Date.now();
                                 spotlight.updateResults();
+                                spotlight.debugLastSearchMs = Date.now() - _t0;
                             }
 
                             Keys.onEscapePressed: {
@@ -475,11 +570,13 @@ PanelWindow {
                                     spotlight.showPreview = false;
                                 } else if (spotlight.showTerminal) {
                                     spotlight.closeTerminal();
-                                } else if (text.length > 0) {
-                                    clear();
-                                } else {
-                                    Visibilities.setActiveModule("");
-                                }
+                } else if (spotlight.showDebug) {
+                    spotlight.showDebug = false;
+                } else if (text.length > 0) {
+                    clear();
+                } else {
+                    Visibilities.setActiveModule("");
+                }
                             }
 
                             Keys.onUpPressed: {
@@ -521,8 +618,15 @@ PanelWindow {
 
                             // Enter, Tab, flecha derecha, Ctrl+C, Esc
                             Keys.onPressed: (event) => {
-                                if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                                    if (spotlight.isCommandMode && text.trim().length > 1) {
+                if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                    var _dbgQ = text.trim().toLowerCase();
+                    if (_dbgQ === "d" || _dbgQ === "dev" || _dbgQ === "debug") {
+                        spotlight.showDebug = !spotlight.showDebug;
+                        clear();
+                        event.accepted = true;
+                        return;
+                    }
+                    if (spotlight.isCommandMode && text.trim().length > 1) {
                                         spotlight.runCmd(text.trim().substring(1));
                                     } else if (event.modifiers & Qt.ShiftModifier) {
                                         spotlight.executeSelected();
@@ -586,6 +690,124 @@ PanelWindow {
                             color: Styling.srItem("overprimary")
                             opacity: 0.6
                             visible: results.length > 0
+                        }
+                    }
+                }
+
+                // ── Modo desarrollador (debug) — "d"/"dev"/"debug" + Enter ───────
+                StyledRect {
+                    id: debugPane
+                    width: contentColumn.width
+                    variant: "pane"
+                    radius: Styling.radius(12)
+                    clip: true
+                    visible: spotlight.showDebug
+                    opacity: spotlight.showDebug ? 1 : 0
+                    height: spotlight.showDebug ? debugContent.implicitHeight + 20 : 0
+                    Behavior on opacity {
+                        enabled: Config.animDuration > 0
+                        NumberAnimation { duration: Config.animDuration * 2 }
+                    }
+
+                    Column {
+                        id: debugContent
+                        anchors { left: parent.left; right: parent.right; top: parent.top; margins: 10 }
+                        spacing: 10
+
+                        Text {
+                            text: "🐞 Modo desarrollador (debug)"
+                            font.bold: true
+                            font.pixelSize: Config.theme.fontSize
+                            color: Styling.srItem("text")
+                        }
+
+                        // ⚙️ Recursos
+                        Column {
+                            spacing: 4
+                            width: parent.width
+                            Text {
+                                text: "⚙️ Recursos"
+                                font.bold: true
+                                font.pixelSize: Config.theme.fontSize - 1
+                                color: Styling.srItem("overprimary")
+                                opacity: 0.85
+                            }
+                            Text {
+                                text: "Memoria (RSS): " + (spotlight.debugMemMB > 0 ? spotlight.debugMemMB.toFixed(1) : "—") + " MB"
+                                font.family: "monospace"
+                                font.pixelSize: Config.theme.fontSize - 2
+                                color: Styling.srItem("text")
+                            }
+                            Text {
+                                text: "CPU: " + (spotlight.debugCpuPct > 0 ? spotlight.debugCpuPct.toFixed(1) : "0.0") + " %"
+                                font.family: "monospace"
+                                font.pixelSize: Config.theme.fontSize - 2
+                                color: Styling.srItem("text")
+                            }
+                        }
+
+                        // ⏱️ Tiempos
+                        Column {
+                            spacing: 4
+                            width: parent.width
+                            Text {
+                                text: "⏱️ Tiempos"
+                                font.bold: true
+                                font.pixelSize: Config.theme.fontSize - 1
+                                color: Styling.srItem("overprimary")
+                                opacity: 0.85
+                            }
+                            Text {
+                                text: "Apertura (open→listo): " + (spotlight.debugOpenMs >= 0 ? spotlight.debugOpenMs + " ms" : "—")
+                                font.family: "monospace"
+                                font.pixelSize: Config.theme.fontSize - 2
+                                color: Styling.srItem("text")
+                            }
+                            Text {
+                                text: "Última búsqueda: " + (spotlight.debugLastSearchMs >= 0 ? spotlight.debugLastSearchMs + " ms" : "—")
+                                font.family: "monospace"
+                                font.pixelSize: Config.theme.fontSize - 2
+                                color: Styling.srItem("text")
+                            }
+                            Text {
+                                text: "Sesión abierta: " + spotlight.debugSessionS + " s"
+                                font.family: "monospace"
+                                font.pixelSize: Config.theme.fontSize - 2
+                                color: Styling.srItem("text")
+                            }
+                        }
+
+                        // 🚨 Errores capturados
+                        Column {
+                            spacing: 4
+                            width: parent.width
+                            Text {
+                                text: "🚨 Errores capturados (" + spotlight.debugErrorLog.length + ")"
+                                font.bold: true
+                                font.pixelSize: Config.theme.fontSize - 1
+                                color: Styling.srItem("overprimary")
+                                opacity: 0.85
+                            }
+                            Repeater {
+                                model: spotlight.debugErrorLog
+                                delegate: Text {
+                                    required property var modelData
+                                    width: parent.width
+                                    text: "• [" + modelData.t + "] " + modelData.ctx + ": " + modelData.msg
+                                    font.family: "monospace"
+                                    font.pixelSize: Config.theme.fontSize - 3
+                                    color: "#ff8a80"
+                                    wrapMode: Text.WrapAnywhere
+                                }
+                            }
+                            Text {
+                                visible: spotlight.debugErrorLog.length === 0
+                                text: "✅ Sin errores"
+                                font.family: "monospace"
+                                font.pixelSize: Config.theme.fontSize - 2
+                                color: Styling.srItem("text")
+                                opacity: 0.7
+                            }
                         }
                     }
                 }
@@ -673,8 +895,12 @@ PanelWindow {
                             onFinished: spotlight.closeTerminal()
                         }
                         Component.onCompleted: {
-                            termSession.startShellProgram();
-                            termEmbed.forceActiveFocus();
+                            try {
+                                termSession.startShellProgram();
+                                termEmbed.forceActiveFocus();
+                            } catch (e) {
+                                spotlight.debugLogError("terminal", e);
+                            }
                         }
                     }
                 }
@@ -932,7 +1158,7 @@ PanelWindow {
                     width: contentColumn.width
                     height: results.length > 0 ? Math.min(results.length * 54, 400) : 0
                     opacity: results.length > 0 ? 1 : 0
-                    visible: opacity > 0
+                    visible: opacity > 0 && !spotlight.showDebug
                     clip: true
                     Behavior on opacity {
                         enabled: Config.animDuration > 0
@@ -1468,10 +1694,16 @@ PanelWindow {
         cmdOutput = [];
         cmdOutputText = "";
 
-        var proc = Qt.createQmlObject(
-            'import Quickshell.Io; Process { stdout: SplitParser {} }',
-            spotlight
-        );
+        var proc;
+        try {
+            proc = Qt.createQmlObject(
+                'import Quickshell.Io; Process { stdout: SplitParser {} }',
+                spotlight
+            );
+        } catch (e) {
+            spotlight.debugLogError("runCmd", e);
+            return;
+        }
 
         // Usar el shell por defecto del usuario en modo interactivo (-i) para
         // respetar sus alias (p. ej. los de fish en config.fish / fish_greeting.fish).
@@ -2180,7 +2412,11 @@ PanelWindow {
 
     function executeItem(item) {
         if (item && item.exec) {
-            item.exec();
+            try {
+                item.exec();
+            } catch (e) {
+                spotlight.debugLogError("executeItem", e);
+            }
         }
     }
 
@@ -2223,10 +2459,16 @@ PanelWindow {
         }
 
         // Texto/binario: leer con cat, detectando binarios
-        var proc = Qt.createQmlObject(
-            'import Quickshell.Io; Process { stdout: SplitParser {} }',
-            spotlight
-        );
+        var proc;
+        try {
+            proc = Qt.createQmlObject(
+                'import Quickshell.Io; Process { stdout: SplitParser {} }',
+                spotlight
+            );
+        } catch (e) {
+            spotlight.debugLogError("openPreview", e);
+            return;
+        }
         var lines = [];
         proc.stdout.onRead.connect(function(d) { lines.push(d); });
         proc.onExited.connect(function() {
@@ -2247,7 +2489,13 @@ PanelWindow {
 
     function copyResult(item) {
         if (!item) return;
-        var p = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+        var p;
+        try {
+            p = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+        } catch (e) {
+            spotlight.debugLogError("copyResult", e);
+            return;
+        }
         var copyText = "";
         if (item.type === "file") {
             var path = item.description || "";
