@@ -141,7 +141,7 @@ hl.bind("SUPER + Slash", hl.dsp.exec_cmd('qs -p "/ruta/a/tu-shell/modules/widget
 ```
 
 > El instalador detecta automáticamente si usas `hyprland.lua` o `hyprland.conf` y configura el atajo en el formato correcto.
-```
+
 
 ---
 
@@ -149,39 +149,39 @@ hl.bind("SUPER + Slash", hl.dsp.exec_cmd('qs -p "/ruta/a/tu-shell/modules/widget
 
 ### Comandos principales
 
-| Escribe | Qué hace |
+ Escribe | Qué hace |
 |---------|----------|
-| `firefox` (o cualquier app) | Busca y abre la aplicación |
-| `install firefox` | Busca el paquete en pacman + AUR + flatpak |
-| `timer 5m` | Crea un timer de 5 minutos |
-| `timer pizza 10m` | Timer con nombre "pizza", 10 minutos |
-| `alarm 8:00` | Alarma a las 8:00 |
-| `alarm 7:30 l-v` | Alarma a las 7:30 de lunes a viernes |
-| `weather` | Clima actual |
-| `weather Madrid` | Clima de Madrid |
-| `lock` / `bloquear` | Bloquear pantalla |
-| `apagar` / `shutdown` | Apagar sistema |
-| `reiniciar` / `reboot` | Reiniciar |
-| `suspender` / `suspend` | Suspender |
-| `capturar` / `screenshot` | Capturar pantalla |
-| `update` | Actualizar sistema (pacman -Syu) |
-| `remove firefox` | Desinstalar paquete |
-| `stats` / `monitor` | Monitor del sistema con CPU, RAM, disco y temperatura en vivo |
-| `ayuda` / `help` / `?` | Muestra la ayuda completa |
-| `/comando` | Ejecuta un comando en la terminal integrada |
-| `23*4` | Calcula y muestra el resultado inline |
+| firefox (o cualquier app) | Busca y abre la aplicación |
+| install firefox | Busca el paquete en pacman + AUR + flatpak |
+| timer 5m | Crea un timer de 5 minutos |
+| timer pizza 10m | Timer con nombre "pizza", 10 minutos |
+| alarm 8:00 | Alarma a las 8:00 |
+| alarm 7:30 l-v | Alarma a las 7:30 de lunes a viernes |
+| `weather | Clima actual |
+| weather Madrid | Clima de Madrid |
+| lock / bloquear | Bloquear pantalla |
+| apagar / shutdown | Apagar sistema |
+| reiniciar / reboot | Reiniciar |
+| suspender / suspend | Suspender |
+| capturar / screenshot | Capturar pantalla |
+| update | Actualizar sistema (pacman -Syu) |
+| remove firefox | Desinstalar paquete |
+| stats / monitor | Monitor del sistema con CPU, RAM, disco y temperatura en vivo |
+| ayuda / help / ? | Muestra la ayuda completa |
+| /comando | Ejecuta un comando en la terminal integrada |
+| 23*4 | Calcula y muestra el resultado inline 
 
-### Atajos de teclado
+ Atajos de teclado
 
 | Tecla | Acción |
 |-------|--------|
-| `Super + /` | Abrir Hax |
-| `↑` / `↓` | Navegar resultados / scroll en terminal |
-| `Enter` | Abrir selección / ejecutar |
-| `Esc` | Cerrar / cerrar monitor |
+| Super + / | Abrir Hax |
+| ↑ / ↓ | Navegar resultados / scroll en terminal |
+| Enter | Abrir selección / ejecutar |
+| Esc | Cerrar / cerrar monitor |
 
----
 
+```
 ## 🧱 Estructura del repo
 
 
