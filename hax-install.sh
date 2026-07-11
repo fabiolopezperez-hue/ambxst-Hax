@@ -17,6 +17,7 @@ set -euo pipefail
 #   • Config + defaults
 #   • Scripts: google_lens.sh, weather.sh
 #   • shell.qml (entry point con el Loader de Hax)
+#   • Terminal embebida: qmltermwidget (plugin QML que compila contra Qt6)
 # ═══════════════════════════════════════════════════════════════
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -206,6 +207,104 @@ else
   log_info "Shell personalizada detectada — saltando instalación de Ambxst."
 fi
 
+# ── 4b. Terminal embebida: build + install de qmltermwidget ──
+# Hax integra una terminal real (PTY) vía el plugin QMLTermWidget.
+# Se compila desde fuentes contra Qt6 y se instala en el árbol de QML.
+install_qmltermwidget() {
+  # Detectar el qmake de Qt6
+  local QMAKE_BIN=""
+  if has_cmd qmake6; then QMAKE_BIN="qmake6"
+  elif has_cmd qmake-qt6; then QMAKE_BIN="qmake-qt6"
+  elif has_cmd qmake; then QMAKE_BIN="qmake"
+  fi
+
+  # Ruta de instalación del plugin (árbol de imports QML de Qt6)
+  local QML_DIR PLUGIN_DIR
+  if [[ -n "$QMAKE_BIN" ]]; then
+    QML_DIR="$($QMAKE_BIN -query QT_INSTALL_QML 2>/dev/null)"
+  fi
+  QML_DIR="${QML_DIR:-/usr/lib/qt6/qml}"
+  PLUGIN_DIR="$QML_DIR/QMLTermWidget"
+
+  if [[ -f "$PLUGIN_DIR/libqmltermwidget.so" ]]; then
+    log_info "qmltermwidget ya está instalado ($PLUGIN_DIR) — saltando."
+    return 0
+  fi
+
+  log_info "Instalando qmltermwidget (terminal embebida de Hax)..."
+
+  # Dependencias de build por distro
+  local BUILD_DEPS=()
+  case "$DISTRO" in
+    arch)
+      has_cmd qmake6 || has_cmd qmake-qt6 || BUILD_DEPS+=("qt6-base")
+      [[ -d /usr/include/qt6/QtQml ]] || BUILD_DEPS+=("qt6-declarative")
+      has_cmd gcc || BUILD_DEPS+=("base-devel")
+      ;;
+    fedora)
+      has_cmd qmake-qt6 || BUILD_DEPS+=("qt6-qtbase-devel" "qt6-qtdeclarative-devel")
+      has_cmd gcc || BUILD_DEPS+=("gcc-c++" "make")
+      ;;
+    *)
+      log_warn "Distro '$DISTRO' no soportada para build automático de qmltermwidget."
+      log_warn "Instálalo manualmente desde https://github.com/Swordfish90/qmltermwidget"
+      return 0
+      ;;
+  esac
+
+  if [[ ${#BUILD_DEPS[@]} -gt 0 ]]; then
+    log_info "Instalando dependencias de build: ${BUILD_DEPS[*]}"
+    case "$DISTRO" in
+      arch)
+        if has_cmd yay || has_cmd paru; then
+          local AUR=""; has_cmd yay && AUR=yay || AUR=paru
+          $AUR -S --needed --noconfirm "${BUILD_DEPS[@]}"
+        else
+          sudo pacman -S --needed --noconfirm "${BUILD_DEPS[@]}"
+        fi
+        ;;
+      fedora)
+        sudo dnf install -y "${BUILD_DEPS[@]}"
+        ;;
+    esac
+  fi
+
+  # Re-detectar qmake tras instalar dependencias
+  if has_cmd qmake6; then QMAKE_BIN="qmake6"
+  elif has_cmd qmake-qt6; then QMAKE_BIN="qmake-qt6"
+  elif has_cmd qmake; then QMAKE_BIN="qmake"
+  else
+    log_error "No se encontró qmake (Qt6). No se pudo compilar qmltermwidget."
+    return 1
+  fi
+
+  # Clonar fuentes (commit fijo para reproducibilidad del API)
+  local SRC_TMP="$(mktemp -d)"
+  git clone "https://github.com/Swordfish90/qmltermwidget.git" "$SRC_TMP" \
+    || { log_error "No se pudo clonar qmltermwidget."; rm -rf "$SRC_TMP"; return 1; }
+  git -C "$SRC_TMP" checkout 8913504 2>/dev/null || true
+
+  # Compilar
+  ( cd "$SRC_TMP" && "$QMAKE_BIN" && make -j"$(nproc 2>/dev/null || echo 4)" ) \
+    || { log_error "Falló la compilación de qmltermwidget."; rm -rf "$SRC_TMP"; return 1; }
+
+  # Instalar en el árbol de QML de Qt6
+  sudo make -C "$SRC_TMP" install \
+    || { log_error "Falló la instalación de qmltermwidget."; rm -rf "$SRC_TMP"; return 1; }
+
+  rm -rf "$SRC_TMP"
+
+  if [[ -f "$PLUGIN_DIR/libqmltermwidget.so" ]]; then
+    log_success "qmltermwidget instalado en $PLUGIN_DIR."
+  else
+    log_error "La instalación de qmltermwidget no produjo el plugin."
+    return 1
+  fi
+}
+
+install_qmltermwidget \
+  || log_warn "No se pudo instalar qmltermwidget — la terminal embebida no funcionará, pero Hax se instala igual."
+
 # ── 5. Instalar Hax + dependencias en la shell ────────────────
 log_info "Instalando Hax en $SHELL_SRC..."
 
@@ -302,6 +401,7 @@ echo -e "${GREEN}📌  Hax está listo en:${NC}"
 echo -e "    $SHELL_SRC/modules/widgets/spotlight/SpotlightView.qml"
 echo ""
 echo -e "Presiona ${GREEN}Super + /${NC} para abrir Hax."
+echo -e "Dentro de Hax escribe ${GREEN}/${NC} para abrir la terminal embebida (necesita el plugin qmltermwidget)."
 echo -e "Si ya tienes Hyprland corriendo: ${BLUE}hyprctl reload${NC}"
 echo ""
 echo -e "${YELLOW}🔄  Para lanzar Hax manualmente:${NC}"
