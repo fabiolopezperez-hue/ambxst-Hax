@@ -202,7 +202,7 @@ PanelWindow {
             + "cpu=$(LC_ALL=C top -bn1 2>/dev/null | awk '/%Cpu/{print 100 - $8}'); "
             + "ram=$(LC_ALL=C free 2>/dev/null | awk 'NR==2{printf \"%d %d\", $3, $2}'); "
             + "disk=$(df / 2>/dev/null | awk 'NR==2{print $5}' | tr -d '%'); "
-            + "temp=$(cat /sys/class/thermal/thermal_zone*/temp 2>/dev/null | head -1 | head -c 2); "
+            + "temp=$(cat $(grep -l 'k10temp\\|coretemp\\|cpu_thermal' /sys/class/hwmon/hwmon*/name 2>/dev/null | head -1 | sed 's/name$/temp1_input/') 2>/dev/null | awk '{printf \"%.0f\", $1/1000}'); temp=${temp:-0}; "
             + "procs=$(ps aux 2>/dev/null | wc -l); "
             + "uptime=$(LC_ALL=C uptime -p 2>/dev/null); "
             + "echo '{\"cpu\":'$cpu',\"ram_used\":'$(echo $ram | cut -d' ' -f1)',\"ram_total\":'$(echo $ram | cut -d' ' -f2)',\"disk\":'$disk',\"temp\":'$temp',\"procs\":'$procs',\"uptime\":\"'$uptime'\"}'; "
