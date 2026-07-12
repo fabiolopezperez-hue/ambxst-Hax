@@ -90,8 +90,14 @@ case "$cmd" in
     done
     ;;
 
+  status)
+    c=$(wc -l < "$CACHE" 2>/dev/null || true)
+    [ -z "$c" ] && c=0
+    echo "$c"
+    ;;
+
   *)
-    echo "Uso: ocr.sh get|search|index" >&2
+    echo "Uso: ocr.sh get|search|index|status" >&2
     exit 1
     ;;
 esac

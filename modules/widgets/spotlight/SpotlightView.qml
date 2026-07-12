@@ -168,10 +168,22 @@ PanelWindow {
     property string ocrScript: Qt.resolvedUrl("../../scripts/ocr.sh").toString().replace("file://", "")
     property string ocrSep: String.fromCharCode(31)
     property string previewOcrText: ""
+    property int liveTextIndexed: 0
+    property bool liveTextIndexing: false
+    property int liveTextPending: 0
+
+    Timer {
+        id: liveTextStatusTimer
+        interval: 4000
+        running: true
+        repeat: true
+        onTriggered: spotlight.refreshLiveTextStatus()
+    }
 
     Component.onCompleted: {
         // Indexar imágenes en segundo plano al iniciar Hax (Live Text).
         spotlight.startOcrIndexing();
+        spotlight.refreshLiveTextStatus();
     }
 
     // ── Modo desarrollador (debug) ──────────────────────────────────────────
@@ -2436,8 +2448,22 @@ PanelWindow {
             });
         }
 
-        // ── Live Text: reindexar imágenes ──
-        if (query === "reindexar" || query === "reindex" || query === "ocr") {
+        // ── Live Text: estado / reindexar ──
+        if (query === "live" || query === "livetext" || query === "estado" || query === "status" || query === "ocr") {
+            var ltDesc = spotlight.liveTextIndexing
+                ? "⏳ Indexando imágenes en segundo plano…"
+                : (spotlight.liveTextIndexed + " imágenes indexadas — busca palabras escritas dentro de tus fotos/capturas");
+            newResults.unshift({
+                name: "🖼️ Live Text (OCR)",
+                description: ltDesc,
+                icon: Icons.notepad,
+                type: "info",
+                exec: function() {
+                    spotlight.startOcrIndexing();
+                }
+            });
+        }
+        if (query === "reindexar" || query === "reindex") {
             newResults.unshift({
                 name: "🖼️ Reindexar imágenes (Live Text)",
                 description: "Vuelve a leer el texto de todas tus imágenes con OCR (Tesseract)",
@@ -2580,14 +2606,36 @@ PanelWindow {
     // Indexa las imágenes en segundo plano (una carpeta a la vez, no bloquea la UI).
     function startOcrIndexing() {
         var folders = ocrFolders();
+        spotlight.liveTextIndexing = true;
+        spotlight.liveTextPending = folders.length;
         for (var i = 0; i < folders.length; i++) {
             (function(f) {
                 var pr = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
                 pr.command = ["bash", ocrScript, "index", f.d, String(f.depth)];
-                pr.onExited.connect(function() { try { pr.destroy(); } catch (e) {} });
+                pr.onExited.connect(function() {
+                    try { pr.destroy(); } catch (e) {}
+                    spotlight.liveTextPending = spotlight.liveTextPending - 1;
+                    if (spotlight.liveTextPending <= 0) {
+                        spotlight.liveTextIndexing = false;
+                        spotlight.refreshLiveTextStatus();
+                    }
+                });
                 pr.running = true;
             })(folders[i]);
         }
+    }
+
+    // Actualiza el contador de imágenes indexadas (Live Text).
+    function refreshLiveTextStatus() {
+        var pr = Qt.createQmlObject('import Quickshell.Io; Process { stdout: StdioCollector {} }', spotlight);
+        pr.command = ["bash", ocrScript, "status"];
+        pr.onExited.connect(function() {
+            var t = (pr.stdout ? pr.stdout.text : "").trim();
+            var n = parseInt(t, 10);
+            spotlight.liveTextIndexed = isNaN(n) ? 0 : n;
+            try { pr.destroy(); } catch (e) {}
+        });
+        pr.running = true;
     }
 
     // Lee el texto OCR de una imagen para el panel de previsualización.
