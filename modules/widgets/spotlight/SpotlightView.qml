@@ -1135,6 +1135,7 @@ PanelWindow {
                             MouseArea {
                                 id: mouseArea
                                 anchors.fill: parent
+                                hoverEnabled: true
 
                                 // Hax es 100% teclado: el ratón NO dispara la previsualización.
                                 // (El ratón solo se usa en el Historial para borrar copias antiguas.)
