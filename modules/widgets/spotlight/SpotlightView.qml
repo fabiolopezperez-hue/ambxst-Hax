@@ -166,7 +166,7 @@ PanelWindow {
 
     // ── Live Text (OCR) — buscar texto DENTRO de imágenes ──────────────────
     property string ocrScript: Qt.resolvedUrl("../../scripts/ocr.sh").toString().replace("file://", "")
-    property string OCR_SEP: String.fromCharCode(31)
+    property string ocrSep: String.fromCharCode(31)
     property string previewOcrText: ""
 
     Component.onCompleted: {
@@ -2985,7 +2985,7 @@ PanelWindow {
                 for (var li = 0; li < lines.length; li++) {
                     var ln = lines[li].trim();
                     if (ln.length === 0) continue;
-                    var parts = ln.split(OCR_SEP);
+                    var parts = ln.split(ocrSep);
                     if (parts.length < 2) continue;
                     var p = parts[0];
                     var snip = parts.slice(1).join(" ").trim();
