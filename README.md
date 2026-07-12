@@ -66,7 +66,6 @@
 | 📖 **Ayuda integrada** | Escribe `ayuda`, `help` o `?` para ver todos los comandos |
 | 👁 **Vista rápida (Quick Look)** | 100% teclado: navega con **↑/↓** y los archivos se previsualizan solos dentro de Hax (imágenes renderizadas, texto/binario leído al instante). Cierra con ✕ o **Esc** |
 | 🐞 **Modo desarrollador (debug)** | Escribe `d`, `dev` o `debug` → la opción **🐞 Modo desarrollador (debug)** aparece la **primera** en la lista. Pulsa **Enter** (o clic) para abrir un panel **persistente abajo, en el sitio del monitor del sistema**, con errores capturados, tiempos de carga (apertura + última búsqueda + sesión) y consumo de recursos del propio Hax (memoria/CPU). No abre el monitor del sistema. Ciérralo con el botón **✕** o **Esc** |
-| 📜 **Historial inteligente** | `historial`, `clip` o `portapapeles` muestra todo lo copiado, ordenado por uso, con borrado individual al hover |
 | 📋 **Copiar al portapapeles** | **Enter** copia el resultado, **Shift+Enter** lo ejecuta/abre. También Ctrl+C o el botón ⎘ al hover |
 | 🎯 **Autocompletado inline** | Mientras escribes, Hax sugiere en gris el resultado que coincide; acepta con **Tab** / **→** |
 | 🔍 **Google Lens** | `scripts/google_lens.sh` sube capturas a Google Lens para búsqueda visual |
