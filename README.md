@@ -310,6 +310,26 @@ El instalador:
 
 ## 📋 Changelog
 
+### v3.0 — Julio 2026 — 🎉 VERSIÓN ESTABLE
+
+Esta es la **primera versión estable** de Hax. Reúne todas las funciones grandes añadidas durante el ciclo 2.x, las deja pulidas, documentadas y con instalación de un solo comando.
+
+**Lo que se ha añadido (resumen del ciclo 2.x → 3.0):**
+- **🖥️ Terminal embebida (PTY real)** — Escribe `/` y abre una terminal completa e interactiva dentro de Hax (tu shell por defecto, p. ej. fish), con `vim`, `htop`, `sudo`, TAB… Cierra con `exit` o `Esc`.
+- **🐞 Modo desarrollador (debug)** — Escribe `d` / `dev` / `debug` para ver errores capturados, tiempos de carga y consumo de recursos de Hax, en un panel persistente abajo.
+- **🖼️ Live Text (OCR)** — Busca **palabras escritas dentro de tus imágenes** (tipo macOS): indexado en background con Tesseract, resultados 🖼️ con snippet, texto detectable en la Vista rápida (copiable) y `reindexar` para re-escanear. Escribe `live` / `estado` / `ocr` para ver el estado.
+- **👁 Vista rápida (Quick Look)** — Previsualiza archivos dentro de Hax (imagen o texto) al navegar con ↑/↓; el texto OCR aparece debajo de las imágenes.
+- **📜 Historial inteligente** — Hax guarda todo lo que copias y lo sugiere en cualquier búsqueda; borrado individual al hover.
+- **📊 Monitor del sistema** — `stats` / `monitor` con CPU, RAM, disco y temperatura en vivo.
+- **🔧 Instalador 100% automático** — `hax-install.sh` instala Quickshell (si falta), compila **qmltermwidget**, instala **Tesseract + datos de idioma (eng/spa)**, copia la **fuente Phosphor** y todo Hax. Un solo `curl | bash` lo deja listo.
+- **🧩 Autocontenido y portable** — Repo con todas las dependencias; funciona tanto solo (`qs -p …/SpotlightView.qml`) como inyectado en forks/shells personalizadas (`-t`).
+
+> ✅ **Estado: ESTABLE.** Todo lo anterior está probado de punta a punta y documentado. No se esperan cambios disruptivos.
+
+> 📌 **Política de versiones (a partir de 3.0):**
+> - **Correcciones y mejoras pequeñas** → parche: `3.0.1`, `3.0.2`… o `3.x.1` dentro de una minor.
+> - **Cambios grandes / nuevas funciones principales** → se harán como antes (p. ej. la `2.1` fue un salto grande), subiendo la versión menor/major (`3.1`, `4.0`…). No habrá saltos disruptivos silenciosos: lo gordo se anunciará claramente.
+
 ### v2.7 — Julio 2026
 
 - **🖼️ Live Text (OCR)** — Busca **texto escrito DENTRO de imágenes**, tipo "Texto en Vivo" de macOS. Al escribir `factura`, Hax encuentra la captura que la contiene aunque el archivo se llame `Screenshot_0142.png`.
