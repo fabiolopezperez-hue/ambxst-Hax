@@ -21,7 +21,7 @@
 </p>
 
 <p align="center">
-  <img src="screenshots/.png" width="620"> 
+  <img src="screenshots/resultados-Hax.png" width="620"> 
   <br>
   <em>Búsqueda de apps, paquetes, comandos y más</em>
 </p>
