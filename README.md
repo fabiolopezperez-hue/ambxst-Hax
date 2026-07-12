@@ -68,6 +68,7 @@
 | 📋 **Copiar al portapapeles** | **Enter** copia el resultado, **Shift+Enter** lo ejecuta/abre. También Ctrl+C o el botón ⎘ al hover |
 | 🎯 **Autocompletado inline** | Mientras escribes, Hax sugiere en gris el resultado que coincide; acepta con **Tab** / **→** |
 | 🔍 **Google Lens** | `scripts/google_lens.sh` sube capturas a Google Lens para búsqueda visual |
+| 🖼️ **Live Text (OCR)** | Busca **palabras escritas DENTRO de imágenes** (tipo macOS): escribe `factura` y Hax encuentra la captura que la contiene. Indexa tus imágenes en segundo plano con Tesseract y muestra el texto detectado en la Vista rápida (copiable). Reindexa con `reindexar` |
 
 ---
 
@@ -80,6 +81,7 @@
 - Herramientas: `grim`, `slurp`, `jq`, `playerctl`, `wl-clipboard`, `brightnessctl`
 - **Para la terminal embebida:** el instalador compila e instala [`qmltermwidget`](https://github.com/Swordfish90/qmltermwidget) (plugin QML para Qt6) automáticamente. En instalación manual, instálalo tú mismo.
 - **Fuente de iconos Phosphor:** Hax usa la fuente *Phosphor* (`Phosphor-Bold`, etc.) para sus iconos. El instalador la copia automáticamente desde `assets/fonts/` a `~/.local/share/fonts/Hax` y ejecuta `fc-cache`. En instalación manual, instala el paquete `phosphor-icons` (o copia los `.ttf` a tu directorio de fuentes).
+- **Para Live Text (OCR):** el instalador instala **Tesseract** + los datos de idioma **inglés y español** (`tesseract-data-eng`, `tesseract-data-spa` en Arch; equivalentes en Debian/Fedora). Sin esto, la búsqueda dentro de imágenes no funciona. Puedes ampliar los idiomas con la variable `HAX_OCR_LANGS` (p. ej. `eng+spa+fra`).
 
 ---
 
@@ -179,6 +181,7 @@ hl.bind("SUPER + Slash", hl.dsp.exec_cmd('qs -p "/ruta/a/tu-shell/modules/widget
 | stats / monitor | Monitor del sistema con CPU, RAM, disco y temperatura en vivo |
 | d / dev / debug | Abre el **Modo desarrollador (debug)** — panel con errores, tiempos y recursos de Hax (abajo, donde el monitor) |
 | ayuda / help / ? | Muestra la ayuda completa |
+| reindexar / ocr | **Live Text:** reindexa todas tus imágenes (vuelve a leer el texto con OCR) |
 | / | Abre la **terminal embebida** (PTY real) dentro de Hax |
 | 23*4 | Calcula y muestra el resultado inline 
 
@@ -306,6 +309,15 @@ El instalador:
 ---
 
 ## 📋 Changelog
+
+### v2.7 — Julio 2026
+
+- **🖼️ Live Text (OCR)** — Busca **texto escrito DENTRO de imágenes**, tipo "Texto en Vivo" de macOS. Al escribir `factura`, Hax encuentra la captura que la contiene aunque el archivo se llame `Screenshot_0142.png`.
+  - **Indexado en background** al iniciar Hax: escanea `Documentos`, `Descargas`, `Escritorio`, tu carpeta de `Imágenes`/`Pictures` y `Screenshots`, y lee el texto con **Tesseract** (sin bloquear la UI, con caché por archivo para no re-OCRizar).
+  - **Búsqueda:** los resultados por OCR aparecen como 🖼️ con un snippet del texto encontrado.
+  - **Vista rápida:** al previsualizar una imagen, Hax muestra el **texto detectado debajo** (copiable con el botón 📋 Copiar).
+  - **Reindexar:** escribe `reindexar` (o `ocr`) para volver a leer todas tus imágenes.
+  - El instalador añade **Tesseract + datos de idioma (eng/spa)**; ampliable con `HAX_OCR_LANGS`.
 
 ### v2.6 — Julio 2026
 

@@ -164,6 +164,16 @@ PanelWindow {
     // ── Estados internos ───────────────────────────────────────────────────
     property string searchText: ""
 
+    // ── Live Text (OCR) — buscar texto DENTRO de imágenes ──────────────────
+    property string ocrScript: Qt.resolvedUrl("../../scripts/ocr.sh").toString().replace("file://", "")
+    property string OCR_SEP: String.fromCharCode(31)
+    property string previewOcrText: ""
+
+    Component.onCompleted: {
+        // Indexar imágenes en segundo plano al iniciar Hax (Live Text).
+        spotlight.startOcrIndexing();
+    }
+
     // ── Modo desarrollador (debug) ──────────────────────────────────────────
     // Se activa escribiendo "d" / "dev" / "debug" y pulsando Enter.
     property bool showDebug: false
@@ -1654,7 +1664,10 @@ PanelWindow {
                         // Imagen — Image con layer.enabled para evitar el bug de Quickshell
                         Image {
                             id: previewImg
-                            anchors.fill: parent
+                            anchors.top: parent.top
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.bottom: ocrBox.visible ? ocrBox.top : parent.bottom
                             source: previewImageSrc
                             fillMode: Image.PreserveAspectFit
                             visible: previewType === "image"
@@ -1662,6 +1675,74 @@ PanelWindow {
                             smooth: true
                             layer.enabled: true
                             layer.smooth: true
+                        }
+
+                        // Texto detectado en la imagen (Live Text / OCR)
+                        StyledRect {
+                            id: ocrBox
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.bottom: parent.bottom
+                            height: 116
+                            radius: Styling.radius(8)
+                            variant: "pane"
+                            visible: previewType === "image" && previewOcrText !== ""
+                            clip: true
+
+                            Text {
+                                id: ocrLabel
+                                anchors.top: parent.top
+                                anchors.left: parent.left
+                                anchors.right: parent.right
+                                anchors.margins: 8
+                                text: "📝 Texto en la imagen"
+                                font.bold: true
+                                font.pixelSize: Config.theme.fontSize - 3
+                                color: Styling.srItem("overprimary")
+                                opacity: 0.8
+                            }
+
+                            Flickable {
+                                anchors.top: ocrLabel.bottom
+                                anchors.left: parent.left
+                                anchors.right: parent.right
+                                anchors.bottom: copyOcrBtn.top
+                                anchors.margins: 8
+                                contentHeight: ocrTextEl.height
+                                clip: true
+                                Text {
+                                    id: ocrTextEl
+                                    width: parent.width
+                                    text: previewOcrText
+                                    font.family: "monospace"
+                                    font.pixelSize: Config.theme.fontSize - 3
+                                    color: Styling.srItem("text")
+                                    wrapMode: Text.WrapAnywhere
+                                }
+                                ScrollBar.vertical: ScrollBar {
+                                    width: 5
+                                    policy: ScrollBar.AsNeeded
+                                    contentItem: Rectangle { radius: 3; color: Styling.srItem("overprimary"); opacity: 0.4 }
+                                }
+                            }
+
+                            Text {
+                                id: copyOcrBtn
+                                anchors.right: parent.right
+                                anchors.bottom: parent.bottom
+                                anchors.margins: 8
+                                text: "📋 Copiar"
+                                font.pixelSize: Config.theme.fontSize - 3
+                                color: Styling.srItem("text")
+                                opacity: 0.8
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: spotlight.copyOcrText()
+                                    onEntered: parent.opacity = 1
+                                    onExited: parent.opacity = 0.8
+                                }
+                            }
                         }
 
                         // Texto / binario
@@ -2355,6 +2436,19 @@ PanelWindow {
             });
         }
 
+        // ── Live Text: reindexar imágenes ──
+        if (query === "reindexar" || query === "reindex" || query === "ocr") {
+            newResults.unshift({
+                name: "🖼️ Reindexar imágenes (Live Text)",
+                description: "Vuelve a leer el texto de todas tus imágenes con OCR (Tesseract)",
+                icon: Icons.notepad,
+                type: "info",
+                exec: function() {
+                    spotlight.startOcrIndexing();
+                }
+            });
+        }
+
         // Asignar para que QML detecte el cambio
         results = newResults;
 
@@ -2467,6 +2561,56 @@ PanelWindow {
         }
     }
 
+    // ── Live Text (OCR) ────────────────────────────────────────────────────
+    // Carpetas que se indexan en background al iniciar Hax.
+    function ocrFolders() {
+        var home = Quickshell.env("HOME") || "/home/fabio";
+        var pics = Quickshell.env("XDG_PICTURES_DIR") || (home + "/Pictures");
+        var shots = pics + "/Screenshots";
+        return [
+            { d: home + "/Documentos", depth: 5 },
+            { d: home + "/Descargas",   depth: 5 },
+            { d: home + "/Escritorio",  depth: 5 },
+            { d: home,                  depth: 2 },
+            { d: pics,                  depth: 6 },
+            { d: shots,                 depth: 2 }
+        ];
+    }
+
+    // Indexa las imágenes en segundo plano (una carpeta a la vez, no bloquea la UI).
+    function startOcrIndexing() {
+        var folders = ocrFolders();
+        for (var i = 0; i < folders.length; i++) {
+            (function(f) {
+                var pr = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+                pr.command = ["bash", ocrScript, "index", f.d, String(f.depth)];
+                pr.onExited.connect(function() { try { pr.destroy(); } catch (e) {} });
+                pr.running = true;
+            })(folders[i]);
+        }
+    }
+
+    // Lee el texto OCR de una imagen para el panel de previsualización.
+    function fetchOcrForPreview(p) {
+        var pr = Qt.createQmlObject('import Quickshell.Io; Process { stdout: StdioCollector {} }', spotlight);
+        pr.command = ["bash", ocrScript, "get", p];
+        pr.onExited.connect(function() {
+            var t = pr.stdout ? pr.stdout.text.trim() : "";
+            spotlight.previewOcrText = (t.length > 0) ? t : "（sin texto detectable en la imagen）";
+            try { pr.destroy(); } catch (e) {}
+        });
+        pr.running = true;
+    }
+
+    // Copia al portapapeles el texto OCR de la imagen previsualizada.
+    function copyOcrText() {
+        if (!spotlight.previewOcrText) return;
+        var p = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+        p.command = ["wl-copy", spotlight.previewOcrText];
+        p.onExited.connect(function() { try { p.destroy(); } catch (e) {} });
+        p.running = true;
+    }
+
     // ── Previsualización rápida (Quick Look) ─────────────────────────────
     // Al pulsar Enter/clic sobre un archivo, muestra su contenido DENTRO de
     // Hax (ruta + texto/imagen) sin cerrar el buscador.
@@ -2480,6 +2624,7 @@ PanelWindow {
         spotlight.previewType = "text";
         spotlight.previewText = "Cargando…";
         spotlight.previewImageSrc = "";
+        spotlight.previewOcrText = "";
         spotlight.showPreview = true;
 
         var safePath = path.replace(/'/g, "'\\''");
@@ -2490,6 +2635,8 @@ PanelWindow {
             spotlight.previewType = "image";
             spotlight.previewImageSrc = "file://" + path;
             spotlight.previewText = "";
+            spotlight.previewOcrText = "📝 Leyendo texto de la imagen…";
+            spotlight.fetchOcrForPreview(path);
             return;
         }
 
@@ -2822,6 +2969,60 @@ PanelWindow {
         
         currentSearch = proc;
         proc.running = true;
+
+        // ── Live Text: también buscar en el texto de las imágenes (OCR) ──
+        (function() {
+            var ocrPr = Qt.createQmlObject(
+                'import Quickshell.Io; Process { stdout: StdioCollector {} }',
+                spotlight
+            );
+            ocrPr.command = ["bash", ocrScript, "search", q];
+            ocrPr.onExited.connect(function() {
+                if (gen !== searchGeneration) { try { ocrPr.destroy(); } catch (e) {} return; }
+                var out = (ocrPr.stdout ? ocrPr.stdout.text : "") || "";
+                var lines = out.split("\n");
+                var ocrRes = [];
+                for (var li = 0; li < lines.length; li++) {
+                    var ln = lines[li].trim();
+                    if (ln.length === 0) continue;
+                    var parts = ln.split(OCR_SEP);
+                    if (parts.length < 2) continue;
+                    var p = parts[0];
+                    var snip = parts.slice(1).join(" ").trim();
+                    if (p.length === 0) continue;
+                    var fname = p.split("/").pop();
+                    // Si el nombre ya contiene la query, el buscador de archivos
+                    // (find) ya lo mostrará → evitamos duplicados.
+                    if (fname.toLowerCase().indexOf(q) !== -1) continue;
+                    var dup = false;
+                    for (var ri = 0; ri < results.length; ri++) {
+                        if (results[ri].description === p) { dup = true; break; }
+                    }
+                    if (dup) continue;
+                    (function(pp, sn, fn) {
+                        ocrRes.push({
+                            name: "🖼️ " + fn,
+                            description: pp,
+                            icon: "🖼️",
+                            type: "file",
+                            ocrMatch: true,
+                            exec: function() {
+                                var safePath = pp.replace(/'/g, "'\\''");
+                                var pr = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+                                pr.command = ["bash", "-c",
+                                    "cd ~ && env -u HL_INITIAL_WORKSPACE_TOKEN setsid thunar '" + safePath + "' < /dev/null > /dev/null 2>&1 &"];
+                                pr.onExited.connect(function() { try { pr.destroy(); } catch (e) {} });
+                                pr.running = true;
+                                Visibilities.setActiveModule("");
+                            }
+                        });
+                    })(p, snip, fname);
+                }
+                if (ocrRes.length > 0) results = results.concat(ocrRes);
+                try { ocrPr.destroy(); } catch (e) {}
+            });
+            ocrPr.running = true;
+        })();
     }
 
     // ── Clima ────────────────────────────────────────────────────────────────

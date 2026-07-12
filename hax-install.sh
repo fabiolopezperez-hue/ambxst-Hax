@@ -160,6 +160,18 @@ for tool in "${ESSENTIAL_TOOLS[@]}"; do
   has_cmd "$tool" || DEPS_MISSING+=("$tool")
 done
 
+# OCR (Live Text) — Tesseract + datos de idioma (inglés + español por defecto)
+case "$DISTRO" in
+  arch)
+    has_cmd tesseract || DEPS_MISSING+=("tesseract" "tesseract-data-eng" "tesseract-data-spa") ;;
+  fedora)
+    has_cmd tesseract || DEPS_MISSING+=("tesseract" "tesseract-langpack-eng" "tesseract-langpack-spa") ;;
+  debian)
+    has_cmd tesseract || DEPS_MISSING+=("tesseract-ocr" "tesseract-ocr-eng" "tesseract-ocr-spa") ;;
+  *)
+    has_cmd tesseract || log_warn "Tesseract no encontrado — Live Text necesita 'tesseract' + datos de idioma (eng/spa)." ;;
+esac
+
 if [[ ${#DEPS_MISSING[@]} -gt 0 ]]; then
   log_info "Instalando dependencias: ${DEPS_MISSING[*]}"
   case "$DISTRO" in
