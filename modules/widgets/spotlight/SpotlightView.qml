@@ -2111,8 +2111,12 @@ PanelWindow {
                 { name: "🔍 Buscar archivos", description: "Escribe cualquier nombre de archivo (mín 2 caracteres)", icon: Icons.notepad, type: "info", exec: null },
                 { name: "🌐 Buscar en web", description: "Cualquier texto que no sea comando se busca en Google", icon: Icons.notepad, type: "info", exec: null },
                 { name: "📖 g / glo / glosario", description: "Abre el diccionario/glosario — escribe una palabra y pulsa Enter", icon: Icons.notepad, type: "info", exec: null },
+                { name: "📋 historial / history / clip / clipboard / portapapeles", description: "Muestra el historial completo del portapapeles", icon: Icons.notepad, type: "info", exec: null },
                 { name: "/", description: "Abre la terminal integrada (fish) dentro de Hax — 100% operativa (vim, htop, sudo...)", icon: Icons.notepad, type: "info", exec: null },
                 { name: "/stats", description: "Abre el monitor del sistema en vivo (CPU, RAM, disco, temp)", icon: Icons.notepad, type: "info", exec: null },
+                { name: "🐞 d / dev / debug", description: "Abre el modo desarrollador (debug) con métricas en pantalla", icon: Icons.notepad, type: "info", exec: null },
+                { name: "🖼️ live / livetext / ocr / status", description: "Live Text (OCR) — busca texto DENTRO de imágenes", icon: Icons.notepad, type: "info", exec: null },
+                { name: "🖼️ reindexar / reindex", description: "Reindexa todas las imágenes con OCR (Tesseract)", icon: Icons.notepad, type: "info", exec: null },
                 { name: "❓ ayuda / help / h / ?", description: "Muestra esta ayuda", icon: Icons.notepad, type: "info", exec: null }
             ];
             results = newResults;
