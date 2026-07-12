@@ -70,8 +70,7 @@ PanelWindow {
             stopMonitor();
             loadHistory();
             startClipWatcher();
-            if (weatherSearch) weatherSearch.destroy();
-            weatherSearch = null;
+            if (weatherSearch) { try { weatherSearch.abort(); } catch(e) {} weatherSearch = null; }
 
             // ⭐ Poner el estado inicial (gota ya formada en el notch)
             // ANTES de mostrar la ventana — así la entrada empieza igual
@@ -199,12 +198,11 @@ PanelWindow {
     // Se activa escribiendo "d" / "dev" / "debug" y pulsando Enter.
     property bool showDebug: false
     onShowDebugChanged: {
-        try {
-            var _df = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
-            _df.command = ["bash", "-c", "echo " + (showDebug ? "ON" : "OFF") + " > /tmp/hax-debug-state 2>/dev/null"];
-            _df.onExited.connect(function() { try { _df.destroy(); } catch (e) {} });
-            _df.running = true;
-        } catch (e) {}
+        if (spotlight.showDebug) {
+            spotlight.startDebugMonitor();
+        } else {
+            spotlight.stopDebugMonitor();
+        }
     }
     property var debugErrorLog: []
     property int debugOpenMs: -1
@@ -235,7 +233,8 @@ PanelWindow {
     property string autoCompleteSuffix: {
         if (searchInput && searchInput.text.length > 0 && results.length > 0) {
             var txt = searchInput.text.toLowerCase();
-            for (var i = 0; i < results.length; i++) {
+            var maxCheck = Math.min(results.length, 20);
+            for (var i = 0; i < maxCheck; i++) {
                 var name = results[i].name || "";
                 if (name.toLowerCase().indexOf(txt) === 0 && name.length > txt.length) {
                     return name.substring(txt.length);
@@ -363,56 +362,64 @@ PanelWindow {
         }
     }
 
-    Timer {
-        id: _debugResTimer
-        interval: 1000
-        repeat: true
-        running: spotlight.showDebug
-        onRunningChanged: {
-            if (running) {
-                spotlight._debugPrevUtime = -1;
-                spotlight._debugPrevStime = -1;
-                spotlight._debugPrevTs = 0;
-            }
+    // ── Monitor de recursos para debug (proceso persistente, sin spawn por segundo) ──
+    property var _debugResProc: null
+
+    function startDebugMonitor() {
+        if (_debugResProc) return;
+        spotlight._debugPrevUtime = -1;
+        spotlight._debugPrevStime = -1;
+        spotlight._debugPrevTs = 0;
+        var proc;
+        try {
+            proc = Qt.createQmlObject(
+                'import Quickshell.Io; Process { stdout: SplitParser {} }',
+                spotlight
+            );
+        } catch (e) {
+            return;
         }
-        onTriggered: {
+        proc.command = ["bash", "-c",
+            "while true; do " +
+            "P=$(awk '{print $2}' /proc/$PPID/statm 2>/dev/null); " +
+            "C=$(awk '{print $14+$15}' /proc/$PPID/stat 2>/dev/null); " +
+            "echo \"$P $C\"; " +
+            "sleep 1; " +
+            "done"
+        ];
+        proc.stdout.onRead.connect(function(d) {
             spotlight.debugSessionS = Math.round((Date.now() - spotlight._debugOpenStart) / 1000);
-            var proc;
-            try {
-                proc = Qt.createQmlObject(
-                    'import Quickshell.Io; Process { stdout: SplitParser {} }',
-                    spotlight
-                );
-            } catch (e) {
-                return;
-            }
-            proc.stdout.onRead.connect(function(d) {
-                var parts = d.trim().split(/\s+/);
-                if (parts.length >= 3) {
-                    var rssPages = parseInt(parts[0], 10) || 0;
-                    var utime = parseInt(parts[1], 10) || 0;
-                    var stime = parseInt(parts[2], 10) || 0;
-                    spotlight.debugMemMB = (rssPages * 4096) / (1024 * 1024);
-                    var now = Date.now();
-                    var dTms = now - spotlight._debugPrevTs;
-                    if (spotlight._debugPrevUtime >= 0 && dTms > 0 && dTms < 3000) {
-                        var dCpu = (utime - spotlight._debugPrevUtime) + (stime - spotlight._debugPrevStime);
-                        var dT = dTms / 1000 * 100;
-                        spotlight.debugCpuPct = Math.max(0, Math.min(100, (dCpu / dT) * 100));
-                    }
-                    spotlight._debugPrevUtime = utime;
-                    spotlight._debugPrevStime = stime;
-                    spotlight._debugPrevTs = now;
+            var parts = d.trim().split(/\s+/);
+            if (parts.length >= 3) {
+                var rssPages = parseInt(parts[0], 10) || 0;
+                var utime = parseInt(parts[1], 10) || 0;
+                var stime = parseInt(parts[2], 10) || 0;
+                spotlight.debugMemMB = (rssPages * 4096) / (1024 * 1024);
+                var now = Date.now();
+                var dTms = now - spotlight._debugPrevTs;
+                if (spotlight._debugPrevUtime >= 0 && dTms > 0 && dTms < 3000) {
+                    var dCpu = (utime - spotlight._debugPrevUtime) + (stime - spotlight._debugPrevStime);
+                    var dT = dTms / 1000 * 100;
+                    spotlight.debugCpuPct = Math.max(0, Math.min(100, (dCpu / dT) * 100));
                 }
-                proc.destroy();
-            });
-            proc.onExited.connect(function() { try { proc.destroy(); } catch (e) {} });
-            // $PPID es el PID de Quickshell (padre del proceso lanzado por Process)
-            proc.command = ["bash", "-c",
-                "P=$(awk '{print $2}' /proc/$PPID/statm 2>/dev/null); " +
-                "C=$(awk '{print $14+$15}' /proc/$PPID/stat 2>/dev/null); " +
-                "echo \"$P $C\""];
-            proc.running = true;
+                spotlight._debugPrevUtime = utime;
+                spotlight._debugPrevStime = stime;
+                spotlight._debugPrevTs = now;
+            }
+        });
+        proc.onExited.connect(function() {
+            try { proc.destroy(); } catch (e) {}
+            _debugResProc = null;
+        });
+        _debugResProc = proc;
+        proc.running = true;
+    }
+
+    function stopDebugMonitor() {
+        if (_debugResProc) {
+            _debugResProc.running = false;
+            _debugResProc.destroy();
+            _debugResProc = null;
         }
     }
 
@@ -785,17 +792,8 @@ PanelWindow {
                                 opacity: 0.6
                                 elide: Text.ElideRight
                             }
-                            Text {
-                                text: "✕"
-                                font.pixelSize: Config.theme.fontSize + 2
-                                font.bold: true
-                                color: Styling.srItem("text")
-                                opacity: 0.5
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: spotlight.closeTerminal()
-                                }
+                            CloseButton {
+                                onClicked: spotlight.closeTerminal()
                             }
                         }
 
@@ -917,24 +915,11 @@ PanelWindow {
                             }
 
                             // Botón ✕ para cerrar terminal
-                            Text {
-                                text: "✕"
-                                font.pixelSize: Config.theme.fontSize + 2
-                                font.bold: true
-                                color: Styling.srItem("text")
-                                opacity: 0.5
-
-                                MouseArea {
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        spotlight._lastCmdVisible = false;
-                                        spotlight.cmdOutput = [];
-                                        spotlight.cmdOutputText = "";
-                                    }
-                                    onEntered: parent.opacity = 1
-                                    onExited: parent.opacity = 0.5
+                            CloseButton {
+                                onClicked: function() {
+                                    spotlight._lastCmdVisible = false;
+                                    spotlight.cmdOutput = [];
+                                    spotlight.cmdOutputText = "";
                                 }
                             }
                         }
@@ -1372,8 +1357,14 @@ PanelWindow {
                     variant: "pane"
                     radius: Styling.radius(12)
                     clip: true
-                    Behavior on height { NumberAnimation { duration: 200; easing.type: Easing.OutQuint } }
-                    Behavior on opacity { NumberAnimation { duration: 150 } }
+                    Behavior on height {
+                        enabled: Config.animDuration > 0
+                        NumberAnimation { duration: Config.animDuration * 3; easing.type: Easing.OutQuint }
+                    }
+                    Behavior on opacity {
+                        enabled: Config.animDuration > 0
+                        NumberAnimation { duration: Config.animDuration * 2; easing.type: Easing.OutQuint }
+                    }
 
                     Column {
                         id: dictContent
@@ -1391,17 +1382,8 @@ PanelWindow {
                                 Layout.fillWidth: true
                                 elide: Text.ElideRight
                             }
-                            Text {
-                                text: "✕"
-                                font.pixelSize: Config.theme.fontSize + 2
-                                font.bold: true
-                                color: Styling.srItem("text")
-                                opacity: 0.5
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: spotlight.exitDictMode()
-                                }
+                            CloseButton {
+                                onClicked: spotlight.exitDictMode()
                             }
                         }
 
@@ -1475,8 +1457,14 @@ PanelWindow {
                     clip: true
                     opacity: showMonitor ? 1 : 0
 
-                    Behavior on height { NumberAnimation { duration: 200; easing.type: Easing.OutQuint } }
-                    Behavior on opacity { NumberAnimation { duration: 150 } }
+                    Behavior on height {
+                        enabled: Config.animDuration > 0
+                        NumberAnimation { duration: Config.animDuration * 3; easing.type: Easing.OutQuint }
+                    }
+                    Behavior on opacity {
+                        enabled: Config.animDuration > 0
+                        NumberAnimation { duration: Config.animDuration * 2; easing.type: Easing.OutQuint }
+                    }
 
                     Column {
                         width: parent.width
@@ -1516,19 +1504,8 @@ PanelWindow {
                             }
 
                             // Botón cerrar
-                            Text {
-                                text: "✕"
-                                font.pixelSize: Config.theme.fontSize + 2
-                                font.bold: true
-                                color: Styling.srItem("text")
-                                opacity: 0.5
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: stopMonitor()
-                                    onEntered: parent.opacity = 1
-                                    onExited: parent.opacity = 0.5
-                                }
+                            CloseButton {
+                                onClicked: stopMonitor()
                             }
                         }
 
@@ -1623,17 +1600,8 @@ PanelWindow {
                                 color: Styling.srItem("text")
                                 elide: Text.ElideRight
                             }
-                            Text {
-                                text: "✕"
-                                font.pixelSize: Config.theme.fontSize + 2
-                                font.bold: true
-                                color: Styling.srItem("text")
-                                opacity: 0.5
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: spotlight.showDebug = false
-                                }
+                            CloseButton {
+                                onClicked: function() { spotlight.showDebug = false; }
                             }
                         }
 
@@ -1741,8 +1709,14 @@ PanelWindow {
                     clip: true
                     opacity: showPreview ? 1 : 0
 
-                    Behavior on height { NumberAnimation { duration: 200; easing.type: Easing.OutQuint } }
-                    Behavior on opacity { NumberAnimation { duration: 150 } }
+                    Behavior on height {
+                        enabled: Config.animDuration > 0
+                        NumberAnimation { duration: Config.animDuration * 3; easing.type: Easing.OutQuint }
+                    }
+                    Behavior on opacity {
+                        enabled: Config.animDuration > 0
+                        NumberAnimation { duration: Config.animDuration * 2; easing.type: Easing.OutQuint }
+                    }
 
                     // Cabecera (nombre + ruta) — anclada arriba
                     Column {
@@ -1766,19 +1740,8 @@ PanelWindow {
                                 color: Styling.srItem("text")
                             }
 
-                            Text {
-                                text: "✕"
-                                font.pixelSize: Config.theme.fontSize + 2
-                                font.bold: true
-                                color: Styling.srItem("text")
-                                opacity: 0.5
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: spotlight.showPreview = false
-                                    onEntered: parent.opacity = 1
-                                    onExited: parent.opacity = 0.5
-                                }
+                            CloseButton {
+                                onClicked: function() { spotlight.showPreview = false; }
                             }
                         }
 
@@ -2493,11 +2456,7 @@ PanelWindow {
         // ── Clima ────────────────────────────────────────────────────────────
         var weatherMatch = query.match(/^(weather|tiempo|clima|w(?:eather)?)\b/i);
         if (weatherMatch) {
-            if (weatherSearch) {
-                weatherSearch.running = false;
-                weatherSearch.destroy();
-                weatherSearch = null;
-            }
+            if (weatherSearch) { try { weatherSearch.abort(); } catch(e) {} weatherSearch = null; }
             const loc = query.substring(weatherMatch[0].length).trim();
             newResults.push({
                 name: "🌤 Consultando clima" + (loc ? " — " + loc : "") + "...",
@@ -3010,7 +2969,7 @@ PanelWindow {
     property var _historyItems: []
     property var _historyLoaded: false
     property string _lastClipboard: ""
-    property var _clipTimer: null
+    property var _clipWatcherProc: null
 
     function loadHistory() {
         if (_historyLoaded) return;
@@ -3073,9 +3032,11 @@ PanelWindow {
         var json = JSON.stringify(_historyItems);
         var path = Quickshell.env("HOME") + "/.local/share/hax/history.json";
         var proc = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
-        // Usar Python para escribir el archivo JSON de forma segura (como hace Ambxst)
-        var pyCode = "import json,sys,pathlib; pathlib.Path(sys.argv[1]).parent.mkdir(parents=True,exist_ok=True); pathlib.Path(sys.argv[1]).write_text(sys.argv[2])";
-        proc.command = ["python3", "-c", pyCode, path, json];
+        // Escribir JSON directamente con bash (sin Python)
+        // Escapamos comillas simples para bash: ' → '\''
+        var safeJson = json.replace(/'/g, "'\\''");
+        var safePath = path.replace(/'/g, "'\\''");
+        proc.command = ["bash", "-c", "mkdir -p $(dirname '" + safePath + "') && printf '%s' '" + safeJson + "' > '" + safePath + "'"];
         proc.onExited.connect(function() {
             proc.destroy();
         });
@@ -3113,7 +3074,7 @@ PanelWindow {
     }
 
     function startClipWatcher() {
-        if (_clipTimer !== null) return;
+        if (_clipWatcherProc) return;
         // Capturar el contenido actual (al abrir Hax)
         _readClipboard(function(content) {
             if (content.length > 0 && content.length < 100000) {
@@ -3121,26 +3082,35 @@ PanelWindow {
                 saveToHistory(content, "text");
             }
         });
-        // Polling cada 1.5s para detectar cambios
-        _clipTimer = Qt.createQmlObject('import QtQuick; Timer { }', spotlight);
-        _clipTimer.interval = 1500;
-        _clipTimer.repeat = true;
-        _clipTimer.triggered.connect(function() {
-            _readClipboard(function(content) {
-                if (content.length > 0 && content.length < 100000 && content !== _lastClipboard) {
-                    _lastClipboard = content;
-                    saveToHistory(content, "text");
-                }
-            });
+        // Proceso persistente: monitoriza el portapapeles SIN spawnear 40 procesos/min
+        var proc = Qt.createQmlObject(
+            'import Quickshell.Io; Process { stdout: SplitParser {} }',
+            spotlight
+        );
+        proc.command = ["bash", "-c",
+            "o=''; while true; do c=$(wl-paste -n 2>/dev/null); " +
+            "if [ -n \"$c\" ] && [ \"$c\" != \"$o\" ]; then echo \"$c\"; o=\"$c\"; fi; sleep 1; done"
+        ];
+        proc.stdout.onRead.connect(function(content) {
+            content = content.trim();
+            if (content.length > 0 && content.length < 100000 && content !== _lastClipboard) {
+                _lastClipboard = content;
+                saveToHistory(content, "text");
+            }
         });
-        _clipTimer.start();
+        proc.onExited.connect(function() {
+            proc.destroy();
+            _clipWatcherProc = null;
+        });
+        _clipWatcherProc = proc;
+        proc.running = true;
     }
 
     function stopClipWatcher() {
-        if (_clipTimer !== null) {
-            _clipTimer.stop();
-            _clipTimer.destroy();
-            _clipTimer = null;
+        if (_clipWatcherProc) {
+            _clipWatcherProc.running = false;
+            _clipWatcherProc.destroy();
+            _clipWatcherProc = null;
         }
         _lastClipboard = "";
     }
@@ -3312,40 +3282,23 @@ PanelWindow {
 
     // ── Clima ────────────────────────────────────────────────────────────────
     function startWeatherSearch(location, gen) {
+        // Cancelar búsqueda anterior si existe
         if (weatherSearch) {
-            weatherSearch.running = false;
-            weatherSearch.destroy();
+            try { weatherSearch.abort(); } catch(e) {}
             weatherSearch = null;
         }
 
-        var proc = Qt.createQmlObject(
-            'import Quickshell.Io; Process { stdout: SplitParser {} }',
-            spotlight
-        );
-
-        // Usar ubicación por defecto si no se especificó una
         var loc = location || WeatherService.defaultLocation;
         var url = "https://wttr.in/" + encodeURIComponent(loc) + "?format=j1";
 
-        proc.command = ["bash", "-c", "curl -s --max-time 6 '" + url.replace(/'/g, "'\\''") + "'"];
-
-        var lines = [];
-        proc.stdout.onRead.connect(function(data) {
-            if (gen !== searchGeneration) return;
-            var line = data.trim();
-            if (line.length > 0) lines.push(line);
-        });
-
-        proc.onExited.connect(function(code) {
-            if (gen !== searchGeneration) {
-                proc.destroy();
-                if (weatherSearch === proc) weatherSearch = null;
-                return;
-            }
-
-            if (code === 0 && lines.length > 0) {
+        var xhr = new XMLHttpRequest();
+        xhr.open("GET", url);
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState !== XMLHttpRequest.DONE) return;
+            if (gen !== searchGeneration) { weatherSearch = null; return; }
+            if (xhr.status === 200) {
                 try {
-                    var json = JSON.parse(lines.join(""));
+                    var json = JSON.parse(xhr.responseText);
                     results = formatWeatherResults(json, loc);
                 } catch(e) {
                     results = [{
@@ -3363,12 +3316,10 @@ PanelWindow {
                     type: "info"
                 }];
             }
-            proc.destroy();
-            if (weatherSearch === proc) weatherSearch = null;
-        });
-
-        weatherSearch = proc;
-        proc.running = true;
+            weatherSearch = null;
+        };
+        xhr.send();
+        weatherSearch = xhr;
     }
 
     function formatWeatherResults(json, location) {
