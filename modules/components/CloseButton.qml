@@ -8,7 +8,7 @@ import qs.modules.theme
 Text {
     id: root
 
-    required property var onClicked
+    signal clicked
 
     text: "✕"
     font.pixelSize: Config.theme.fontSize + 2
@@ -19,7 +19,7 @@ Text {
     MouseArea {
         anchors.fill: parent
         cursorShape: Qt.PointingHandCursor
-        onClicked: root.onClicked()
+        onClicked: root.clicked()
         onEntered: root.opacity = 1
         onExited: root.opacity = 0.5
     }

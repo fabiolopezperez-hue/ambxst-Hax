@@ -916,7 +916,7 @@ PanelWindow {
 
                             // Botón ✕ para cerrar terminal
                             CloseButton {
-                                onClicked: function() {
+                                onClicked: {
                                     spotlight._lastCmdVisible = false;
                                     spotlight.cmdOutput = [];
                                     spotlight.cmdOutputText = "";
@@ -1601,7 +1601,7 @@ PanelWindow {
                                 elide: Text.ElideRight
                             }
                             CloseButton {
-                                onClicked: function() { spotlight.showDebug = false; }
+                                onClicked: spotlight.showDebug = false
                             }
                         }
 
@@ -1741,7 +1741,7 @@ PanelWindow {
                             }
 
                             CloseButton {
-                                onClicked: function() { spotlight.showPreview = false; }
+                                onClicked: spotlight.showPreview = false
                             }
                         }
 
