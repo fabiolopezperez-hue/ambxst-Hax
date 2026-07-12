@@ -74,7 +74,7 @@ case "$cmd" in
     find "$dir" -maxdepth "$maxd" -type f \( \
         -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o \
         -iname '*.webp' -o -iname '*.bmp' -o -iname '*.tiff' -o -iname '*.gif' \
-      \) -printf '%T@|%p\n' 2>/dev/null || true | \
+      \) -printf '%T@|%p\n' 2>/dev/null | \
     while IFS='|' read -r mt path; do
       [ -z "$path" ] && continue
       mtime=${mt%.*}
