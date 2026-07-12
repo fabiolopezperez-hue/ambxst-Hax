@@ -165,7 +165,7 @@ PanelWindow {
     property string searchText: ""
 
     // ── Live Text (OCR) — buscar texto DENTRO de imágenes ──────────────────
-    property string ocrScript: Qt.resolvedUrl("../../scripts/ocr.sh").toString().replace("file://", "")
+    property string ocrScript: Qt.resolvedUrl("../../../scripts/ocr.sh").toString().replace("file://", "")
     property string ocrSep: String.fromCharCode(31)
     property string previewOcrText: ""
     property int liveTextIndexed: 0
