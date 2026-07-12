@@ -313,7 +313,7 @@ El instalador:
 
 ## 📋 Changelog
 
-### v3.0.2 — Julio 2026 — 📖 Glosario reescrito (XMLHttpRequest nativo) 🎉 VERSIÓN ESTABLE ACTUALIZADA 
+### v3.1.0 — Julio 2026 — 📖 Glosario reescrito (XMLHttpRequest nativo) 🎉 VERSIÓN ESTABLE ACTUALIZADA 
 Esta es la **segunda versión estable** de Hax
 - **♻️ Glosario reescrito desde cero** — El diccionario ahora usa **XMLHttpRequest nativo de QML** en vez de scripts bash+curl+python3. Esto elimina:
   - Procesos huérfanos (cada tecla ya no deja curls colgados)
