@@ -313,16 +313,32 @@ El instalador:
 
 ## 📋 Changelog
 
-### v3.1.0 — Julio 2026 — 📖 Glosario reescrito (XMLHttpRequest nativo) 🎉 VERSIÓN ESTABLE ACTUALIZADA 
+### v3.1.0 — Julio 2026 — ⚡ Optimización masiva del motor interno 🎉 VERSIÓN ESTABLE ACTUALIZADA
 Esta es la **segunda versión estable** de Hax
-- **♻️ Glosario reescrito desde cero** — El diccionario ahora usa **XMLHttpRequest nativo de QML** en vez de scripts bash+curl+python3. Esto elimina:
+
+#### 🔧 Optimizaciones de rendimiento
+- **🌤️ Clima nativo (sin curl)** — El clima ahora usa **XMLHttpRequest** directamente a `wttr.in` en vez de lanzar `curl` cada vez. Cero procesos por consulta.
+- **📋 Clipboard watcher persistente** — Antes: un **Timer que spawnaba 40 procesos por minuto** (`wl-paste` cada 1.5s). Ahora: un **solo proceso persistente** con `while+sleep` que escucha cambios sin spawn innecesarios.
+- **💾 Historial sin Python** — `_writeHistory` antes ejecutaba `python3 -c` cada vez que copiabas algo. Ahora escribe el JSON directamente con `printf '%s'` en bash puro. Adiós a la dependencia de Python en Hax.
+- **🐞 Debug sin timer** — El monitor de recursos del debug antes creaba **1 proceso por segundo** (`/proc` reads). Ahora es un solo proceso persistente que actualiza CPU/memoria sin spawn.
+- **🔄 Autocopletado limitado** — El bucle que busca resultados ya no recorre arrays enormes: se corta automáticamente a los primeros **20 resultados**.
+
+#### 🧱 Refactorización
+- **✕ CloseButton como componente reutilizable** — Extraído a `modules/components/CloseButton.qml`. Los 6 botones de cierre (terminal, cmd, diccionario, monitor, debug, previsualización) usan el mismo componente, con hover opacity consistente.
+- **🔁 Behaviors unificados** — Diccionario, monitor y previsualización ahora usan `Config.animDuration` para sus animaciones de altura/opacidad, igual que el resto de paneles.
+
+#### 📖 Glosario reescrito (XMLHttpRequest nativo)
+- **♻️ Diccionario en XMLHttpRequest puro** — En vez de scripts bash+curl+python3. Elimina:
   - Procesos huérfanos (cada tecla ya no deja curls colgados)
   - Dependencia de `curl`, `python3` y scripts externos
   - Saturación de la API (solo una petición HTTP a la vez)
   - Problemas de case-sensitivity y comparación de strings
-- **⚡ Más rápido y fiable** — Una sola llamada a la API REST de Wikipedia, sin 3 fuentes en cascada. Todas las palabras con artículo en Wikipedia funcionan al instante.
-- **🧹 Limpieza al borrar** — Cuando borras la palabra, el resultado se limpia automáticamente y el modo glosario se queda esperando la siguiente palabra.
+- **⚡ Más rápido y fiable** — Una sola llamada a la API REST de Wikipedia, sin 3 fuentes en cascada.
+- **🧹 Limpieza al borrar** — Cuando borras la palabra, el resultado se limpia automáticamente.
 - **📦 Script `scripts/dict.sh` eliminado de la instalación** — Ya no se necesita.
+
+#### 🧠 Nueva sección de versión en debug
+- **ℹ️ Versión visible** — El panel de debug (`d`/`dev`/`debug`) ahora muestra **v3.1.0** + nota de las optimizaciones aplicadas, para que siempre sepas qué versión de Hax estás ejecutando.
 
 ### v3.0.1 — Julio 2026 — 📖 Glosario / Diccionario
 
