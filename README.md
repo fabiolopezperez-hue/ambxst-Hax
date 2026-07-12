@@ -21,13 +21,13 @@
 </p>
 
 <p align="center">
-  <img src="screenshots/hax-terminal.png" width="620"> 
+  <img src="screenshots/.png" width="620"> 
   <br>
   <em>Búsqueda de apps, paquetes, comandos y más</em>
 </p>
 
 <p align="center">
- <img src="screenshots/Screenshot_2026-07-13-01-44-01.png" width="620">
+ <img src="screenshots/terminal-Hax.png" width="620">
   <br>
   <em>Terminal embebida: escribe / y abre una terminal real (PTY) dentro de Hax</em>
 </p>
