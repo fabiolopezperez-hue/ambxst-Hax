@@ -1605,6 +1605,27 @@ PanelWindow {
                             }
                         }
 
+                        // ℹ️ Versión
+                        Column {
+                            spacing: 4
+                            width: parent.width
+                            Text {
+                                text: "v" + Config.version
+                                font.family: "monospace"
+                                font.pixelSize: Config.theme.fontSize - 3
+                                color: Styling.srItem("overprimary")
+                                opacity: 0.5
+                            }
+                            Text {
+                                text: "✅ Optimizado: procesos persistentes, sin spawn innecesarios, CloseButton unificado"
+                                font.pixelSize: Config.theme.fontSize - 3
+                                color: Styling.srItem("overprimary")
+                                opacity: 0.45
+                                wrapMode: Text.WordWrap
+                                width: parent.width
+                            }
+                        }
+
                         // ⚙️ Recursos
                         Column {
                             spacing: 4
