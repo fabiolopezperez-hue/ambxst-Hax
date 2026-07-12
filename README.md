@@ -27,7 +27,7 @@
 </p>
 
 <p align="center">
- <img src="screenshots/hax-results.png" width="620">
+ <img src="screenshots/Screenshot_2026-07-13-01-44-01.png" width="620">
   <br>
   <em>Terminal embebida: escribe / y abre una terminal real (PTY) dentro de Hax</em>
 </p>
