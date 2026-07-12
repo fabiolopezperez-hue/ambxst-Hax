@@ -61,7 +61,7 @@
 | 🌐 **Búsqueda web** | Cualquier texto que no sea comando se busca en Google |
 | 📖 **Ayuda integrada** | Escribe `ayuda`, `help` o `?` para ver todos los comandos |
 | 👁 **Vista rápida (Quick Look)** | 100% teclado: navega con **↑/↓** y los archivos se previsualizan solos dentro de Hax (imágenes renderizadas, texto/binario leído al instante). Cierra con ✕ o **Esc** |
-| 🐞 **Modo desarrollador (debug)** | Escribe `d`, `dev` o `debug` y pulsa **Enter** para abrir un panel con errores capturados, tiempos de carga (apertura + última búsqueda) y consumo de recursos del propio Hax (memoria/CPU). Cierra con **Esc** |
+| 🐞 **Modo desarrollador (debug)** | Escribe `d`, `dev` o `debug` → la opción **🐞 Modo desarrollador (debug)** aparece la **primera** en la lista. Pulsa **Enter** (o clic) para abrir un panel **persistente abajo, en el sitio del monitor del sistema**, con errores capturados, tiempos de carga (apertura + última búsqueda + sesión) y consumo de recursos del propio Hax (memoria/CPU). No abre el monitor del sistema. Ciérralo con el botón **✕** o **Esc** |
 | 📜 **Historial inteligente** | `historial`, `clip` o `portapapeles` muestra todo lo copiado, ordenado por uso, con borrado individual al hover |
 | 📋 **Copiar al portapapeles** | **Enter** copia el resultado, **Shift+Enter** lo ejecuta/abre. También Ctrl+C o el botón ⎘ al hover |
 | 🎯 **Autocompletado inline** | Mientras escribes, Hax sugiere en gris el resultado que coincide; acepta con **Tab** / **→** |
@@ -174,6 +174,7 @@ hl.bind("SUPER + Slash", hl.dsp.exec_cmd('qs -p "/ruta/a/tu-shell/modules/widget
 | update | Actualizar sistema (pacman -Syu) |
 | remove firefox | Desinstalar paquete |
 | stats / monitor | Monitor del sistema con CPU, RAM, disco y temperatura en vivo |
+| d / dev / debug | Abre el **Modo desarrollador (debug)** — panel con errores, tiempos y recursos de Hax (abajo, donde el monitor) |
 | ayuda / help / ? | Muestra la ayuda completa |
 | / | Abre la **terminal embebida** (PTY real) dentro de Hax |
 | 23*4 | Calcula y muestra el resultado inline 
@@ -185,7 +186,7 @@ hl.bind("SUPER + Slash", hl.dsp.exec_cmd('qs -p "/ruta/a/tu-shell/modules/widget
 | Super + / | Abrir Hax |
 | ↑ / ↓ | Navegar resultados / scroll en terminal |
 | Tab / → | Aceptar sugerencia de autocompletado |
-| Esc | Cerrar / cerrar monitor |
+| Esc | Cerrar / cerrar monitor / cerrar modo debug |
 | historial / clip | Muestra el historial de copias |
 
 
@@ -245,7 +246,7 @@ ambxst-Hax/
 ├── modules/
 │   ├── widgets/spotlight/
 │   │   ├── qmldir                       # Registro del módulo
-│   │   └── SpotlightView.qml             # 🧠 Todo Hax (~2852 líneas)
+│   │   └── SpotlightView.qml             # 🧠 Todo Hax (~3265 líneas)
 │   ├── services/
 │   │   ├── AppSearch.qml                 # Búsqueda de apps
 │   │   ├── AxctlService.qml              # Abstracción del compositor
@@ -276,7 +277,7 @@ ambxst-Hax/
     └── new-functions-Hax.mp4`
 ```
 
-**Nota:** A diferencia de otros launchers, Hax es **monolítico** por diseño — todo el código vive en un solo archivo `SpotlightView.qml` (~2274 líneas). Esto evita la fragmentación y hace que sea fácil de mantener y modificar.
+**Nota:** A diferencia de otros launchers, Hax es **monolítico** por diseño — todo el código vive en un solo archivo `SpotlightView.qml` (~3265 líneas). Esto evita la fragmentación y hace que sea fácil de mantener y modificar.
 
 > El repo incluye archivos de **soporte** (`config/`, `assets/`, `modules/tools/`, `version`) para que Hax funcione correctamente incluso en shells personalizadas que no tengan estos archivos. Si tu shell ya los tiene, el instalador no los sobrescribe. En total, el repositorio autocontenido tiene **~13.093 líneas** de código entre QML, JS, JSON y scripts.
 
@@ -305,7 +306,13 @@ El instalador:
 
 ### v2.6 — Julio 2026
 
-- **🐞 Modo desarrollador (debug)** — Escribe `d`, `dev` o `debug` y pulsa **Enter** para entrar en modo debug (igual que `lock` o `apagar`). Muestra un panel con: errores capturados en pantalla (de `executeItem`, `openPreview`, `copyResult`, `runCmd` y la terminal), **tiempos de carga** (apertura open→listo y última búsqueda en ms) y **consumo de recursos** del propio Hax (memoria RSS y CPU leídos de `/proc/$PPID`, ya que Quickshell es el padre del proceso). Se cierra con **Esc** o repitiendo el comando.
+- **🐞 Modo desarrollador (debug)** — Escribe `d`, `dev` o `debug` y la opción **🐞 Modo desarrollador (debug)** aparece la **primera** en la lista de resultados. Pulsa **Enter** (o clic) para entrar: se abre un panel **persistente abajo, en la misma ubicación que el Monitor del sistema** (no abre el monitor del sistema). Mientras está activo puedes seguir usando el buscador (los resultados se quedan arriba) y ver en vivo:
+  - **❌ Errores capturados** de `executeItem`, `openPreview`, `copyResult`, `runCmd` y la terminal embebida.
+  - **⏱️ Tiempos**: apertura (open→listo), última búsqueda y sesión abierta.
+  - **⚙️ Recursos** del propio Hax: memoria RSS y CPU leídos de `/proc/$PPID` (Quickshell es el padre del proceso).
+  - Se cierra con el botón **✕** del panel o con **Esc** (si no hay texto escrito).
+- **🪟 Tamaño de ventana corregido en modo debug** — `fullHeight` ahora suma resultados **+** panel de debug, así el panel de debug (abajo) nunca queda recortado fuera de pantalla.
+- **🐛 Lectura de recursos del debug corregida** — Se eliminó una señal inexistente (`onError`) que dejaba memoria/CPU en blanco; ahora se actualizan correctamente.
 
 ### v2.5 — Julio 2026
 
