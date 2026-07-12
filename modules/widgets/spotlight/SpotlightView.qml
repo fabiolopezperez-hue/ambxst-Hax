@@ -172,6 +172,15 @@ PanelWindow {
     property bool liveTextIndexing: false
     property int liveTextPending: 0
 
+    // ── Glosario / Diccionario ───────────────────────────────────────────
+    property bool dictMode: false
+    property string dictWord: ""
+    property string dictResultText: ""
+    property string dictError: ""
+    property bool dictLoading: false
+    property int dictSeq: 0
+    property int dictLastLen: 0
+
     Timer {
         id: liveTextStatusTimer
         interval: 4000
@@ -499,6 +508,9 @@ PanelWindow {
             + (spotlight.showDebug
                 ? 8 + debugPane.height
                 : 0)
+            + (spotlight.dictMode
+                ? 8 + dictPane.height
+                : 0)
 
         // ── Contenido que aparece dentro mientras se transforma ────────────
         Column {
@@ -601,6 +613,8 @@ PanelWindow {
                                     spotlight.closeTerminal();
                 } else if (spotlight.showDebug) {
                     spotlight.showDebug = false;
+                } else if (spotlight.dictMode) {
+                    spotlight.exitDictMode();
                 } else if (text.length > 0) {
                     clear();
                 } else {
@@ -648,6 +662,18 @@ PanelWindow {
                             // Enter, Tab, flecha derecha, Ctrl+C, Esc
                             Keys.onPressed: (event) => {
                 if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                    if (spotlight.dictMode) {
+                        if (spotlight.dictResultText.length > 0) {
+                            var dp = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+                            dp.command = ["wl-copy", spotlight.dictResultText];
+                            dp.onExited.connect(function() { try { dp.destroy(); } catch (e) {} });
+                            dp.running = true;
+                            spotlight._copyFeedback = "Definición copiada";
+                            spotlight._copyFeedbackTimer.restart();
+                        }
+                        event.accepted = true;
+                        return;
+                    }
                     if (spotlight.isCommandMode && text.trim().length > 1) {
                                         spotlight.runCmd(text.trim().substring(1));
                                     } else if (event.modifiers & Qt.ShiftModifier) {
@@ -1334,6 +1360,110 @@ PanelWindow {
                     }
                 }
 
+                // ── Glosario / Diccionario (modo glosario) ──────────────────────
+                StyledRect {
+                    id: dictPane
+                    width: contentColumn.width
+                    height: spotlight.dictMode
+                        ? Math.max(70, Math.min(dictContent.implicitHeight + 20, 340))
+                        : 0
+                    visible: spotlight.dictMode
+                    opacity: spotlight.dictMode ? 1 : 0
+                    variant: "pane"
+                    radius: Styling.radius(12)
+                    clip: true
+                    Behavior on height { NumberAnimation { duration: 200; easing.type: Easing.OutQuint } }
+                    Behavior on opacity { NumberAnimation { duration: 150 } }
+
+                    Column {
+                        id: dictContent
+                        width: parent.width
+                        anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
+                        spacing: 8
+
+                        RowLayout {
+                            width: parent.width
+                            Text {
+                                text: "📖 Glosario" + (spotlight.dictWord.length > 0 ? " — " + spotlight.dictWord : "")
+                                font.bold: true
+                                font.pixelSize: Config.theme.fontSize + 1
+                                color: Styling.srItem("text")
+                                Layout.fillWidth: true
+                                elide: Text.ElideRight
+                            }
+                            Text {
+                                text: "✕"
+                                font.pixelSize: Config.theme.fontSize + 2
+                                font.bold: true
+                                color: Styling.srItem("text")
+                                opacity: 0.5
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: spotlight.exitDictMode()
+                                }
+                            }
+                        }
+
+                        Text {
+                            visible: spotlight.dictWord.length === 0
+                            text: "✍️ Escribe una palabra arriba para ver su definición…"
+                            font.pixelSize: Config.theme.fontSize - 1
+                            color: Styling.srItem("overprimary")
+                            opacity: 0.8
+                            wrapMode: Text.WrapAnywhere
+                        }
+
+                        Text {
+                            visible: spotlight.dictLoading
+                            text: "⏳ Buscando definición…"
+                            font.pixelSize: Config.theme.fontSize - 1
+                            color: Styling.srItem("overprimary")
+                            opacity: 0.8
+                        }
+
+                        Text {
+                            visible: spotlight.dictError.length > 0
+                            text: spotlight.dictError
+                            font.pixelSize: Config.theme.fontSize - 1
+                            color: "#fbbf24"
+                            wrapMode: Text.WrapAnywhere
+                        }
+
+                        Flickable {
+                            visible: spotlight.dictResultText.length > 0
+                            width: parent.width
+                            height: Math.min(dictInner.implicitHeight, 260)
+                            contentHeight: dictInner.implicitHeight
+                            clip: true
+                            Column {
+                                id: dictInner
+                                width: parent.width
+                                spacing: 6
+                                Repeater {
+                                    model: spotlight.dictResultText.split("\n")
+                                    delegate: Text {
+                                        required property var modelData
+                                        width: parent.width
+                                        text: modelData
+                                        font.pixelSize: Config.theme.fontSize - 1
+                                        color: Styling.srItem("text")
+                                        wrapMode: Text.WrapAnywhere
+                                    }
+                                }
+                            }
+                        }
+
+                        Text {
+                            visible: spotlight.dictResultText.length > 0
+                            text: "↵ Enter copia · Esc salir"
+                            font.pixelSize: Config.theme.fontSize - 3
+                            color: Styling.srItem("overprimary")
+                            opacity: 0.5
+                        }
+                    }
+                }
+
                 // ── Monitor del sistema (/stats) ───────────────────────────────
                 StyledRect {
                     id: monitorContainer
@@ -1900,6 +2030,30 @@ PanelWindow {
         }
 
         const query = searchText.trim().toLowerCase();
+
+        // ── Modo glosario / diccionario ──────────────────────────────
+        if (spotlight.dictMode) {
+            spotlight.dictWord = query;
+            if (query.length >= 2) {
+                if (query.length < spotlight.dictLastLen) {
+                    // Borrando: limpiamos el resultado y esperamos.
+                    spotlight.dictLoading = false;
+                    spotlight.dictResultText = "";
+                    spotlight.dictError = "";
+                } else {
+                    spotlight.startDictSearch(query);
+                }
+            } else {
+                // Menos de 2 letras: limpiamos todo.
+                spotlight.dictLoading = false;
+                spotlight.dictResultText = "";
+                spotlight.dictError = "";
+            }
+            spotlight.dictLastLen = query.length;
+            results = [];
+            return;
+        }
+
         const gen = ++searchGeneration;
 
         // Construir array nuevo y asignarlo para que QML detecte el cambio
@@ -1993,6 +2147,7 @@ PanelWindow {
                 { name: "📸 c / capturar / screenshot", description: "Capturar pantalla", icon: Icons.notepad, type: "info", exec: null },
                 { name: "🔍 Buscar archivos", description: "Escribe cualquier nombre de archivo (mín 2 caracteres)", icon: Icons.notepad, type: "info", exec: null },
                 { name: "🌐 Buscar en web", description: "Cualquier texto que no sea comando se busca en Google", icon: Icons.notepad, type: "info", exec: null },
+                { name: "📖 g / glo / glosario", description: "Abre el diccionario/glosario — escribe una palabra y pulsa Enter", icon: Icons.notepad, type: "info", exec: null },
                 { name: "/", description: "Abre la terminal integrada (fish) dentro de Hax — 100% operativa (vim, htop, sudo...)", icon: Icons.notepad, type: "info", exec: null },
                 { name: "/stats", description: "Abre el monitor del sistema en vivo (CPU, RAM, disco, temp)", icon: Icons.notepad, type: "info", exec: null },
                 { name: "❓ ayuda / help / h / ?", description: "Muestra esta ayuda", icon: Icons.notepad, type: "info", exec: null }
@@ -2448,6 +2603,18 @@ PanelWindow {
             });
         }
 
+        // ── Glosario / Diccionario ──
+        // Aparece al escribir "g" / "glo" / "glosario" (pulsa Enter para entrar).
+        if (query === "g" || query === "glo" || query === "glosario") {
+            newResults.unshift({
+                name: "📖 Glosario / Diccionario",
+                description: "Escribe una palabra y pulsa Enter para ver su definición",
+                icon: Icons.notepad,
+                type: "dict",
+                exec: function() { spotlight.enterDictMode(); }
+            });
+        }
+
         // ── Live Text: estado / reindexar ──
         if (query === "live" || query === "livetext" || query === "estado" || query === "status" || query === "ocr") {
             var ltDesc = spotlight.liveTextIndexing
@@ -2648,6 +2815,76 @@ PanelWindow {
             try { pr.destroy(); } catch (e) {}
         });
         pr.running = true;
+    }
+
+    // ── Glosario / Diccionario ────────────────────────────────────────────
+    function enterDictMode() {
+        spotlight.dictMode = true;
+        spotlight.dictWord = "";
+        spotlight.dictResultText = "";
+        spotlight.dictError = "";
+        spotlight.dictLoading = false;
+        spotlight.dictLastLen = 0;
+        spotlight.dictSeq = 0;
+        spotlight.searchText = "";
+        if (searchInput) { searchInput.text = ""; searchInput.forceActiveFocus(); }
+        spotlight.updateResults();
+    }
+
+    function exitDictMode() {
+        spotlight.dictSeq = 0;
+        spotlight.dictMode = false;
+        spotlight.dictWord = "";
+        spotlight.dictResultText = "";
+        spotlight.dictError = "";
+        spotlight.dictLoading = false;
+        spotlight.searchText = "";
+        if (searchInput) { searchInput.text = ""; searchInput.forceActiveFocus(); }
+        spotlight.updateResults();
+    }
+
+    function startDictSearch(word) {
+        var seq = ++spotlight.dictSeq;      // token único para esta búsqueda
+        if (word.length < 2) {
+            spotlight.dictLoading = false;
+            spotlight.dictResultText = "";
+            spotlight.dictError = "";
+            return;
+        }
+        spotlight.dictLoading = true;
+        spotlight.dictError = "";
+        var url = "https://es.wikipedia.org/api/rest_v1/page/summary/" + encodeURIComponent(word);
+        var xhr = new XMLHttpRequest();
+        xhr.open("GET", url);
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState !== XMLHttpRequest.DONE) return;
+            if (seq !== spotlight.dictSeq) return;   // palabra más reciente
+            spotlight.dictLoading = false;
+            if (xhr.status === 200) {
+                try {
+                    var data = JSON.parse(xhr.responseText);
+                    var extract = (data.extract || "").trim();
+                    var title = data.title || word;
+                    if (extract.length > 0) {
+                        spotlight.dictResultText = "📚 Wikipedia («" + title + "»):\n" + extract;
+                        spotlight.dictError = "";
+                    } else {
+                        spotlight.dictResultText = "";
+                        spotlight.dictError = "Wikipedia no tiene un resumen para «" + word + "».";
+                    }
+                } catch (e) {
+                    spotlight.dictResultText = "";
+                    spotlight.dictError = "Error al procesar la respuesta.";
+                }
+            } else if (xhr.status === 404) {
+                spotlight.dictResultText = "";
+                spotlight.dictError = "No se encontró la palabra «" + word + "» en Wikipedia.";
+            } else {
+                spotlight.dictResultText = "";
+                spotlight.dictError = "Error de conexión (" + xhr.status + ").";
+            }
+        };
+        xhr.send();
     }
 
     // Copia al portapapeles el texto OCR de la imagen previsualizada.
