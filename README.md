@@ -313,6 +313,22 @@ El instalador:
 
 ## 📋 Changelog
 
+### v3.0.2 — Julio 2026 — 📖 Glosario reescrito (XMLHttpRequest nativo) 🎉 VERSIÓN ESTABLE ACTUALIZADA 
+Esta es la **segunda versión estable** de Hax
+- **♻️ Glosario reescrito desde cero** — El diccionario ahora usa **XMLHttpRequest nativo de QML** en vez de scripts bash+curl+python3. Esto elimina:
+  - Procesos huérfanos (cada tecla ya no deja curls colgados)
+  - Dependencia de `curl`, `python3` y scripts externos
+  - Saturación de la API (solo una petición HTTP a la vez)
+  - Problemas de case-sensitivity y comparación de strings
+- **⚡ Más rápido y fiable** — Una sola llamada a la API REST de Wikipedia, sin 3 fuentes en cascada. Todas las palabras con artículo en Wikipedia funcionan al instante.
+- **🧹 Limpieza al borrar** — Cuando borras la palabra, el resultado se limpia automáticamente y el modo glosario se queda esperando la siguiente palabra.
+- **📦 Script `scripts/dict.sh` eliminado de la instalación** — Ya no se necesita.
+
+### v3.0.1 — Julio 2026 — 📖 Glosario / Diccionario
+
+- **📖 Glosario / Diccionario** — Escribe `g`, `glo` o `glosario` y pulsa **Enter**: Hax entra en modo diccionario y **se queda esperando la palabra**. Al escribirla, la **definición aparece en vivo abajo** del buscador (busca en español y hace fallback a inglés vía `dictionaryapi.dev`, sin API key). **Enter** copia la definición al portapapeles; **Esc** sale del modo. Cubre el hueco que dejaba Spotlight de macOS (que no trae diccionario integrado en el launcher).
+  - Nuevo script `scripts/dict.sh` (es→en vía Wiktionary, con fallback automático).
+
 ### v3.0 — Julio 2026 — 🎉 VERSIÓN ESTABLE
 
 Esta es la **primera versión estable** de Hax. Reúne todas las funciones grandes añadidas durante el ciclo 2.x, las deja pulidas, documentadas y con instalación de un solo comando.
@@ -333,21 +349,7 @@ Esta es la **primera versión estable** de Hax. Reúne todas las funciones grand
 > - **Correcciones y mejoras pequeñas** → parche: `3.0.1`, `3.0.2`… o `3.x.1` dentro de una minor.
 > - **Cambios grandes / nuevas funciones principales** → se harán como antes (p. ej. la `2.1` fue un salto grande), subiendo la versión menor/major (`3.1`, `4.0`…). No habrá saltos disruptivos silenciosos: lo gordo se anunciará claramente.
 
-### v3.0.2 — Julio 2026 — 📖 Glosario reescrito (XMLHttpRequest nativo)
 
-- **♻️ Glosario reescrito desde cero** — El diccionario ahora usa **XMLHttpRequest nativo de QML** en vez de scripts bash+curl+python3. Esto elimina:
-  - Procesos huérfanos (cada tecla ya no deja curls colgados)
-  - Dependencia de `curl`, `python3` y scripts externos
-  - Saturación de la API (solo una petición HTTP a la vez)
-  - Problemas de case-sensitivity y comparación de strings
-- **⚡ Más rápido y fiable** — Una sola llamada a la API REST de Wikipedia, sin 3 fuentes en cascada. Todas las palabras con artículo en Wikipedia funcionan al instante.
-- **🧹 Limpieza al borrar** — Cuando borras la palabra, el resultado se limpia automáticamente y el modo glosario se queda esperando la siguiente palabra.
-- **📦 Script `scripts/dict.sh` eliminado de la instalación** — Ya no se necesita.
-
-### v3.0.1 — Julio 2026 — 📖 Glosario / Diccionario
-
-- **📖 Glosario / Diccionario** — Escribe `g`, `glo` o `glosario` y pulsa **Enter**: Hax entra en modo diccionario y **se queda esperando la palabra**. Al escribirla, la **definición aparece en vivo abajo** del buscador (busca en español y hace fallback a inglés vía `dictionaryapi.dev`, sin API key). **Enter** copia la definición al portapapeles; **Esc** sale del modo. Cubre el hueco que dejaba Spotlight de macOS (que no trae diccionario integrado en el launcher).
-  - Nuevo script `scripts/dict.sh` (es→en vía Wiktionary, con fallback automático).
 
 ### v2.7 — Julio 2026
 
