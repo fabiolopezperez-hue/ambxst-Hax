@@ -110,33 +110,35 @@ else
     done
   fi
 
-  # Si no se encontró, preguntar
+  # Si no se encontró, preguntar (o usar el default si no hay terminal interactiva)
   if [[ ! -d "$SHELL_SRC/modules/widgets" ]]; then
-    echo ""
-    log_warn "No se encontró ninguna shell basada en Ambxst."
-    echo ""
-    echo -e "${YELLOW}¿Dónde tienes tu shell?${NC}"
-    echo "Ejemplos:"
-    echo "  ~/.local/src/ambxst         (Ambxst original)"
-    echo "  ~/Repos/mi-shell            (tu fork personal)"
-    echo "  ~/.local/src/ax-shell       (Ax-shell)"
-    echo ""
-    read -r -p "👉 Ruta (o pulsa Enter para cancelar): " USER_PATH
-    echo ""
-    if [[ -z "$USER_PATH" ]]; then
-      log_error "Instalación cancelada."
-      exit 1
+    if [[ ! -t 0 ]]; then
+      # Sin terminal (p. ej. curl | bash): usamos la ruta por defecto y el paso 4
+      # clona Ambxst automáticamente si hace falta.
+      log_info "Sin terminal interactiva — usando ruta por defecto: $SHELL_SRC"
+    else
+      echo ""
+      log_warn "No se encontró ninguna shell basada en Ambxst."
+      echo ""
+      echo -e "${YELLOW}¿Dónde tienes tu shell?${NC}"
+      echo "Ejemplos:"
+      echo "  ~/.local/src/ambxst         (Ambxst original)"
+      echo "  ~/Repos/mi-shell            (tu fork personal)"
+      echo "  ~/.local/src/ax-shell       (Ax-shell)"
+      echo ""
+      read -r -p "👉 Ruta (o pulsa Enter para cancelar): " USER_PATH
+      echo ""
+      if [[ -z "$USER_PATH" ]]; then
+        log_error "Instalación cancelada."
+        exit 1
+      fi
+      SHELL_SRC="$USER_PATH"
     fi
-    SHELL_SRC="$USER_PATH"
   fi
 fi
 
-# Validar que exista
-if [[ ! -d "$SHELL_SRC/modules/widgets" ]]; then
-  log_error "No se encontró la estructura de módulos en $SHELL_SRC"
-  log_error "¿Seguro que es una shell basada en Ambxst? Debe contener modules/widgets/"
-  exit 1
-fi
+# (La validación de la estructura de módulos se hace después del paso 4,
+#  porque este puede clonar Ambxst automáticamente en la ruta por defecto.)
 
 log_success "Shell destino: $SHELL_SRC"
 log_info "Verificando dependencias del sistema..."
@@ -204,9 +206,17 @@ if [[ "$SHELL_SRC" == "$HOME/.local/src/ambxst" ]] || [[ "$SHELL_SRC" == *"ambxs
     git clone "https://github.com/Axenide/Ambxst.git" "$SHELL_SRC"
     log_success "Ambxst original clonado en $SHELL_SRC."
   fi
-else
-  log_info "Shell personalizada detectada — saltando instalación de Ambxst."
-fi
+  else
+    log_info "Shell personalizada detectada — saltando instalación de Ambxst."
+  fi
+
+  # Validar que la shell destino tenga la estructura de módulos
+  # (ya sea la que había o la que acabamos de clonar en el paso 4).
+  if [[ ! -d "$SHELL_SRC/modules/widgets" ]]; then
+    log_error "No se encontró la estructura de módulos en $SHELL_SRC"
+    log_error "¿Seguro que es una shell basada en Ambxst? Debe contener modules/widgets/"
+    exit 1
+  fi
 
 # ── 4b. Terminal embebida: build + install de qmltermwidget ──
 # Hax integra una terminal real (PTY) vía el plugin QMLTermWidget.
