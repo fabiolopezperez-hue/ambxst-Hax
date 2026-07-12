@@ -16,7 +16,8 @@ set -euo pipefail
 #   • Componentes: StyledRect
 #   • Config + defaults
 #   • Scripts: google_lens.sh, weather.sh
-#   • shell.qml (entry point con el Loader de Hax)
+#   • Fuente de iconos Phosphor (bundleada en assets/fonts, se instala en ~/.local/share/fonts)
+#   • shell.qml (entry point con el Loader de Hax — solo si no existe; lo provee la shell host)
 #   • Terminal embebida: qmltermwidget (plugin QML que compila contra Qt6)
 # ═══════════════════════════════════════════════════════════════
 
@@ -304,6 +305,36 @@ install_qmltermwidget() {
 
 install_qmltermwidget \
   || log_warn "No se pudo instalar qmltermwidget — la terminal embebida no funcionará, pero Hax se instala igual."
+
+# ── 4c. Fuente de iconos Phosphor ──
+# Hax usa la fuente Phosphor (Icons.qml) para los glifos de iconos.
+# Se bundlea en assets/fonts y se instala en ~/.local/share/fonts.
+install_fonts() {
+  local FONT_SRC="$REPO_DIR/assets/fonts"
+  if [[ ! -d "$FONT_SRC" ]]; then
+    log_info "No hay fuentes empaquetadas en el repo — saltando instalación de fuentes."
+    return 0
+  fi
+  local FONT_DST="$HOME/.local/share/fonts/Hax"
+  mkdir -p "$FONT_DST"
+  local needs_update=0
+  for f in "$FONT_SRC"/*.ttf; do
+    [[ -e "$f" ]] || continue
+    local base; base="$(basename "$f")"
+    if [[ ! -f "$FONT_DST/$base" ]]; then
+      cp "$f" "$FONT_DST/$base"
+      needs_update=1
+    fi
+  done
+  if [[ $needs_update -eq 1 ]]; then
+    log_info "Instalando fuente de iconos Phosphor en $FONT_DST..."
+    fc-cache -f "$FONT_DST" >/dev/null 2>&1 || true
+    log_success "Fuente Phosphor instalada (iconos de Hax garantizados)."
+  else
+    log_info "Fuente Phosphor ya está instalada."
+  fi
+}
+install_fonts
 
 # ── 5. Instalar Hax + dependencias en la shell ────────────────
 log_info "Instalando Hax en $SHELL_SRC..."

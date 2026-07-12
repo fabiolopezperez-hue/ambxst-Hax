@@ -6,7 +6,9 @@
 
 **Hax** es un spotlight/launcher modular para shells Wayland basadas en **Ambxst**, construido con Quickshell y Qt QML. Inspirado en Spotlight de macOS, ofrece búsqueda instantánea de aplicaciones, archivos, cálculos inline, acciones rápidas del sistema, terminal integrada, timers, alarmas, instalación de paquetes, clima y mucho más — todo desde una interfaz limpia, rápida y nativa.
 
-> Este repo contiene **Hax + todas sus dependencias** (servicios, theme, config, componentes). También funciona en **forks y shells personalizadas** basadas en Ambxst.
+> Este repo contiene **Hax + todas sus dependencias** (servicios, theme, config, componentes, scripts y la fuente Phosphor). Hax es **autocontenido**: se ejecuta directamente con `qs -p modules/widgets/spotlight/SpotlightView.qml`. También funciona inyectado en **forks y shells personalizadas** basadas en Ambxst.
+
+> ⚠️ **`shell.qml` es el entry point de la shell host (Ambxst), no de Hax.** Importa el set completo de módulos de Ambxst (`bar`, `dock`, `notch`, `overview`, `lockscreen`, `shell`…) que **no** se incluyen aquí. Para usar Hax, lanza `SpotlightView.qml` directamente (así lo hace el atajo `Super + /`). `shell.qml` solo se copia si no existe en tu shell y, en ese caso, requiere que Ambxst esté presente.
 
 ---
 
@@ -77,6 +79,7 @@
 - **Hyprland** u otro compositor Wayland compatible
 - Herramientas: `grim`, `slurp`, `jq`, `playerctl`, `wl-clipboard`, `brightnessctl`
 - **Para la terminal embebida:** el instalador compila e instala [`qmltermwidget`](https://github.com/Swordfish90/qmltermwidget) (plugin QML para Qt6) automáticamente. En instalación manual, instálalo tú mismo.
+- **Fuente de iconos Phosphor:** Hax usa la fuente *Phosphor* (`Phosphor-Bold`, etc.) para sus iconos. El instalador la copia automáticamente desde `assets/fonts/` a `~/.local/share/fonts/Hax` y ejecuta `fc-cache`. En instalación manual, instala el paquete `phosphor-icons` (o copia los `.ttf` a tu directorio de fuentes).
 
 ---
 
