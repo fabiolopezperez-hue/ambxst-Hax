@@ -211,6 +211,10 @@ PanelWindow {
             1
           )
         : Colors.primary
+    // Color para iconos: el custom con opacidad si está activado, si no el del sistema
+    readonly property color haxIconColor: Config.hax.customColorEnabled
+        ? Qt.rgba(spotlight.haxPrimaryColor.r, spotlight.haxPrimaryColor.g, spotlight.haxPrimaryColor.b, 0.7)
+        : Styling.srItem("overprimary")
     onShowDebugChanged: {
         if (spotlight.showDebug) {
             spotlight.startDebugMonitor();
@@ -567,7 +571,7 @@ PanelWindow {
                             text: Icons.apps
                             font.family: Icons.font
                             font.pixelSize: 22
-                            color: Styling.srItem("overprimary")
+                            color: spotlight.haxIconColor
                             opacity: 0.7
                         }
 
@@ -1222,7 +1226,7 @@ PanelWindow {
                                         }
                                         font.family: Icons.font
                                         font.pixelSize: 20
-                                        color: Styling.srItem("overprimary")
+                                        color: spotlight.haxIconColor
                                         opacity: 0.8
                                         visible: modelData.type !== "app" || sysIcon.status === Image.Error
                                     }
