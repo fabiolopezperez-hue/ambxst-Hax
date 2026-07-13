@@ -2173,59 +2173,51 @@ PanelWindow {
                                     width: parent.width
                                     spacing: 6
 
-                                    Rectangle {
+                                    TextField {
+                                        id: keywordsField
                                         Layout.fillWidth: true
                                         height: 26
-                                        radius: 4
-                                        color: Styling.srItem("bg")
-                                        border { color: Styling.srItem("overprimary"); width: 1 }
+                                        text: modelData.keywords.join(", ")
+                                        font.pixelSize: Config.theme.fontSize - 2
+                                        font.family: "monospace"
+                                        color: "#f0f0f0"
+                                        padding: 4
+                                        verticalAlignment: TextInput.AlignVCenter
+                                        background: Rectangle {
+                                            radius: 4
+                                            color: "#1a1a2e"
+                                            border { color: "#444466"; width: 1 }
+                                        }
 
-                                        TextField {
-                                            id: keywordsField
-                                            anchors.fill: parent
-                                            anchors.margins: 4
-                                            text: modelData.keywords.join(", ")
-                                            font.pixelSize: Config.theme.fontSize - 2
-                                            font.family: "monospace"
-                                            color: "#eeeeee"
-                                            padding: 0
-                                            verticalAlignment: TextInput.AlignVCenter
-                                            background: null
-
-                                            onEditingFinished: {
-                                                var arr = Config.hax.customShortcuts.slice();
-                                                arr[index].keywords = text.split(",").map(function(s) { return s.trim(); }).filter(function(s) { return s.length > 0; });
-                                                Config.hax.customShortcuts = arr;
-                                                Config.saveHax();
-                                            }
+                                        onEditingFinished: {
+                                            var arr = Config.hax.customShortcuts.slice();
+                                            arr[index].keywords = text.split(",").map(function(s) { return s.trim(); }).filter(function(s) { return s.length > 0; });
+                                            Config.hax.customShortcuts = arr;
+                                            Config.saveHax();
                                         }
                                     }
 
-                                    Rectangle {
+                                    TextField {
+                                        id: actionField
                                         implicitWidth: 100
                                         height: 26
-                                        radius: 4
-                                        color: Styling.srItem("bg")
-                                        border { color: Styling.srItem("overprimary"); width: 1 }
+                                        text: modelData.action
+                                        font.pixelSize: Config.theme.fontSize - 2
+                                        font.family: "monospace"
+                                        color: "#f0f0f0"
+                                        padding: 4
+                                        verticalAlignment: TextInput.AlignVCenter
+                                        background: Rectangle {
+                                            radius: 4
+                                            color: "#1a1a2e"
+                                            border { color: "#444466"; width: 1 }
+                                        }
 
-                                        TextField {
-                                            id: actionField
-                                            anchors.fill: parent
-                                            anchors.margins: 4
-                                            text: modelData.action
-                                            font.pixelSize: Config.theme.fontSize - 2
-                                            font.family: "monospace"
-                                            color: "#eeeeee"
-                                            padding: 0
-                                            verticalAlignment: TextInput.AlignVCenter
-                                            background: null
-
-                                            onEditingFinished: {
-                                                var arr = Config.hax.customShortcuts.slice();
-                                                arr[index].action = text;
-                                                Config.hax.customShortcuts = arr;
-                                                Config.saveHax();
-                                            }
+                                        onEditingFinished: {
+                                            var arr = Config.hax.customShortcuts.slice();
+                                            arr[index].action = text;
+                                            Config.hax.customShortcuts = arr;
+                                            Config.saveHax();
                                         }
                                     }
 
@@ -2233,15 +2225,15 @@ PanelWindow {
                                         implicitWidth: 60
                                         height: 26
                                         radius: 4
-                                        color: Styling.srItem("bg")
-                                        border { color: Styling.srItem("overprimary"); width: 1 }
+                                        color: "#1a1a2e"
+                                        border { color: "#444466"; width: 1 }
 
                                         Text {
                                             anchors.centerIn: parent
                                             text: modelData.type || "app"
                                             font.pixelSize: Config.theme.fontSize - 2
                                             font.family: "monospace"
-                                            color: Styling.srItem("overprimary")
+                                            color: "#aaaacc"
                                         }
                                     }
 
@@ -2278,61 +2270,53 @@ PanelWindow {
                             width: parent.width
                             spacing: 6
 
-                            Rectangle {
+                            TextField {
+                                id: newKeywordsInput
                                 Layout.fillWidth: true
                                 height: 28
-                                radius: 4
-                                color: Styling.srItem("bg")
-                                border { color: Styling.srItem("overprimary"); width: 1 }
-
-                                TextField {
-                                    id: newKeywordsInput
-                                    anchors.fill: parent
-                                    anchors.margins: 4
-                                    placeholderText: "keywords (ej: ff, firefox)"
-                                    placeholderTextColor: Styling.srItem("overprimary")
-                                    font.pixelSize: Config.theme.fontSize - 2
-                                    font.family: "monospace"
-                                    color: Styling.srItem("text")
-                                    padding: 0
-                                    verticalAlignment: TextInput.AlignVCenter
-                                    background: null
+                                placeholderText: "keywords (ej: ff, firefox)"
+                                placeholderTextColor: "#666688"
+                                font.pixelSize: Config.theme.fontSize - 2
+                                font.family: "monospace"
+                                color: "#f0f0f0"
+                                padding: 4
+                                verticalAlignment: TextInput.AlignVCenter
+                                background: Rectangle {
+                                    radius: 4
+                                    color: "#1a1a2e"
+                                    border { color: "#444466"; width: 1 }
                                 }
                             }
 
-                            Rectangle {
+                            TextField {
+                                id: newActionInput
                                 implicitWidth: 100
                                 height: 28
-                                radius: 4
-                                color: Styling.srItem("bg")
-                                border { color: Styling.srItem("overprimary"); width: 1 }
-
-                                TextField {
-                                    id: newActionInput
-                                    anchors.fill: parent
-                                    anchors.margins: 4
-                                    placeholderText: "acción"
-                                    placeholderTextColor: Styling.srItem("overprimary")
-                                    font.pixelSize: Config.theme.fontSize - 2
-                                    font.family: "monospace"
-                                    color: Styling.srItem("text")
-                                    padding: 0
-                                    verticalAlignment: TextInput.AlignVCenter
-                                    background: null
+                                placeholderText: "acción"
+                                placeholderTextColor: "#666688"
+                                font.pixelSize: Config.theme.fontSize - 2
+                                font.family: "monospace"
+                                color: "#f0f0f0"
+                                padding: 4
+                                verticalAlignment: TextInput.AlignVCenter
+                                background: Rectangle {
+                                    radius: 4
+                                    color: "#1a1a2e"
+                                    border { color: "#444466"; width: 1 }
                                 }
                             }
 
                             StyledRect {
                                 variant: "common"
                                 radius: Styling.radius(6)
-                                implicitWidth: 55
+                                implicitWidth: 60
                                 height: 28
 
                                 Text {
                                     anchors.centerIn: parent
                                     text: "+ Añadir"
                                     font.pixelSize: Config.theme.fontSize - 2
-                                    color: Styling.srItem("text")
+                                    color: "#f0f0f0"
                                 }
 
                                 MouseArea {
