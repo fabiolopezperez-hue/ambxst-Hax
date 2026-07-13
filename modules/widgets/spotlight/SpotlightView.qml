@@ -44,8 +44,14 @@ PanelWindow {
 
     // Posición Y del borde inferior del bar (de donde se desprende el puntito)
     property real barBottom: 40
-    // Posición Y donde acaba el notch (justo debajo nace la gota)
-    property real notchEndY: 60
+    // Y donde termina la salida (la gota se fusiona con el notch)
+    property real dropletEndY: 46
+    // Y donde empieza la entrada (justo debajo de la barra)
+    property real dropletStartY: 60
+    // Dirección de la animación (true = abriendo, false = cerrando)
+    property bool isOpening: true
+    // Y base del morphContainer: distinta según dirección
+    readonly property real morphBaseY: isOpening ? dropletStartY : dropletEndY
     readonly property real screenCenterY: spotlight.height / 2
 
     visible: showHax
@@ -60,7 +66,7 @@ PanelWindow {
             var bar = Visibilities.getBarForScreen(screen.name);
             barBottom = bar ? bar.totalBarHeight : 40;
             // La gota nace justo debajo del borde inferior del panel del bar/notch
-            notchEndY = 60;
+            notchEndY = 40;
 
             // Limpiar todo ANTES de mostrar la ventana (evita race con Behavior on height)
             results = [];
@@ -78,6 +84,7 @@ PanelWindow {
 
             // ⭐ La gota empieza desde 0 (nace desde 0px, espejo exacto de la salida)
             animProgress = 0.0;
+            isOpening = true;
             showHax = true;
 
             openAnim.start();
@@ -93,6 +100,7 @@ PanelWindow {
             stopMonitor();
             stopClipWatcher();
             showPreview = false;
+            isOpening = false;
             closeAnim.start();
         }
     }
@@ -485,7 +493,7 @@ PanelWindow {
         opacity: 1
 
         // 📍 Y: la gota nace pegada al bar y luego cae
-        y: notchEndY + (screenCenterY - height / 2 - notchEndY) * descendPhase
+        y: morphBaseY + (screenCenterY - height / 2 - morphBaseY) * descendPhase
 
         // 🎭 Radio: de círculo perfecto a esquinas normales
         radius: Math.min(width / 2, Styling.radius(24) + (width / 2 - Styling.radius(24)) * Math.max(0, 1 - expandPhase * 3))
