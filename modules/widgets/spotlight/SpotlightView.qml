@@ -2502,43 +2502,77 @@ PanelWindow {
 
                 Repeater {
                     model: [
-                        // ── Apps ──
-                        { cat: true, label: "── Apps ──" },
+                        // ── Navegadores ──
+                        { cat: true, label: "── Navegadores ──" },
                         { cat: false, label: "Firefox",          value: "firefox" },
-                        { cat: false, label: "VS Code",          value: "code" },
-                        { cat: false, label: "Terminal",         value: "foot" },
-                        { cat: false, label: "Archivos",         value: "nautilus" },
-                        { cat: false, label: "Calculadora",      value: "gnome-calculator" },
-                        { cat: false, label: "Configuración",    value: "gnome-control-center" },
-                        { cat: false, label: "Spotify",          value: "spotify" },
+                        { cat: false, label: "Zen Browser",      value: "zen" },
+                        // ── Terminales ──
+                        { cat: true, label: "── Terminales ──" },
+                        { cat: false, label: "Kitty",            value: "kitty" },
+                        { cat: false, label: "Foot",             value: "foot" },
+                        // ── Coding ──
+                        { cat: true, label: "── Coding ──" },
+                        { cat: false, label: "VS Code (OSS)",    value: "code-oss" },
+                        { cat: false, label: "Vim",              value: "vim" },
+                        // ── Oficina ──
+                        { cat: true, label: "── Oficina ──" },
+                        { cat: false, label: "ONLYOFFICE",       value: "onlyoffice-desktopeditors" },
+                        { cat: false, label: "WPS Writer",       value: "wps" },
+                        { cat: false, label: "WPS PDF",          value: "wpspdf" },
+                        { cat: false, label: "Obsidian",         value: "obsidian" },
+                        // ── Multimedia ──
+                        { cat: true, label: "── Multimedia ──" },
+                        { cat: false, label: "Spotify",          value: "spotify-launcher" },
+                        { cat: false, label: "VLC",              value: "vlc" },
+                        { cat: false, label: "mpv",              value: "mpv" },
+                        { cat: false, label: "Audacity",         value: "audacity" },
+                        { cat: false, label: "Easy Effects",     value: "easyeffects" },
+                        { cat: false, label: "Swappy",           value: "swappy" },
+                        { cat: false, label: "Gradia",           value: "gradia" },
+                        // ── Juegos ──
+                        { cat: true, label: "── Juegos ──" },
+                        { cat: false, label: "Sober (Roblox)",   value: "flatpak run org.vinegarhq.Sober" },
+                        // ── Social ──
+                        { cat: true, label: "── Social ──" },
                         { cat: false, label: "Discord",          value: "discord" },
-                        { cat: false, label: "Thunderbird",      value: "thunderbird" },
-                        { cat: false, label: "Steam",            value: "steam" },
+                        { cat: false, label: "KDE Connect",      value: "kdeconnect-app" },
+                        { cat: false, label: "LocalSend",        value: "localsend" },
+                        // ── Archivos ──
+                        { cat: true, label: "── Archivos ──" },
+                        { cat: false, label: "Dolphin",          value: "dolphin" },
+                        { cat: false, label: "Thunar",           value: "thunar" },
+                        { cat: false, label: "PeaZip",           value: "flatpak run io.github.peazip.PeaZip" },
+                        { cat: false, label: "Documentos",       value: "dolphin ~/Documentos" },
+                        { cat: false, label: "Descargas",        value: "dolphin ~/Descargas" },
+                        { cat: false, label: "Capturas",         value: "dolphin ~/Pictures/Screenshots" },
                         // ── Sistema ──
                         { cat: true, label: "── Sistema ──" },
-                        { cat: false, label: "Bloquear pantalla", value: "loginctl lock-session" },
+                        { cat: false, label: "Monitor sistema",  value: "io.missioncenter.MissionCenter" },
+                        { cat: false, label: "Ajustes sistema",  value: "systemsettings" },
+                        { cat: false, label: "Bloquear",         value: "loginctl lock-session" },
                         { cat: false, label: "Suspender",        value: "systemctl suspend" },
                         { cat: false, label: "Apagar",           value: "systemctl poweroff" },
                         { cat: false, label: "Reiniciar",        value: "systemctl reboot" },
-                        { cat: false, label: "Capturar pantalla",value: "screenshot" },
-                        // ── Carpetas ──
-                        { cat: true, label: "── Carpetas ──" },
-                        { cat: false, label: "Documentos",       value: "nautilus ~/Documentos" },
-                        { cat: false, label: "Descargas",        value: "nautilus ~/Descargas" },
-                        { cat: false, label: "Escritorio",       value: "nautilus ~/Escritorio" },
-                        { cat: false, label: "Capturas",         value: "nautilus ~/Pictures/Screenshots" },
+                        { cat: false, label: "VirtualBox",       value: "virtualbox" },
+                        { cat: false, label: "QEMU",             value: "qemu" },
+                        // ── Monitores ──
+                        { cat: true, label: "── Monitores ──" },
+                        { cat: false, label: "btop",             value: "btop" },
+                        { cat: false, label: "htop",             value: "htop" },
+                        { cat: false, label: "nvtop",            value: "nvtop" },
+                        { cat: false, label: "Mission Center",   value: "io.missioncenter.MissionCenter" },
                         // ── Web ──
                         { cat: true, label: "── Web ──" },
                         { cat: false, label: "YouTube",          value: "https://youtube.com" },
                         { cat: false, label: "GitHub",           value: "https://github.com" },
                         { cat: false, label: "Gmail",            value: "https://mail.google.com" },
                         { cat: false, label: "Google",           value: "https://google.com" },
-                        { cat: false, label: "Wikipedia",        value: "https://wikipedia.org" },
                         // ── Hax ──
                         { cat: true, label: "── Hax ──" },
                         { cat: false, label: "Configurar Hax",   value: "config" },
-                        { cat: false, label: "Monitor sistema",  value: "/stats" },
+                        { cat: false, label: "Monitor Hax",      value: "/stats" },
                         { cat: false, label: "Diccionario",      value: "g " },
+                        { cat: false, label: "OCR / Live Text",  value: "live" },
                         { cat: false, label: "Ayuda",            value: "help" }
                     ]
 
