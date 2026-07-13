@@ -2292,7 +2292,7 @@ PanelWindow {
                                 id: newActionInput
                                 implicitWidth: 100
                                 height: 28
-                                placeholderText: "acción"
+                                placeholderText: "acción (app, comando o URL)"
                                 placeholderTextColor: "#666688"
                                 font.pixelSize: Config.theme.fontSize - 2
                                 font.family: "monospace"
