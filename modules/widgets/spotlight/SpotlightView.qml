@@ -201,6 +201,7 @@ PanelWindow {
     // Se activa escribiendo "d" / "dev" / "debug" y pulsando Enter.
     property bool showDebug: false
     property bool showConfig: false
+    property bool colorPickerOpen: false
     onShowDebugChanged: {
         if (spotlight.showDebug) {
             spotlight.startDebugMonitor();
@@ -1969,10 +1970,28 @@ PanelWindow {
                                 Layout.fillWidth: true
                             }
                             Rectangle {
-                                width: 24; height: 24; radius: 4
+                                id: colorSwatch
+                                width: 28; height: 28; radius: 6
                                 color: Config.hax.customColorEnabled ? Config.hax.customColor : Colors.primary
                                 border { color: Styling.srItem("overprimary"); width: 1 }
                                 Layout.alignment: Qt.AlignVCenter
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        spotlight.colorPickerOpen = !spotlight.colorPickerOpen;
+                                    }
+                                }
+
+                                // Flechita indicando que es clickeable
+                                Text {
+                                    anchors { right: parent.right; bottom: parent.bottom }
+                                    text: "▼"
+                                    font.pixelSize: 7
+                                    color: Styling.srItem("overprimary")
+                                    opacity: 0.6
+                                }
                             }
                             TextField {
                                 id: colorInput
@@ -1993,6 +2012,109 @@ PanelWindow {
                                     border { color: Styling.srItem("overprimary"); width: 1 }
                                 }
                             }
+                        }
+
+                        // 🎨 Selector de color flotante
+                        StyledRect {
+                            id: colorPicker
+                            variant: "popup"
+                            radius: Styling.radius(10)
+                            width: 220
+                            height: colorPickerContent.implicitHeight + 16
+                            visible: spotlight.colorPickerOpen
+                            opacity: spotlight.colorPickerOpen ? 1 : 0
+                            anchors.top: parent.top
+                            anchors.left: parent.left
+                            anchors.leftMargin: 100
+                            z: 10
+
+                            Behavior on opacity {
+                                NumberAnimation { duration: 100 }
+                            }
+
+                            Column {
+                                id: colorPickerContent
+                                anchors { left: parent.left; right: parent.right; top: parent.top; margins: 8 }
+                                spacing: 6
+
+                                Text {
+                                    text: "Selecciona un color:"
+                                    font.pixelSize: Config.theme.fontSize - 2
+                                    font.bold: true
+                                    color: Styling.srItem("text")
+                                }
+
+                                // Grid de colores predefinidos
+                                Flow {
+                                    width: parent.width
+                                    spacing: 4
+
+                                    // Colores básicos
+                                    Repeater {
+                                        model: [
+                                            "#ff0000", "#ff4444", "#ff8888", "#ffb3ae",
+                                            "#ff8800", "#ffaa44", "#ffcc88", "#ffddbb",
+                                            "#ffff00", "#ffdd44", "#ffee88", "#fff5cc",
+                                            "#00ff00", "#44ff44", "#88ff88", "#ccffcc",
+                                            "#00ffff", "#44ddff", "#88ddff", "#bbeeff",
+                                            "#0088ff", "#4488ff", "#6699ff", "#99bbff",
+                                            "#0000ff", "#4444ff", "#6666ff", "#8888ff",
+                                            "#8800ff", "#8844ff", "#aa66ff", "#cc99ff",
+                                            "#ff00ff", "#ff44ff", "#ff88ff", "#ffbbff",
+                                            "#ff0088", "#ff4488", "#ff8888", "#ffbbcc",
+                                            "#000000", "#333333", "#666666", "#999999",
+                                            "#cccccc", "#ffffff"
+                                        ]
+                                        Rectangle {
+                                            width: 28; height: 28; radius: 4
+                                            color: modelData
+                                            border { color: Styling.srItem("overprimary"); width: modelData === Config.hax.customColor ? 2 : 1 }
+
+                                            MouseArea {
+                                                anchors.fill: parent
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: {
+                                                    Config.hax.customColor = modelData;
+                                                    Config.hax.customColorEnabled = true;
+                                                    Config.saveHax();
+                                                    colorInput.text = modelData;
+                                                    spotlight.colorPickerOpen = false;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Input de hex personalizado
+                                RowLayout {
+                                    width: parent.width
+                                    spacing: 4
+                                    Text {
+                                        text: "Hex:"
+                                        font.pixelSize: Config.theme.fontSize - 2
+                                        color: Styling.srItem("text")
+                                    }
+                                    TextField {
+                                        Layout.fillWidth: true
+                                        height: 24
+                                        text: Config.hax.customColor
+                                        font.pixelSize: Config.theme.fontSize - 2
+                                        font.family: "monospace"
+                                        onTextChanged: {
+                                            if (/^#[0-9a-fA-F]{6}$/.test(text)) {
+                                                Config.hax.customColor = text;
+                                                Config.saveHax();
+                                            }
+                                        }
+                                        background: Rectangle {
+                                            radius: 4
+                                            color: Styling.srItem("bg")
+                                            border { color: Styling.srItem("overprimary"); width: 1 }
+                                        }
+                                    }
+                                }
+                            }
+
                         }
 
                         RowLayout {
