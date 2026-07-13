@@ -66,7 +66,8 @@ PanelWindow {
             var bar = Visibilities.getBarForScreen(screen.name);
             barBottom = bar ? bar.totalBarHeight : 40;
             // La gota nace justo debajo del borde inferior del panel del bar/notch
-            notchEndY = 40;
+            dropletStartY = barBottom;
+            dropletEndY = barBottom;
 
             // Limpiar todo ANTES de mostrar la ventana (evita race con Behavior on height)
             results = [];
@@ -103,6 +104,14 @@ PanelWindow {
             isOpening = false;
             closeAnim.start();
         }
+    }
+
+    // 🎯 Actualizar Y del morphContainer en cada frame de animación
+    onAnimProgressChanged: {
+        if (!morphContainer) return;
+        var phase = animProgress;
+        var descendP = Math.max(0, (phase - 0.03) / 0.97);
+        morphContainer.y = morphBaseY + (screenCenterY - morphContainer.height / 2 - morphBaseY) * descendP;
     }
 
     SequentialAnimation {
@@ -493,7 +502,9 @@ PanelWindow {
         opacity: 1
 
         // 📍 Y: la gota nace pegada al bar y luego cae
-        y: morphBaseY + (screenCenterY - height / 2 - morphBaseY) * descendPhase
+        // Se actualiza manualmente desde onAnimProgressChanged para evitar
+        // que el primer frame aparezca en Y=0 (top de pantalla)
+        y: morphBaseY
 
         // 🎭 Radio: de círculo perfecto a esquinas normales
         radius: Math.min(width / 2, Styling.radius(24) + (width / 2 - Styling.radius(24)) * Math.max(0, 1 - expandPhase * 3))
