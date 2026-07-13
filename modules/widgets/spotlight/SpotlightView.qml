@@ -2153,104 +2153,207 @@ PanelWindow {
 
                         Text {
                             width: parent.width
-                            text: "Añade palabras clave que ejecuten acciones al escribirlas en Hax."
+                            text: "Escribe las keywords separadas por comas y la acción a ejecutar."
                             font.pixelSize: Config.theme.fontSize - 3
                             color: Styling.srItem("text")
                             opacity: 0.7
                             wrapMode: Text.WordWrap
                         }
 
-                        // Lista de atajos
+                        // Lista de atajos editables
                         Repeater {
                             id: shortcutRepeater
                             model: Config.hax.customShortcuts
 
-                            delegate: RowLayout {
+                            delegate: Column {
                                 width: parent.width
-                                spacing: 6
+                                spacing: 4
 
-                                Rectangle {
-                                    width: parent.width - 70
-                                    height: 28
-                                    radius: 4
-                                    color: Styling.srItem("bg")
-                                    border { color: Styling.srItem("overprimary"); width: 1 }
+                                RowLayout {
+                                    width: parent.width
+                                    spacing: 6
 
-                                    RowLayout {
-                                        anchors.fill: parent
-                                        anchors.margins: 6
-                                        Text {
+                                    Rectangle {
+                                        Layout.fillWidth: true
+                                        height: 26
+                                        radius: 4
+                                        color: Styling.srItem("bg")
+                                        border { color: Styling.srItem("overprimary"); width: 1 }
+
+                                        TextField {
+                                            id: keywordsField
+                                            anchors.fill: parent
+                                            anchors.margins: 4
                                             text: modelData.keywords.join(", ")
                                             font.pixelSize: Config.theme.fontSize - 2
                                             font.family: "monospace"
                                             color: Styling.srItem("text")
-                                            elide: Text.ElideRight
-                                            Layout.fillWidth: true
+                                            padding: 0
+                                            verticalAlignment: TextInput.AlignVCenter
+                                            background: null
+
+                                            onEditingFinished: {
+                                                var arr = Config.hax.customShortcuts.slice();
+                                                arr[index].keywords = text.split(",").map(function(s) { return s.trim(); }).filter(function(s) { return s.length > 0; });
+                                                Config.hax.customShortcuts = arr;
+                                                Config.saveHax();
+                                            }
                                         }
+                                    }
+
+                                    Rectangle {
+                                        implicitWidth: 100
+                                        height: 26
+                                        radius: 4
+                                        color: Styling.srItem("bg")
+                                        border { color: Styling.srItem("overprimary"); width: 1 }
+
+                                        TextField {
+                                            id: actionField
+                                            anchors.fill: parent
+                                            anchors.margins: 4
+                                            text: modelData.action
+                                            font.pixelSize: Config.theme.fontSize - 2
+                                            font.family: "monospace"
+                                            color: Styling.srItem("text")
+                                            padding: 0
+                                            verticalAlignment: TextInput.AlignVCenter
+                                            background: null
+
+                                            onEditingFinished: {
+                                                var arr = Config.hax.customShortcuts.slice();
+                                                arr[index].action = text;
+                                                Config.hax.customShortcuts = arr;
+                                                Config.saveHax();
+                                            }
+                                        }
+                                    }
+
+                                    Rectangle {
+                                        implicitWidth: 60
+                                        height: 26
+                                        radius: 4
+                                        color: Styling.srItem("bg")
+                                        border { color: Styling.srItem("overprimary"); width: 1 }
+
                                         Text {
-                                            text: "→ " + modelData.action
-                                            font.pixelSize: Config.theme.fontSize - 3
+                                            anchors.centerIn: parent
+                                            text: modelData.type || "app"
+                                            font.pixelSize: Config.theme.fontSize - 2
+                                            font.family: "monospace"
                                             color: Styling.srItem("overprimary")
-                                            opacity: 0.7
-                                            elide: Text.ElideRight
                                         }
                                     }
-                                }
 
-                                StyledRect {
-                                    variant: "common"
-                                    radius: Styling.radius(4)
-                                    implicitWidth: 28
-                                    height: 28
+                                    StyledRect {
+                                        variant: "common"
+                                        radius: Styling.radius(4)
+                                        implicitWidth: 26
+                                        height: 26
 
-                                    Text {
-                                        anchors.centerIn: parent
-                                        text: "✕"
-                                        font.pixelSize: Config.theme.fontSize - 1
-                                        color: Colors.warning
-                                    }
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: "✕"
+                                            font.pixelSize: Config.theme.fontSize - 1
+                                            color: Colors.warning
+                                        }
 
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: {
-                                            var arr = Config.hax.customShortcuts.slice();
-                                            arr.splice(index, 1);
-                                            Config.hax.customShortcuts = arr;
-                                            Config.saveHax();
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: {
+                                                var arr = Config.hax.customShortcuts.slice();
+                                                arr.splice(index, 1);
+                                                Config.hax.customShortcuts = arr;
+                                                Config.saveHax();
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
 
-                        // Botón añadir atajo
-                        StyledRect {
-                            variant: "common"
-                            radius: Styling.radius(6)
+                        // Formulario para añadir atajo
+                        RowLayout {
                             width: parent.width
-                            height: 28
-                            opacity: 0.8
+                            spacing: 6
 
-                            Text {
-                                anchors.centerIn: parent
-                                text: "+ Añadir atajo"
-                                font.pixelSize: Config.theme.fontSize - 1
-                                color: Styling.srItem("text")
+                            Rectangle {
+                                Layout.fillWidth: true
+                                height: 28
+                                radius: 4
+                                color: Styling.srItem("bg")
+                                border { color: Styling.srItem("overprimary"); width: 1 }
+
+                                TextField {
+                                    id: newKeywordsInput
+                                    anchors.fill: parent
+                                    anchors.margins: 4
+                                    placeholderText: "keywords (ej: ff, firefox)"
+                                    placeholderTextColor: Styling.srItem("overprimary")
+                                    font.pixelSize: Config.theme.fontSize - 2
+                                    font.family: "monospace"
+                                    color: Styling.srItem("text")
+                                    padding: 0
+                                    verticalAlignment: TextInput.AlignVCenter
+                                    background: null
+                                }
                             }
 
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    var arr = Config.hax.customShortcuts.slice();
-                                    arr.push({
-                                        "keywords": ["ejemplo"],
-                                        "action": "abrir firefox",
-                                        "type": "app"
-                                    });
-                                    Config.hax.customShortcuts = arr;
-                                    Config.saveHax();
+                            Rectangle {
+                                implicitWidth: 100
+                                height: 28
+                                radius: 4
+                                color: Styling.srItem("bg")
+                                border { color: Styling.srItem("overprimary"); width: 1 }
+
+                                TextField {
+                                    id: newActionInput
+                                    anchors.fill: parent
+                                    anchors.margins: 4
+                                    placeholderText: "acción"
+                                    placeholderTextColor: Styling.srItem("overprimary")
+                                    font.pixelSize: Config.theme.fontSize - 2
+                                    font.family: "monospace"
+                                    color: Styling.srItem("text")
+                                    padding: 0
+                                    verticalAlignment: TextInput.AlignVCenter
+                                    background: null
+                                }
+                            }
+
+                            StyledRect {
+                                variant: "common"
+                                radius: Styling.radius(6)
+                                implicitWidth: 55
+                                height: 28
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "+ Añadir"
+                                    font.pixelSize: Config.theme.fontSize - 2
+                                    color: Styling.srItem("text")
+                                }
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        var kw = newKeywordsInput.text.split(",").map(function(s) { return s.trim(); }).filter(function(s) { return s.length > 0; });
+                                        var act = newActionInput.text.trim();
+                                        if (kw.length > 0 && act.length > 0) {
+                                            var arr = Config.hax.customShortcuts.slice();
+                                            arr.push({
+                                                "keywords": kw,
+                                                "action": act,
+                                                "type": "app"
+                                            });
+                                            Config.hax.customShortcuts = arr;
+                                            Config.saveHax();
+                                            newKeywordsInput.text = "";
+                                            newActionInput.text = "";
+                                        }
+                                    }
                                 }
                             }
                         }
