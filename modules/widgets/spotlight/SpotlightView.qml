@@ -66,7 +66,7 @@ PanelWindow {
             var bar = Visibilities.getBarForScreen(screen.name);
             barBottom = bar ? bar.totalBarHeight : 40;
             // La gota nace justo debajo del borde inferior del panel del bar/notch
-            dropletStartY = barBottom;
+            dropletStartY = barBottom + 20;
             dropletEndY = barBottom;
 
             // Limpiar todo ANTES de mostrar la ventana (evita race con Behavior on height)
@@ -86,6 +86,8 @@ PanelWindow {
             // ⭐ La gota empieza desde 0 (nace desde 0px, espejo exacto de la salida)
             animProgress = 0.0;
             isOpening = true;
+            // 🎯 Forzar Y antes de mostrar para evitar flash en top
+            updateMorphY();
             showHax = true;
 
             openAnim.start();
@@ -106,13 +108,14 @@ PanelWindow {
         }
     }
 
-    // 🎯 Actualizar Y del morphContainer en cada frame de animación
-    onAnimProgressChanged: {
+    // 🎯 Actualizar Y del morphContainer
+    function updateMorphY() {
         if (!morphContainer) return;
-        var phase = animProgress;
-        var descendP = Math.max(0, (phase - 0.03) / 0.97);
+        var descendP = Math.max(0, (animProgress - 0.03) / 0.97);
         morphContainer.y = morphBaseY + (screenCenterY - morphContainer.height / 2 - morphBaseY) * descendP;
     }
+
+    onAnimProgressChanged: updateMorphY()
 
     SequentialAnimation {
         id: openAnim
@@ -501,10 +504,8 @@ PanelWindow {
         // 💧 Sin fade — la gota aparece/desaparece solo por su tamaño (0→28px)
         opacity: 1
 
-        // 📍 Y: la gota nace pegada al bar y luego cae
-        // Se actualiza manualmente desde onAnimProgressChanged para evitar
-        // que el primer frame aparezca en Y=0 (top de pantalla)
-        y: morphBaseY
+        // 📍 Y: se actualiza manualmente desde updateMorphY()
+        // para evitar que el primer frame aparezca en Y=0
 
         // 🎭 Radio: de círculo perfecto a esquinas normales
         radius: Math.min(width / 2, Styling.radius(24) + (width / 2 - Styling.radius(24)) * Math.max(0, 1 - expandPhase * 3))
