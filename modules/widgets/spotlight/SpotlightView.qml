@@ -2012,8 +2012,10 @@ PanelWindow {
                                     color: Styling.srItem("text")
                                 }
 
-                                TapHandler {
-                                    onTapped: {
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
                                         Config.hax.customColorEnabled = !Config.hax.customColorEnabled;
                                         Config.saveHax();
                                     }
@@ -2033,8 +2035,10 @@ PanelWindow {
                                     color: Styling.srItem("text")
                                 }
 
-                                TapHandler {
-                                    onTapped: {
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
                                         Config.hax.customColorEnabled = false;
                                         Config.hax.customColor = Colors.primary;
                                         Config.saveHax();
@@ -2081,8 +2085,10 @@ PanelWindow {
                                     color: Styling.srItem("text")
                                 }
 
-                                TapHandler {
-                                    onTapped: {
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
                                         Config.hax.ocrEnabled = !Config.hax.ocrEnabled;
                                         Config.saveHax();
                                     }
@@ -2165,8 +2171,10 @@ PanelWindow {
                                         color: Colors.warning
                                     }
 
-                                    TapHandler {
-                                        onTapped: {
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
                                             var arr = Config.hax.customShortcuts.slice();
                                             arr.splice(index, 1);
                                             Config.hax.customShortcuts = arr;
@@ -2192,8 +2200,10 @@ PanelWindow {
                                 color: Styling.srItem("text")
                             }
 
-                            TapHandler {
-                                onTapped: {
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
                                     var arr = Config.hax.customShortcuts.slice();
                                     arr.push({
                                         "keywords": ["ejemplo"],
