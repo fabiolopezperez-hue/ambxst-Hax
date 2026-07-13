@@ -44,6 +44,8 @@ PanelWindow {
 
     // Posición Y del borde inferior del bar (de donde se desprende el puntito)
     property real barBottom: 40
+    // Posición Y donde acaba el notch (justo debajo nace la gota)
+    property real notchEndY: 46
     readonly property real screenCenterY: spotlight.height / 2
 
     visible: showHax
@@ -54,9 +56,11 @@ PanelWindow {
         if (spotlightOpen) {
             closeAnim.stop();
 
-            // Capturar la posición real del bar antes de animar
+            // Capturar la posición real del bar y el notch antes de animar
             var bar = Visibilities.getBarForScreen(screen.name);
             barBottom = bar ? bar.totalBarHeight : 40;
+            var notch = Visibilities.getNotchForScreen(screen.name);
+            notchEndY = (notch && notch.height > 0 ? notch.height : notch ? notch.implicitHeight : 44) + 2;
 
             // Limpiar todo ANTES de mostrar la ventana (evita race con Behavior on height)
             results = [];
@@ -72,10 +76,8 @@ PanelWindow {
             startClipWatcher();
             if (weatherSearch) { try { weatherSearch.abort(); } catch(e) {} weatherSearch = null; }
 
-            // ⭐ Poner el estado inicial (gota ya formada en el notch)
-            // ANTES de mostrar la ventana — así la entrada empieza igual
-            // que termina la salida: con la gota justo en el notch
-            animProgress = 0.03;
+            // ⭐ La gota empieza desde 0 (nace desde 0px, espejo exacto de la salida)
+            animProgress = 0.0;
             showHax = true;
 
             openAnim.start();
@@ -483,7 +485,7 @@ PanelWindow {
         opacity: 1
 
         // 📍 Y: la gota nace pegada al bar y luego cae
-        y: barBottom + (screenCenterY - height / 2 - barBottom) * descendPhase
+        y: notchEndY + (screenCenterY - height / 2 - notchEndY) * descendPhase
 
         // 🎭 Radio: de círculo perfecto a esquinas normales
         radius: Math.min(width / 2, Styling.radius(24) + (width / 2 - Styling.radius(24)) * Math.max(0, 1 - expandPhase * 3))
@@ -574,7 +576,7 @@ PanelWindow {
                                 x: 2
                                 text: cmdProcess !== null
                                     ? qsTr("Ejecutando comando...  (Esc para salir)")
-                                    : qsTr("Hax — Buscar apps, archivos, calcular...")
+                                    : qsTr("Hax — El buscador Universal para Hyprland (pon ? para el manual)...")
                                 font: parent.font
                                 color: Styling.srItem("text")
                                 opacity: 0.35
