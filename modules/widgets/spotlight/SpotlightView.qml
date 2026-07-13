@@ -1977,9 +1977,14 @@ PanelWindow {
                                 Layout.alignment: Qt.AlignVCenter
 
                                 MouseArea {
+                                    id: swatchClickArea
                                     anchors.fill: parent
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: {
+                                        // Posicionar el popup antes de abrirlo
+                                        var pos = colorSwatch.mapToItem(null, 0, 0);
+                                        colorPicker.x = pos.x - 100;
+                                        colorPicker.y = pos.y + colorSwatch.height + 8;
                                         spotlight.colorPickerOpen = !spotlight.colorPickerOpen;
                                     }
                                 }
@@ -2014,28 +2019,26 @@ PanelWindow {
                             }
                         }
 
-                        // 🎨 Selector de color flotante
-                        StyledRect {
+                        // 🎨 Popup selector de color flotante
+                        Popup {
                             id: colorPicker
-                            variant: "popup"
-                            radius: Styling.radius(10)
-                            width: 220
+                            x: colorSwatch.x - 100
+                            y: colorSwatch.y + colorSwatch.height + 8
+                            width: 230
                             height: colorPickerContent.implicitHeight + 16
                             visible: spotlight.colorPickerOpen
-                            opacity: spotlight.colorPickerOpen ? 1 : 0
-                            anchors.top: parent.top
-                            anchors.left: parent.left
-                            anchors.leftMargin: 100
-                            z: 10
+                            modal: true
+                            closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
 
-                            Behavior on opacity {
-                                NumberAnimation { duration: 100 }
+                            background: StyledRect {
+                                variant: "popup"
+                                radius: Styling.radius(10)
                             }
 
-                            Column {
+                            contentItem: Column {
                                 id: colorPickerContent
-                                anchors { left: parent.left; right: parent.right; top: parent.top; margins: 8 }
                                 spacing: 6
+                                padding: 8
 
                                 Text {
                                     text: "Selecciona un color:"
@@ -2049,7 +2052,6 @@ PanelWindow {
                                     width: parent.width
                                     spacing: 4
 
-                                    // Colores básicos
                                     Repeater {
                                         model: [
                                             "#ff0000", "#ff4444", "#ff8888", "#ffb3ae",
@@ -2066,7 +2068,7 @@ PanelWindow {
                                             "#cccccc", "#ffffff"
                                         ]
                                         Rectangle {
-                                            width: 28; height: 28; radius: 4
+                                            width: 26; height: 26; radius: 4
                                             color: modelData
                                             border { color: Styling.srItem("overprimary"); width: modelData === Config.hax.customColor ? 2 : 1 }
 
@@ -2085,7 +2087,7 @@ PanelWindow {
                                     }
                                 }
 
-                                // Input de hex personalizado
+                                // Input hex personalizado
                                 RowLayout {
                                     width: parent.width
                                     spacing: 4
@@ -2115,6 +2117,8 @@ PanelWindow {
                                 }
                             }
 
+                            // Al cerrar el popup, sincronizar estado
+                            onClosed: spotlight.colorPickerOpen = false
                         }
 
                         RowLayout {
