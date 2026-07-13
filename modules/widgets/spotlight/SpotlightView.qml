@@ -93,6 +93,7 @@ PanelWindow {
             stopMonitor();
             stopClipWatcher();
             showPreview = false;
+            showConfig = false;
             closeAnim.start();
         }
     }
@@ -199,6 +200,7 @@ PanelWindow {
     // ── Modo desarrollador (debug) ──────────────────────────────────────────
     // Se activa escribiendo "d" / "dev" / "debug" y pulsando Enter.
     property bool showDebug: false
+    property bool showConfig: false
     onShowDebugChanged: {
         if (spotlight.showDebug) {
             spotlight.startDebugMonitor();
@@ -519,6 +521,9 @@ PanelWindow {
                 : 0)
             + (spotlight.dictMode
                 ? 8 + dictPane.height
+                : 0)
+            + (spotlight.showConfig
+                ? 8 + configPane.height
                 : 0)
 
         // ── Contenido que aparece dentro mientras se transforma ────────────
@@ -1906,6 +1911,303 @@ PanelWindow {
                     }
                 }
 
+                // ── Configuración de Hax — "config" ───────────────────────────
+                StyledRect {
+                    id: configPane
+                    width: contentColumn.width
+                    variant: "pane"
+                    radius: Styling.radius(12)
+                    clip: true
+                    visible: spotlight.showConfig
+                    opacity: spotlight.showConfig ? 1 : 0
+                    height: spotlight.showConfig ? configContent.implicitHeight + 20 : 0
+                    Behavior on opacity {
+                        enabled: Config.animDuration > 0
+                        NumberAnimation { duration: Config.animDuration * 2 }
+                    }
+                    Behavior on height {
+                        enabled: Config.animDuration > 0
+                        NumberAnimation { duration: Config.animDuration * 2 }
+                    }
+
+                    Column {
+                        id: configContent
+                        anchors { left: parent.left; right: parent.right; top: parent.top; margins: 10 }
+                        spacing: 12
+
+                        // ── Cabecera ──
+                        Text {
+                            width: parent.width
+                            text: "⚙️ Configurar Hax"
+                            font.bold: true
+                            font.pixelSize: Config.theme.fontSize
+                            color: Styling.srItem("text")
+                        }
+
+                        // ── Separador ──
+                        Rectangle {
+                            width: parent.width
+                            height: 1
+                            color: Styling.srItem("overprimary")
+                            opacity: 0.2
+                        }
+
+                        // ── Sección: Colores ──
+                        Text {
+                            text: "🎨 Colores"
+                            font.bold: true
+                            font.pixelSize: Config.theme.fontSize - 1
+                            color: Styling.srItem("text")
+                        }
+
+                        RowLayout {
+                            width: parent.width
+                            Text {
+                                text: "Color personalizado:"
+                                font.pixelSize: Config.theme.fontSize - 2
+                                color: Styling.srItem("text")
+                                Layout.fillWidth: true
+                            }
+                            Rectangle {
+                                width: 24; height: 24; radius: 4
+                                color: Config.hax.customColorEnabled ? Config.hax.customColor : Colors.primary
+                                border { color: Styling.srItem("overprimary"); width: 1 }
+                                Layout.alignment: Qt.AlignVCenter
+                            }
+                            TextField {
+                                id: colorInput
+                                text: Config.hax.customColor
+                                font.pixelSize: Config.theme.fontSize - 2
+                                font.family: "monospace"
+                                implicitWidth: 90
+                                height: 26
+                                onTextChanged: {
+                                    if (/^#[0-9a-fA-F]{6}$/.test(text)) {
+                                        Config.hax.customColor = text;
+                                        Config.saveHax();
+                                    }
+                                }
+                                background: Rectangle {
+                                    radius: 4
+                                    color: Styling.srItem("bg")
+                                    border { color: Styling.srItem("overprimary"); width: 1 }
+                                }
+                            }
+                        }
+
+                        RowLayout {
+                            width: parent.width
+                            spacing: 8
+                            StyledRect {
+                                variant: "common"
+                                radius: Styling.radius(6)
+                                Layout.fillWidth: true
+                                height: 28
+                                opacity: Config.hax.customColorEnabled ? 1 : 0.5
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: Config.hax.customColorEnabled ? "✅ Color personalizado activado" : "☐ Usar color personalizado"
+                                    font.pixelSize: Config.theme.fontSize - 2
+                                    color: Styling.srItem("text")
+                                }
+
+                                TapHandler {
+                                    onTapped: {
+                                        Config.hax.customColorEnabled = !Config.hax.customColorEnabled;
+                                        Config.saveHax();
+                                    }
+                                }
+                            }
+
+                            StyledRect {
+                                variant: "common"
+                                radius: Styling.radius(6)
+                                implicitWidth: 90
+                                height: 28
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "↻ Sincronizar"
+                                    font.pixelSize: Config.theme.fontSize - 2
+                                    color: Styling.srItem("text")
+                                }
+
+                                TapHandler {
+                                    onTapped: {
+                                        Config.hax.customColorEnabled = false;
+                                        Config.hax.customColor = Colors.primary;
+                                        Config.saveHax();
+                                        colorInput.text = Colors.primary;
+                                    }
+                                }
+                            }
+                        }
+
+                        // ── Separador ──
+                        Rectangle {
+                            width: parent.width
+                            height: 1
+                            color: Styling.srItem("overprimary")
+                            opacity: 0.2
+                        }
+
+                        // ── Sección: OCR ──
+                        Text {
+                            text: "🖼️ OCR (Live Text)"
+                            font.bold: true
+                            font.pixelSize: Config.theme.fontSize - 1
+                            color: Styling.srItem("text")
+                        }
+
+                        RowLayout {
+                            width: parent.width
+                            Text {
+                                text: "Extraer texto de imágenes (Tesseract):"
+                                font.pixelSize: Config.theme.fontSize - 2
+                                color: Styling.srItem("text")
+                                Layout.fillWidth: true
+                            }
+                            StyledRect {
+                                variant: "common"
+                                radius: Styling.radius(6)
+                                implicitWidth: 80
+                                height: 28
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: Config.hax.ocrEnabled ? "✅ Activado" : "☐ Desactivado"
+                                    font.pixelSize: Config.theme.fontSize - 2
+                                    color: Styling.srItem("text")
+                                }
+
+                                TapHandler {
+                                    onTapped: {
+                                        Config.hax.ocrEnabled = !Config.hax.ocrEnabled;
+                                        Config.saveHax();
+                                    }
+                                }
+                            }
+                        }
+
+                        // ── Separador ──
+                        Rectangle {
+                            width: parent.width
+                            height: 1
+                            color: Styling.srItem("overprimary")
+                            opacity: 0.2
+                        }
+
+                        // ── Sección: Atajos personalizados ──
+                        Text {
+                            text: "⚡ Atajos personalizados"
+                            font.bold: true
+                            font.pixelSize: Config.theme.fontSize - 1
+                            color: Styling.srItem("text")
+                        }
+
+                        Text {
+                            width: parent.width
+                            text: "Añade palabras clave que ejecuten acciones al escribirlas en Hax."
+                            font.pixelSize: Config.theme.fontSize - 3
+                            color: Styling.srItem("text")
+                            opacity: 0.7
+                            wrapMode: Text.WordWrap
+                        }
+
+                        // Lista de atajos
+                        Repeater {
+                            id: shortcutRepeater
+                            model: Config.hax.customShortcuts
+
+                            delegate: RowLayout {
+                                width: parent.width
+                                spacing: 6
+
+                                Rectangle {
+                                    width: parent.width - 70
+                                    height: 28
+                                    radius: 4
+                                    color: Styling.srItem("bg")
+                                    border { color: Styling.srItem("overprimary"); width: 1 }
+
+                                    RowLayout {
+                                        anchors.fill: parent
+                                        anchors.margins: 6
+                                        Text {
+                                            text: modelData.keywords.join(", ")
+                                            font.pixelSize: Config.theme.fontSize - 2
+                                            font.family: "monospace"
+                                            color: Styling.srItem("text")
+                                            elide: Text.ElideRight
+                                            Layout.fillWidth: true
+                                        }
+                                        Text {
+                                            text: "→ " + modelData.action
+                                            font.pixelSize: Config.theme.fontSize - 3
+                                            color: Styling.srItem("overprimary")
+                                            opacity: 0.7
+                                            elide: Text.ElideRight
+                                        }
+                                    }
+                                }
+
+                                StyledRect {
+                                    variant: "common"
+                                    radius: Styling.radius(4)
+                                    implicitWidth: 28
+                                    height: 28
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "✕"
+                                        font.pixelSize: Config.theme.fontSize - 1
+                                        color: Colors.warning
+                                    }
+
+                                    TapHandler {
+                                        onTapped: {
+                                            var arr = Config.hax.customShortcuts.slice();
+                                            arr.splice(index, 1);
+                                            Config.hax.customShortcuts = arr;
+                                            Config.saveHax();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Botón añadir atajo
+                        StyledRect {
+                            variant: "common"
+                            radius: Styling.radius(6)
+                            width: parent.width
+                            height: 28
+                            opacity: 0.8
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: "+ Añadir atajo"
+                                font.pixelSize: Config.theme.fontSize - 1
+                                color: Styling.srItem("text")
+                            }
+
+                            TapHandler {
+                                onTapped: {
+                                    var arr = Config.hax.customShortcuts.slice();
+                                    arr.push({
+                                        "keywords": ["ejemplo"],
+                                        "action": "abrir firefox",
+                                        "type": "app"
+                                    });
+                                    Config.hax.customShortcuts = arr;
+                                    Config.saveHax();
+                                }
+                            }
+                        }
+                    }
+                }
+
             }
                 }
 
@@ -2586,6 +2888,20 @@ PanelWindow {
                 type: "debug",
                 exec: function() {
                     spotlight.showDebug = true;
+                }
+            });
+        }
+
+        // ── Configuración de Hax ──
+        // Aparece al escribir "config".
+        if (query === "config") {
+            newResults.unshift({
+                name: "⚙️ Configurar Hax",
+                description: "Colores, OCR, atajos personalizados y más",
+                icon: Icons.notepad,
+                type: "config",
+                exec: function() {
+                    spotlight.showConfig = true;
                 }
             });
         }

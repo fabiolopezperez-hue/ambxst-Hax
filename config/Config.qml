@@ -21,6 +21,7 @@ import "defaults/prefix.js" as PrefixDefaults
 import "defaults/system.js" as SystemDefaults
 import "defaults/dock.js" as DockDefaults
 import "defaults/ai.js" as AiDefaults
+import "defaults/hax.js" as HaxDefaults
 import "ConfigValidator.js" as ConfigValidator
 
 Singleton {
@@ -55,9 +56,10 @@ Singleton {
     property bool systemReady: false
     property bool dockReady: false
     property bool aiReady: false
+    property bool haxReady: false
     property bool keybindsInitialLoadComplete: false
 
-    property bool initialLoadComplete: themeReady && barReady && workspacesReady && overviewReady && notchReady && compositorReady && performanceReady && weatherReady && desktopReady && lockscreenReady && prefixReady && systemReady && dockReady && aiReady
+    property bool initialLoadComplete: themeReady && barReady && workspacesReady && overviewReady && notchReady && compositorReady && performanceReady && weatherReady && desktopReady && lockscreenReady && prefixReady && systemReady && dockReady && aiReady && haxReady
 
     // Compatibility aliases
     property alias loader: themeLoader
@@ -84,6 +86,7 @@ Singleton {
             "cp -n '" + root.presetDir + "/lockscreen.json' '" + root.configDir + "/lockscreen.json' 2>/dev/null || true; " +
             "cp -n '" + root.presetDir + "/dock.json' '" + root.configDir + "/dock.json' 2>/dev/null || true; " +
             "cp -n '" + root.presetDir + "/ai.json' '" + root.configDir + "/ai.json' 2>/dev/null || true; " +
+            "cp -n '" + root.presetDir + "/hax.json' '" + root.configDir + "/hax.json' 2>/dev/null || true; " +
             "cp -n '" + root.presetDir + "/system.json' '" + root.configDir + "/system.json' 2>/dev/null || true; " +
             "echo 'Preset files copied if missing'"
         ]
@@ -1183,6 +1186,48 @@ Singleton {
             property int sidebarWidth: 400
             property string sidebarPosition: "right"
             property bool sidebarPinnedOnStartup: false
+        }
+    }
+
+    // ============================================
+    // HAX MODULE
+    // ============================================
+    FileView {
+        id: haxLoader
+        path: root.configDir + "/hax.json"
+        atomicWrites: true
+        watchChanges: true
+        onLoaded: {
+            if (!root.haxReady) {
+                validateModule("hax", haxLoader, HaxDefaults.data, () => {
+                    root.haxReady = true;
+                });
+            }
+        }
+        onLoadFailed: {
+            if (error.toString().includes("FileNotFound") && !root.haxReady) {
+                handleMissingConfig("hax", haxLoader, HaxDefaults.data, () => {
+                    root.haxReady = true;
+                });
+            }
+        }
+        onFileChanged: {
+            root.pauseAutoSave = true;
+            reload();
+            root.pauseAutoSave = false;
+        }
+        onPathChanged: reload()
+        onAdapterUpdated: {
+            if (root.haxReady && !root.pauseAutoSave) {
+                haxLoader.writeAdapter();
+            }
+        }
+
+        adapter: JsonAdapter {
+            property bool customColorEnabled: false
+            property string customColor: "#ffb3ae"
+            property bool ocrEnabled: false
+            property list<var> customShortcuts: []
         }
     }
 
@@ -3465,6 +3510,9 @@ Singleton {
     // AI configuration
     property QtObject ai: aiLoader.adapter
 
+    // Hax configuration
+    property QtObject hax: haxLoader.adapter
+
     // Module save functions
     function saveBar() {
         barLoader.writeAdapter();
@@ -3507,6 +3555,9 @@ Singleton {
     }
     function saveAi() {
         aiLoader.writeAdapter();
+    }
+    function saveHax() {
+        haxLoader.writeAdapter();
     }
 
     // Color helpers
