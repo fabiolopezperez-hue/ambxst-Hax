@@ -56,15 +56,11 @@ PanelWindow {
         if (spotlightOpen) {
             closeAnim.stop();
 
-            // Capturar la posición real del bar y el notch antes de animar
+            // Capturar la posición real del bar (donde termina el panel que contiene el notch)
             var bar = Visibilities.getBarForScreen(screen.name);
             barBottom = bar ? bar.totalBarHeight : 40;
-            // Calcular notchEndY desde Config (fiable, sin depender de cross-window layout)
-            var showBg = Config.showBackground !== false;
-            var baseH = showBg ? 44 : 40;
-            var nTheme = (Config.notchTheme || "default");
-            var notchH = nTheme === "island" ? 36 : baseH;
-            notchEndY = notchH + 2;
+            // La gota nace justo debajo del borde inferior del panel del bar/notch
+            notchEndY = barBottom + 2;
 
             // Limpiar todo ANTES de mostrar la ventana (evita race con Behavior on height)
             results = [];
