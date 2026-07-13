@@ -57,7 +57,7 @@
 | 🌤️ **Clima** | `weather`, `weather Madrid` — pronóstico actual |
 | 🧮 **Calculadora inline** | Escribe `23*4` → muestra `= 92` al instante |
 | ⚡ **Acciones rápidas** | `lock`, `apagar`, `reiniciar`, `suspender`, `capturar` |
-| 💻 **Terminal embebida** | Escribe `/` para abrir una **terminal real (PTY)** dentro de Hax (tu shell por defecto, p. ej. fish) — cierra con `exit` o `Esc` |
+| 💻 **Terminal enbellecida** | Escribe `/` para abrir una **terminal real (PTY)** dentro de Hax (tu shell por defecto, p. ej. fish) — cierra con `exit` o `Esc` |
 | 🔒 **Lockscreen** | Bloqueo de pantalla integrado |
 | 📸 **Screenshot** | Captura de pantalla con un comando |
 | 🔄 **Actualizar sistema** | `update` — pacman -Syu |
