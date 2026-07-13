@@ -2477,7 +2477,7 @@ PanelWindow {
             variant: "popup"
             radius: Styling.radius(10)
             width: 260
-            height: Math.min(actionPresetsList.implicitHeight + 16, 350)
+            height: Math.min(actionPresetsList.height + 24, 380)
             visible: spotlight.actionPresetsOpen
             opacity: spotlight.actionPresetsOpen ? 1 : 0
             z: 100
@@ -2487,21 +2487,39 @@ PanelWindow {
                 NumberAnimation { duration: 80 }
             }
 
-            Column {
-                id: actionPresetsList
-                anchors { left: parent.left; right: parent.right; top: parent.top; margins: 6 }
-                spacing: 2
+            Flickable {
+                id: actionPresetsFlick
+                anchors.fill: parent
+                anchors.margins: 6
+                contentHeight: actionPresetsList.height
+                clip: true
+                boundsBehavior: Flickable.StopAtBounds
 
-                Text {
-                    text: "Selecciona una acción:"
-                    font.pixelSize: Config.theme.fontSize - 2
-                    font.bold: true
-                    color: Styling.srItem("text")
-                    bottomPadding: 4
+                ScrollBar.vertical: ScrollBar {
+                    width: 6
+                    policy: ScrollBar.AsNeeded
+                    contentItem: Rectangle {
+                        radius: 3
+                        color: Styling.srItem("overprimary")
+                        opacity: 0.4
+                    }
                 }
 
-                Repeater {
-                    model: [
+                Column {
+                    id: actionPresetsList
+                    width: parent.width - 10
+                    spacing: 2
+
+                    Text {
+                        text: "Selecciona una acción:"
+                        font.pixelSize: Config.theme.fontSize - 2
+                        font.bold: true
+                        color: Styling.srItem("text")
+                        bottomPadding: 4
+                    }
+
+                    Repeater {
+                        model: [
                         // ── Navegadores ──
                         { cat: true, label: "── Navegadores ──" },
                         { cat: false, label: "Firefox",          value: "firefox" },
