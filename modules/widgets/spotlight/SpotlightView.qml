@@ -2558,6 +2558,42 @@ PanelWindow {
             }
         }
 
+        // ── Atajos personalizados (config → customShortcuts) ──────────────
+        if (Config.hax.customShortcuts && Config.hax.customShortcuts.length > 0) {
+            for (var si = 0; si < Config.hax.customShortcuts.length; si++) {
+                var shortcut = Config.hax.customShortcuts[si];
+                var kw = shortcut.keywords || [];
+                for (var ki = 0; ki < kw.length; ki++) {
+                    if (query === kw[ki].toLowerCase().trim()) {
+                        var iconChar = shortcut.type === "app" ? "🚀"
+                            : shortcut.type === "web" ? "🌐"
+                            : shortcut.type === "command" ? "⚡"
+                            : "⚡";
+                        newResults.push({
+                            name: iconChar + " " + shortcut.action,
+                            description: "Atajo personalizado — escribe «" + kw.join(", ") + "»",
+                            icon: Icons.notepad,
+                            type: "info",
+                            exec: function(action, type) {
+                                return function() {
+                                    if (type === "command") {
+                                        bash(action);
+                                    } else if (type === "web") {
+                                        Qt.openUrlExternally(action);
+                                    } else {
+                                        // type "app" o por defecto: lanzar app
+                                        bash(action);
+                                    }
+                                    Visibilities.setActiveModule("");
+                                };
+                            }(shortcut.action, shortcut.type)
+                        });
+                        break;
+                    }
+                }
+            }
+        }
+
         // ── Ayuda ─────────────────────────────────────────────────────────────
         var helpMatch = query.match(/^(ayuda|help|h|commands|comandos|\?)$/i);
         if (helpMatch) {
