@@ -59,8 +59,12 @@ PanelWindow {
             // Capturar la posición real del bar y el notch antes de animar
             var bar = Visibilities.getBarForScreen(screen.name);
             barBottom = bar ? bar.totalBarHeight : 40;
-            var notch = Visibilities.getNotchForScreen(screen.name);
-            notchEndY = (notch && notch.height > 0 ? notch.height : notch ? notch.implicitHeight : 44) + 2;
+            // Calcular notchEndY desde Config (fiable, sin depender de cross-window layout)
+            var showBg = Config.showBackground !== false;
+            var baseH = showBg ? 44 : 40;
+            var nTheme = (Config.notchTheme || "default");
+            var notchH = nTheme === "island" ? 36 : baseH;
+            notchEndY = notchH + 2;
 
             // Limpiar todo ANTES de mostrar la ventana (evita race con Behavior on height)
             results = [];
