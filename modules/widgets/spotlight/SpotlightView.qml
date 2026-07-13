@@ -60,7 +60,7 @@ PanelWindow {
             var bar = Visibilities.getBarForScreen(screen.name);
             barBottom = bar ? bar.totalBarHeight : 40;
             // La gota nace justo debajo del borde inferior del panel del bar/notch
-            notchEndY = 60;
+            notchEndY = 40;
 
             // Limpiar todo ANTES de mostrar la ventana (evita race con Behavior on height)
             results = [];
@@ -576,7 +576,7 @@ PanelWindow {
                                 x: 2
                                 text: cmdProcess !== null
                                     ? qsTr("Ejecutando comando...  (Esc para salir)")
-                                    : qsTr("Hax — El buscador Universal para Hyprland (pon ? para el manual)...")
+                                    : qsTr("Hax — El buscador Universal para Hyprland (pon ? para el manual)")
                                 font: parent.font
                                 color: Styling.srItem("text")
                                 opacity: 0.35
