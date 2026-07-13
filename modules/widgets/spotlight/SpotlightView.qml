@@ -2187,7 +2187,7 @@ PanelWindow {
                                             text: modelData.keywords.join(", ")
                                             font.pixelSize: Config.theme.fontSize - 2
                                             font.family: "monospace"
-                                            color: Styling.srItem("text")
+                                            color: "#eeeeee"
                                             padding: 0
                                             verticalAlignment: TextInput.AlignVCenter
                                             background: null
@@ -2215,7 +2215,7 @@ PanelWindow {
                                             text: modelData.action
                                             font.pixelSize: Config.theme.fontSize - 2
                                             font.family: "monospace"
-                                            color: Styling.srItem("text")
+                                            color: "#eeeeee"
                                             padding: 0
                                             verticalAlignment: TextInput.AlignVCenter
                                             background: null
