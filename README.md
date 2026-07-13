@@ -197,16 +197,6 @@ hl.bind("SUPER + Slash", hl.dsp.exec_cmd('qs -p "/ruta/a/tu-shell/modules/widget
 
 
 ```
-### 👁 Vista rápida (Quick Look)
-
-**Hax es 100% teclado.** Navega con **↑/↓** por los resultados y, al resaltar un **archivo**, Hax lo **previsualiza dentro del propio buscador** automáticamente, sin tocar el ratón. También puedes pulsar **Enter** sobre el archivo para previsualizarlo. (El ratón solo se usa en el Historial para borrar copias antiguas.)
-
-- 🖼️ **Imágenes** (`png`, `jpg`, `gif`, `webp`, `svg`…): se muestran dentro del panel, centradas y con su proporción.
-- 📄 **Texto**: se lee el contenido al instante (con `cat`) y se muestra con scroll.
-- 🔒 **Binarios**: avisan de que no se pueden previsualizar.
-
-El panel de previsualización aparece en el mismo sitio que el Monitor del sistema (abajo, integrado en el buscador) y se cierra con el botón **✕** o **Esc**.
-
 ## 🧱 Estructura del repo
 
 
