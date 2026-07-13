@@ -45,7 +45,7 @@ PanelWindow {
     // Posición Y del borde inferior del bar (de donde se desprende el puntito)
     property real barBottom: 40
     // Posición Y donde acaba el notch (justo debajo nace la gota)
-    property real notchEndY: 46
+    property real notchEndY: 60
     readonly property real screenCenterY: spotlight.height / 2
 
     visible: showHax
@@ -60,7 +60,7 @@ PanelWindow {
             var bar = Visibilities.getBarForScreen(screen.name);
             barBottom = bar ? bar.totalBarHeight : 40;
             // La gota nace justo debajo del borde inferior del panel del bar/notch
-            notchEndY = barBottom + 2;
+            notchEndY = 60;
 
             // Limpiar todo ANTES de mostrar la ventana (evita race con Behavior on height)
             results = [];
