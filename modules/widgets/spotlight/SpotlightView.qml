@@ -202,6 +202,15 @@ PanelWindow {
     property bool showDebug: false
     property bool showConfig: false
     property bool colorPickerOpen: false
+    // El color primario que usa Hax: el custom si está activado, si no el del sistema
+    readonly property color haxPrimaryColor: Config.hax.customColorEnabled
+        ? Qt.rgba(
+            parseInt(Config.hax.customColor.substring(1,3), 16) / 255,
+            parseInt(Config.hax.customColor.substring(3,5), 16) / 255,
+            parseInt(Config.hax.customColor.substring(5,7), 16) / 255,
+            1
+          )
+        : Colors.primary
     onShowDebugChanged: {
         if (spotlight.showDebug) {
             spotlight.startDebugMonitor();
@@ -912,7 +921,7 @@ PanelWindow {
                                 height: 8
                                 radius: 4
                                 visible: cmdProcess !== null
-                                color: Colors.primary || "#00ff88"
+                                color: spotlight.haxPrimaryColor
                                 opacity: 0.8
 
                                 SequentialAnimation on opacity {
@@ -1131,7 +1140,7 @@ PanelWindow {
                                 anchors.fill: parent
                                 radius: Styling.radius(10)
                                 color: index === spotlight.selectedIndex
-                                    ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.25)
+                                    ? Qt.rgba(spotlight.haxPrimaryColor.r, spotlight.haxPrimaryColor.g, spotlight.haxPrimaryColor.b, 0.25)
                                     : "transparent"
 
                                 Behavior on color {
@@ -2019,107 +2028,7 @@ PanelWindow {
                             }
                         }
 
-                        // 🎨 Popup selector de color flotante
-                        Popup {
-                            id: colorPicker
-                            x: colorSwatch.x - 100
-                            y: colorSwatch.y + colorSwatch.height + 8
-                            width: 230
-                            height: colorPickerContent.implicitHeight + 16
-                            visible: spotlight.colorPickerOpen
-                            modal: true
-                            closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
-
-                            background: StyledRect {
-                                variant: "popup"
-                                radius: Styling.radius(10)
-                            }
-
-                            contentItem: Column {
-                                id: colorPickerContent
-                                spacing: 6
-                                padding: 8
-
-                                Text {
-                                    text: "Selecciona un color:"
-                                    font.pixelSize: Config.theme.fontSize - 2
-                                    font.bold: true
-                                    color: Styling.srItem("text")
-                                }
-
-                                // Grid de colores predefinidos
-                                Flow {
-                                    width: parent.width
-                                    spacing: 4
-
-                                    Repeater {
-                                        model: [
-                                            "#ff0000", "#ff4444", "#ff8888", "#ffb3ae",
-                                            "#ff8800", "#ffaa44", "#ffcc88", "#ffddbb",
-                                            "#ffff00", "#ffdd44", "#ffee88", "#fff5cc",
-                                            "#00ff00", "#44ff44", "#88ff88", "#ccffcc",
-                                            "#00ffff", "#44ddff", "#88ddff", "#bbeeff",
-                                            "#0088ff", "#4488ff", "#6699ff", "#99bbff",
-                                            "#0000ff", "#4444ff", "#6666ff", "#8888ff",
-                                            "#8800ff", "#8844ff", "#aa66ff", "#cc99ff",
-                                            "#ff00ff", "#ff44ff", "#ff88ff", "#ffbbff",
-                                            "#ff0088", "#ff4488", "#ff8888", "#ffbbcc",
-                                            "#000000", "#333333", "#666666", "#999999",
-                                            "#cccccc", "#ffffff"
-                                        ]
-                                        Rectangle {
-                                            width: 26; height: 26; radius: 4
-                                            color: modelData
-                                            border { color: Styling.srItem("overprimary"); width: modelData === Config.hax.customColor ? 2 : 1 }
-
-                                            MouseArea {
-                                                anchors.fill: parent
-                                                cursorShape: Qt.PointingHandCursor
-                                                onClicked: {
-                                                    Config.hax.customColor = modelData;
-                                                    Config.hax.customColorEnabled = true;
-                                                    Config.saveHax();
-                                                    colorInput.text = modelData;
-                                                    spotlight.colorPickerOpen = false;
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-
-                                // Input hex personalizado
-                                RowLayout {
-                                    width: parent.width
-                                    spacing: 4
-                                    Text {
-                                        text: "Hex:"
-                                        font.pixelSize: Config.theme.fontSize - 2
-                                        color: Styling.srItem("text")
-                                    }
-                                    TextField {
-                                        Layout.fillWidth: true
-                                        height: 24
-                                        text: Config.hax.customColor
-                                        font.pixelSize: Config.theme.fontSize - 2
-                                        font.family: "monospace"
-                                        onTextChanged: {
-                                            if (/^#[0-9a-fA-F]{6}$/.test(text)) {
-                                                Config.hax.customColor = text;
-                                                Config.saveHax();
-                                            }
-                                        }
-                                        background: Rectangle {
-                                            radius: 4
-                                            color: Styling.srItem("bg")
-                                            border { color: Styling.srItem("overprimary"); width: 1 }
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Al cerrar el popup, sincronizar estado
-                            onClosed: spotlight.colorPickerOpen = false
-                        }
+                        // 🎨 (fin sección colores, el selector flotante está en el PanelWindow)
 
                         RowLayout {
                             width: parent.width
@@ -2345,8 +2254,104 @@ PanelWindow {
                 }
 
             }
+        }
+
+        // 🎨 Selector de color flotante (overlay del PanelWindow)
+        StyledRect {
+            id: colorPicker
+            variant: "popup"
+            radius: Styling.radius(10)
+            width: 230
+            height: colorPickerColumn.implicitHeight + 16
+            visible: spotlight.colorPickerOpen
+            opacity: spotlight.colorPickerOpen ? 1 : 0
+            z: 100
+
+            Behavior on opacity {
+                NumberAnimation { duration: 80 }
+            }
+
+            Column {
+                id: colorPickerColumn
+                anchors { left: parent.left; right: parent.right; top: parent.top; margins: 8 }
+                spacing: 6
+
+                Text {
+                    text: "Selecciona un color:"
+                    font.pixelSize: Config.theme.fontSize - 2
+                    font.bold: true
+                    color: Styling.srItem("text")
                 }
 
+                Flow {
+                    width: parent.width
+                    spacing: 4
+
+                    Repeater {
+                        model: [
+                            "#ff0000", "#ff4444", "#ff8888", "#ffb3ae",
+                            "#ff8800", "#ffaa44", "#ffcc88", "#ffddbb",
+                            "#ffff00", "#ffdd44", "#ffee88", "#fff5cc",
+                            "#00ff00", "#44ff44", "#88ff88", "#ccffcc",
+                            "#00ffff", "#44ddff", "#88ddff", "#bbeeff",
+                            "#0088ff", "#4488ff", "#6699ff", "#99bbff",
+                            "#0000ff", "#4444ff", "#6666ff", "#8888ff",
+                            "#8800ff", "#8844ff", "#aa66ff", "#cc99ff",
+                            "#ff00ff", "#ff44ff", "#ff88ff", "#ffbbff",
+                            "#ff0088", "#ff4488", "#ff8888", "#ffbbcc",
+                            "#000000", "#333333", "#666666", "#999999",
+                            "#cccccc", "#ffffff"
+                        ]
+
+                        Rectangle {
+                            width: 26; height: 26; radius: 4
+                            color: modelData
+                            border { color: Styling.srItem("overprimary"); width: modelData === Config.hax.customColor ? 2 : 1 }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    Config.hax.customColor = modelData;
+                                    Config.hax.customColorEnabled = true;
+                                    Config.saveHax();
+                                    colorInput.text = modelData;
+                                    spotlight.colorPickerOpen = false;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                RowLayout {
+                    width: parent.width
+                    spacing: 4
+                    Text {
+                        text: "Hex:"
+                        font.pixelSize: Config.theme.fontSize - 2
+                        color: Styling.srItem("text")
+                    }
+                    TextField {
+                        Layout.fillWidth: true
+                        height: 24
+                        text: Config.hax.customColor
+                        font.pixelSize: Config.theme.fontSize - 2
+                        font.family: "monospace"
+                        onTextChanged: {
+                            if (/^#[0-9a-fA-F]{6}$/.test(text)) {
+                                Config.hax.customColor = text;
+                                Config.saveHax();
+                            }
+                        }
+                        background: Rectangle {
+                            radius: 4
+                            color: Styling.srItem("bg")
+                            border { color: Styling.srItem("overprimary"); width: 1 }
+                        }
+                    }
+                }
+            }
+        }
 
 
     // ── Terminal integrada ─────────────────────────────────────────────────
