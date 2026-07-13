@@ -202,6 +202,7 @@ PanelWindow {
     property bool showDebug: false
     property bool showConfig: false
     property bool colorPickerOpen: false
+    property bool actionPresetsOpen: false
     // El color primario que usa Hax: el custom si está activado, si no el del sistema
     readonly property color haxPrimaryColor: Config.hax.customColorEnabled
         ? Qt.rgba(
@@ -2288,21 +2289,47 @@ PanelWindow {
                                 }
                             }
 
-                            TextField {
-                                id: newActionInput
-                                implicitWidth: 100
+                            Rectangle {
+                                implicitWidth: 120
                                 height: 28
-                                placeholderText: "acción (app, comando o URL)"
-                                placeholderTextColor: "#666688"
-                                font.pixelSize: Config.theme.fontSize - 2
-                                font.family: "monospace"
-                                color: "#f0f0f0"
-                                padding: 4
-                                verticalAlignment: TextInput.AlignVCenter
-                                background: Rectangle {
-                                    radius: 4
-                                    color: "#1a1a2e"
-                                    border { color: "#444466"; width: 1 }
+                                radius: 4
+                                color: "#1a1a2e"
+                                border { color: "#444466"; width: 1 }
+
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.margins: 4
+                                    spacing: 2
+
+                                    TextField {
+                                        id: newActionInput
+                                        Layout.fillWidth: true
+                                        height: 20
+                                        placeholderText: "acción"
+                                        placeholderTextColor: "#666688"
+                                        font.pixelSize: Config.theme.fontSize - 2
+                                        font.family: "monospace"
+                                        color: "#f0f0f0"
+                                        padding: 0
+                                        verticalAlignment: TextInput.AlignVCenter
+                                        background: null
+                                    }
+
+                                    Text {
+                                        text: "▼"
+                                        font.pixelSize: 8
+                                        color: "#aaaacc"
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: {
+                                                var pos = newActionInput.mapToItem(null, 0, 0);
+                                                actionPresets.x = pos.x;
+                                                actionPresets.y = pos.y + 28;
+                                                actionPresetsOpen = !actionPresetsOpen;
+                                            }
+                                        }
+                                    }
                                 }
                             }
 
@@ -2442,6 +2469,112 @@ PanelWindow {
                     }
                 }
             }
+        }
+
+        // ⚡ Selector de acciones predefinidas para atajos
+        StyledRect {
+            id: actionPresets
+            variant: "popup"
+            radius: Styling.radius(10)
+            width: 260
+            height: Math.min(actionPresetsList.implicitHeight + 16, 350)
+            visible: spotlight.actionPresetsOpen
+            opacity: spotlight.actionPresetsOpen ? 1 : 0
+            z: 100
+            clip: true
+
+            Behavior on opacity {
+                NumberAnimation { duration: 80 }
+            }
+
+            Column {
+                id: actionPresetsList
+                anchors { left: parent.left; right: parent.right; top: parent.top; margins: 6 }
+                spacing: 2
+
+                Text {
+                    text: "Selecciona una acción:"
+                    font.pixelSize: Config.theme.fontSize - 2
+                    font.bold: true
+                    color: Styling.srItem("text")
+                    bottomPadding: 4
+                }
+
+                Repeater {
+                    model: [
+                        // ── Apps ──
+                        { cat: true, label: "── Apps ──" },
+                        { cat: false, label: "Firefox",          value: "firefox" },
+                        { cat: false, label: "VS Code",          value: "code" },
+                        { cat: false, label: "Terminal",         value: "foot" },
+                        { cat: false, label: "Archivos",         value: "nautilus" },
+                        { cat: false, label: "Calculadora",      value: "gnome-calculator" },
+                        { cat: false, label: "Configuración",    value: "gnome-control-center" },
+                        { cat: false, label: "Spotify",          value: "spotify" },
+                        { cat: false, label: "Discord",          value: "discord" },
+                        { cat: false, label: "Thunderbird",      value: "thunderbird" },
+                        { cat: false, label: "Steam",            value: "steam" },
+                        // ── Sistema ──
+                        { cat: true, label: "── Sistema ──" },
+                        { cat: false, label: "Bloquear pantalla", value: "loginctl lock-session" },
+                        { cat: false, label: "Suspender",        value: "systemctl suspend" },
+                        { cat: false, label: "Apagar",           value: "systemctl poweroff" },
+                        { cat: false, label: "Reiniciar",        value: "systemctl reboot" },
+                        { cat: false, label: "Capturar pantalla",value: "screenshot" },
+                        // ── Carpetas ──
+                        { cat: true, label: "── Carpetas ──" },
+                        { cat: false, label: "Documentos",       value: "nautilus ~/Documentos" },
+                        { cat: false, label: "Descargas",        value: "nautilus ~/Descargas" },
+                        { cat: false, label: "Escritorio",       value: "nautilus ~/Escritorio" },
+                        { cat: false, label: "Capturas",         value: "nautilus ~/Pictures/Screenshots" },
+                        // ── Web ──
+                        { cat: true, label: "── Web ──" },
+                        { cat: false, label: "YouTube",          value: "https://youtube.com" },
+                        { cat: false, label: "GitHub",           value: "https://github.com" },
+                        { cat: false, label: "Gmail",            value: "https://mail.google.com" },
+                        { cat: false, label: "Google",           value: "https://google.com" },
+                        { cat: false, label: "Wikipedia",        value: "https://wikipedia.org" },
+                        // ── Hax ──
+                        { cat: true, label: "── Hax ──" },
+                        { cat: false, label: "Configurar Hax",   value: "config" },
+                        { cat: false, label: "Monitor sistema",  value: "/stats" },
+                        { cat: false, label: "Diccionario",      value: "g " },
+                        { cat: false, label: "Ayuda",            value: "help" }
+                    ]
+
+                    delegate: Item {
+                        width: parent.width
+                        height: modelData.cat ? 22 : 24
+
+                        Text {
+                            anchors.fill: parent
+                            anchors.leftMargin: modelData.cat ? 4 : 12
+                            text: modelData.label
+                            font.pixelSize: Config.theme.fontSize - (modelData.cat ? 1 : 2)
+                            font.bold: modelData.cat
+                            color: modelData.cat ? Styling.srItem("overprimary") : Styling.srItem("text")
+                            opacity: modelData.cat ? 0.6 : 0.9
+                            verticalAlignment: Text.AlignVCenter
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            enabled: !modelData.cat
+                            cursorShape: modelData.cat ? Qt.ArrowCursor : Qt.PointingHandCursor
+                            hoverEnabled: true
+                            onEntered: if (!modelData.cat) parent.opacity = 0.7
+                            onExited: if (!modelData.cat) parent.opacity = 1
+                            onClicked: {
+                                if (!modelData.cat && modelData.value) {
+                                    newActionInput.text = modelData.value;
+                                    spotlight.actionPresetsOpen = false;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
         }
 
 
