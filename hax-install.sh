@@ -388,13 +388,13 @@ cp -n "$REPO_DIR/scripts/"*.sh                "$SHELL_SRC/scripts/" 2>/dev/null 
 # JS de configuración (KeybindActions, ConfigValidator)
 cp -n "$REPO_DIR/config/"*.js                 "$SHELL_SRC/config/" 2>/dev/null || true
 
-# Config (preservar la existente si la hay)
+# Config (SIEMPRE se sobrescribe — Hax necesita su versión con persistencia)
 if [[ -f "$SHELL_SRC/config/Config.qml" ]]; then
-  log_info "Config.qml ya existe — no se sobrescribe."
-  log_info "  Revisa manualmente si necesitas fusionar los cambios de Hax."
-else
-  cp "$REPO_DIR/config/Config.qml" "$SHELL_SRC/config/Config.qml"
+  cp "$SHELL_SRC/config/Config.qml" "$SHELL_SRC/config/Config.qml.bak.$(date +%s)"
+  log_info "Config.qml anterior respaldado como Config.qml.bak.*"
 fi
+cp "$REPO_DIR/config/Config.qml" "$SHELL_SRC/config/Config.qml"
+log_success "Config.qml actualizado con la versión de Hax (persistencia de acciones rápidas)."
 
 cp -n "$REPO_DIR/config/defaults/"*.js "$SHELL_SRC/config/defaults/" 2>/dev/null || true
 
@@ -404,13 +404,7 @@ cp -rn "$REPO_DIR/assets/"* "$SHELL_SRC/assets/" 2>/dev/null || true
 # Archivo de versión
 cp -n "$REPO_DIR/version" "$SHELL_SRC/version" 2>/dev/null || true
 
-# Entry point (solo si no existe)
-if [[ ! -f "$SHELL_SRC/shell.qml" ]]; then
-  cp "$REPO_DIR/shell.qml" "$SHELL_SRC/shell.qml"
-  log_info "shell.qml creado como entry point con el Loader de Hax."
-else
-  log_info "shell.qml ya existe — no se sobrescribe."
-fi
+# shell.qml lo provee Ambxst — no se toca
 
 log_success "Hax instalado en $SHELL_SRC."
 
