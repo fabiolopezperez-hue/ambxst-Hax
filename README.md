@@ -2,15 +2,15 @@
 
 
 
-# Hax 🎯
+# Hax 🎯 **v4.0 LTS**
 
 **Hax** es un spotlight/launcher modular para shells Wayland basadas en **Ambxst**, construido con Quickshell y Qt QML. Inspirado en Spotlight de macOS, ofrece búsqueda instantánea de aplicaciones, archivos, cálculos inline, acciones rápidas del sistema, terminal integrada, timers, alarmas, instalación de paquetes, clima y mucho más — todo desde una interfaz limpia, rápida y nativa.
 
-> Este repo contiene **Hax + todas sus dependencias** (servicios, theme, config, componentes, scripts y la fuente Phosphor). Hax es **autocontenido**: se ejecuta directamente con `qs -p modules/widgets/spotlight/SpotlightView.qml`. También funciona inyectado en **forks y shells personalizadas** basadas en Ambxst.
+> 🏆 **v4.0 LTS — Versión estable de largo plazo.** A partir de ahora solo habrá correcciones de bugs y ajustes estéticos. Hax está completo y listo para el día a día.
 >
-> 📊 `SpotlightView.qml` pesa **~3751 líneas** de QML/JS puro.
+> 📊 `SpotlightView.qml` pesa **~4577 líneas** de QML/JS puro.
 
-> ⚠️ **`shell.qml` es el entry point de la shell host (Ambxst), no de Hax.** Importa el set completo de módulos de Ambxst (`bar`, `dock`, `notch`, `overview`, `lockscreen`, `shell`…) que **no** se incluyen aquí. Para usar Hax, lanza `SpotlightView.qml` directamente (así lo hace el atajo `Super + /`). `shell.qml` solo se copia si no existe en tu shell y, en ese caso, requiere que Ambxst esté presente.
+> ⚠️ Hax se instala **sobre Ambxst**. Este repo contiene solo los archivos de Hax y nuestras modificaciones. Ambxst se instala primero (automáticamente con `hax-install.sh`) y luego Hax se inyecta encima.
 
 ---
 
@@ -106,9 +106,9 @@ chmod +x hax-install.sh
 
 **¿Qué hace?**
 1. Si no tienes Ambxst instalado, lo instala (binario + fuente desde `Axenide/Ambxst`)
-2. Copia Hax y sus dependencias (spotlight, servicios, theme, componentes, tools, config, assets)
-3. Configura el atajo `Super + /` en Hyprland (soporta `.lua` y `.conf`)
-4. Si ya tenías Ambxst, no sobrescribe tu `shell.qml` ni `Config.qml`
+2. Copia Hax (spotlight, config con persistencia de acciones rápidas, defaults, assets)
+3. **Sobrescribe `Config.qml`** con nuestra versión optimizada para Hax (con backup automático)
+4. Configura el atajo `Super + /` en Hyprland (soporta `.lua` y `.conf`)
 
 ### 🔹 Fork / shell personalizada
 
@@ -123,22 +123,19 @@ AMBXST_SRC=~/Repos/mi-shell ./hax-install.sh
 ```
 
 **¿Qué hace?**
-- Copia solo los archivos de Hax en tu shell
-- **No toca** tu `shell.qml` ni `Config.qml` si ya existen
+- Copia Hax (spotlight, config con persistencia, defaults, assets)
+- **Sobrescribe `Config.qml`** con nuestra versión (con backup automático)
 - **No instala Ambxst** (asume que ya tienes tu propia shell)
 - **No necesita** que tu shell sea Ambxst — funciona en cualquier shell con estructura de módulos de Quickshell
 
 ### 🔹 Manual
 
 ```bash
-# Copia Hax y todas sus dependencias
+# Copia Hax (estos archivos están en el repo)
 cp -r modules/widgets/spotlight   /ruta/a/tu-shell/modules/widgets/
-cp    modules/services/*.qml      /ruta/a/tu-shell/modules/services/
-cp    modules/globals/*.qml       /ruta/a/tu-shell/modules/globals/
-cp    modules/theme/*.qml         /ruta/a/tu-shell/modules/theme/
-cp    modules/components/*.qml    /ruta/a/tu-shell/modules/components/
-cp    modules/tools/*.qml         /ruta/a/tu-shell/modules/tools/
-cp    config/*.js                 /ruta/a/tu-shell/config/
+cp    config/Config.qml           /ruta/a/tu-shell/config/
+cp    config/defaults/hax.js      /ruta/a/tu-shell/config/defaults/
+cp    assets/presets/Ambxst\ Default/hax.json /ruta/a/tu-shell/assets/presets/Ambxst\ Default/
 
 # Y añade a tu config de Hyprland:
 
@@ -202,80 +199,32 @@ hl.bind("SUPER + Slash", hl.dsp.exec_cmd('qs -p "/ruta/a/tu-shell/modules/widget
 
 ambxst-Hax/
 ├── hax-install.sh                        # Instalador automático
-├── shell.qml                             # Entry point (Loader de Hax)
-├── version                               # Versión de Ambxst
-├── README.md
+├── version                               # v4.0
+├── README.md                             # Este archivo
+├── .gitignore
 ├── config/
-│   ├── Config.qml                        # Config central
-│   ├── KeybindActions.js                 # Acciones de atajos
-│   ├── ConfigValidator.js                # Validación de config
+│   ├── Config.qml                        # Config central (con persistencia de Hax)
 │   └── defaults/
-│       ├── ai.js
-│       ├── bar.js
-│       ├── compositor.js
-│       ├── desktop.js
-│       ├── dock.js
-│       ├── lockscreen.js
-│       ├── notch.js
-│       ├── overview.js
-│       ├── performance.js
-│       ├── prefix.js
-│       ├── system.js
-│       ├── theme.js
-│       ├── weather.js
-│       └── workspaces.js
+│       └── hax.js                        # Defaults de Hax
 ├── assets/
 │   └── presets/
 │       └── Ambxst Default/
-│           ├── bar.json
-│           ├── compositor.json
-│           ├── desktop.json
-│           ├── dock.json
-│           ├── info.json
-│           ├── lockscreen.json
-│           ├── notch.json
-│           ├── overview.json
-│           ├── performance.json
-│           ├── system.json
-│           ├── theme.json
-│           └── workspaces.json
+│           └── hax.json                  # Preset de configuración de Hax
 ├── modules/
-│   ├── widgets/spotlight/
-│   │   ├── qmldir                       # Registro del módulo
-│   │   └── SpotlightView.qml             # 🧠 Todo Hax (~3265 líneas)
-│   ├── services/
-│   │   ├── AppSearch.qml                 # Búsqueda de apps
-│   │   ├── AxctlService.qml              # Abstracción del compositor
-│   │   ├── GlobalShortcuts.qml           # Atajo de teclado
-│   │   ├── LockscreenService.qml         # Bloquear pantalla
-│   │   ├── Screenshot.qml                # Capturas
-│   │   ├── SuspendManager.qml            # Gestión de suspensión
-│   │   ├── Visibilities.qml              # Abrir/cerrar Hax
-│   │   └── WeatherService.qml            # Clima
-│   ├── globals/
-│   │   └── GlobalStates.qml              # Estado global transitorio
-│   ├── theme/
-│   │   ├── Colors.qml                    # Paleta de colores
-│   │   ├── Icons.qml                     # Iconos Phosphor
-│   │   └── Styling.qml                   # Estilos compartidos
-│   ├── components/
-│   │   └── StyledRect.qml                # Contenedor base con theming
-│   └── tools/
-│       ├── MirrorWindow.qml              # Espejo de ventana
-│       ├── ScreenrecordTool.qml          # Grabación de pantalla
-│       ├── ScreenshotOverlay.qml         # Overlay de captura
-│       └── ScreenshotTool.qml            # Captura de pantalla
+│   └── widgets/spotlight/
+│       ├── qmldir                        # Registro del módulo
+│       └── SpotlightView.qml             # 🧠 Todo Hax (~4577 líneas)
 └── screenshots/
     ├── hax-search-bar.png
-    ├── hax-results.png
-    ├── hax-terminal.png
     ├── new-animation-Hax.mp4
-    └── new-functions-Hax.mp4`
+    ├── new-functions-Hax.mp4
+    ├── resultados-Hax.png
+    └── terminal-Hax.png`
 ```
 
-**Nota:** A diferencia de otros launchers, Hax es **monolítico** por diseño — todo el código vive en un solo archivo `SpotlightView.qml` (~3265 líneas). Esto evita la fragmentación y hace que sea fácil de mantener y modificar.
+**Nota:** A diferencia de otros launchers, Hax es **monolítico** por diseño — todo el código vive en un solo archivo `SpotlightView.qml` (~4577 líneas). Esto evita la fragmentación y hace que sea fácil de mantener y modificar.
 
-> El repo incluye archivos de **soporte** (`config/`, `assets/`, `modules/tools/`, `version`) para que Hax funcione correctamente incluso en shells personalizadas que no tengan estos archivos. Si tu shell ya los tiene, el instalador no los sobrescribe. En total, el repositorio autocontenido tiene **~13.093 líneas** de código entre QML, JS, JSON y scripts.
+> Este repo contiene **solo los archivos de Hax** que modificamos. El resto de dependencias (servicios, theme, componentes, scripts) las provee Ambxst, que se instala primero. Si tu shell ya los tiene, el instalador no los duplica.
 
 ---
 
@@ -290,17 +239,35 @@ ambxst-Hax/
 **No necesitas tener Ambxst.** Hax se instala en cualquier shell basada en Quickshell que tenga la estructura de módulos (`modules/widgets/`, `modules/services/`, etc.).
 
 El instalador:
-- Copia Hax y todas sus dependencias en tu shell
-- **No toca** tu `Config.qml` ni `shell.qml` si ya existen
+- Copia Hax (spotlight, config con persistencia, defaults, assets) en tu shell
+- **Sobrescribe `Config.qml`** con nuestra versión (con backup automático)
 - **No instala Ambxst** — respeta tu shell actual
-- **Añade archivos de soporte** (KeybindActions.js, ConfigValidator.js, assets/presets) solo si no los tienes
 - Configura el atajo `Super + /` en Hyprland si no existe
 
 ---
 
 ## 📋 Changelog
 
-### v3.1.0 — Julio 2026 — ⚡ Optimización masiva del motor interno 🎉 VERSIÓN ESTABLE ACTUALIZADA
+### v4.0 LTS — Julio 2026 — 🏆 Versión estable de largo plazo
+
+Hax alcanza la madurez. **A partir de esta versión, no habrá nuevas funciones.** Solo correcciones de bugs y ajustes estéticos.
+
+#### 🎯 Acciones rápidas personalizadas (persistencia real)
+- **⚡ `customShortcuts`** — Añade, edita y elimina acciones rápidas desde el panel de configuración de Hax. Ahora **persisten** de verdad tras reiniciar Quickshell o el sistema.
+- **🛠️ Arreglada la persistencia** — El problema era que `list<var>` no se serializaba correctamente con el JsonAdapter de Quickshell. Se cambió a `string` con JSON.stringify/parse.
+- **⏱️ Timer personalizado** — Nueva entrada "Timer personalizado" en el selector de acciones predefinidas. Al seleccionarlo, escribe `timer ` y enfoca el campo para que pongas la duración.
+
+#### 🔧 Correcciones
+- **🐛 Scroll secuestrado** — Al ejecutar `update`, las flechas ↑/↓ quedaban capturadas por la terminal aunque no hubiera scroll. Ahora solo capturan cuando la terminal tiene contenido desbordado (`contentHeight > height`).
+- **🐛 Instalador mejorado** — `Config.qml` ahora **siempre se sobrescribe** (con backup automático). Antes se saltaba si existía, dejando a Hax sin persistencia de acciones rápidas.
+- **🧹 Repositorio limpiado** — Eliminados todos los archivos de Ambxst que no tocamos. El repo pesa un 95% menos y solo contiene lo que Hax necesita.
+
+#### 📦 Notas de versión
+- Esta es la **última versión con cambios funcionales**.
+- De ahora en adelante: solo **bug fixes** y **retoques visuales**.
+- Si encuentras un bug, abre un issue en GitHub. Si quieres una función nueva, haz un fork.
+
+### v3.1.0 — Julio 2026 — ⚡ Optimización masiva del motor interno
 Esta es la **segunda versión estable** de Hax
 
 #### 🔧 Optimizaciones de rendimiento
@@ -313,19 +280,6 @@ Esta es la **segunda versión estable** de Hax
 #### 🧱 Refactorización
 - **✕ CloseButton como componente reutilizable** — Extraído a `modules/components/CloseButton.qml`. Los 6 botones de cierre (terminal, cmd, diccionario, monitor, debug, previsualización) usan el mismo componente, con hover opacity consistente.
 - **🔁 Behaviors unificados** — Diccionario, monitor y previsualización ahora usan `Config.animDuration` para sus animaciones de altura/opacidad, igual que el resto de paneles.
-
-#### 📖 Glosario reescrito (XMLHttpRequest nativo)
-- **♻️ Diccionario en XMLHttpRequest puro** — En vez de scripts bash+curl+python3. Elimina:
-  - Procesos huérfanos (cada tecla ya no deja curls colgados)
-  - Dependencia de `curl`, `python3` y scripts externos
-  - Saturación de la API (solo una petición HTTP a la vez)
-  - Problemas de case-sensitivity y comparación de strings
-- **⚡ Más rápido y fiable** — Una sola llamada a la API REST de Wikipedia, sin 3 fuentes en cascada.
-- **🧹 Limpieza al borrar** — Cuando borras la palabra, el resultado se limpia automáticamente.
-- **📦 Script `scripts/dict.sh` eliminado de la instalación** — Ya no se necesita.
-
-#### 🧠 Nueva sección de versión en debug
-- **ℹ️ Versión visible** — El panel de debug (`d`/`dev`/`debug`) ahora muestra **v3.1.0** + nota de las optimizaciones aplicadas, para que siempre sepas qué versión de Hax estás ejecutando.
 
 ### v3.0.1 — Julio 2026 — 📖 Glosario / Diccionario
 
@@ -346,11 +300,13 @@ Esta es la **primera versión estable** de Hax. Reúne todas las funciones grand
 - **🔧 Instalador 100% automático** — `hax-install.sh` instala Quickshell (si falta), compila **qmltermwidget**, instala **Tesseract + datos de idioma (eng/spa)**, copia la **fuente Phosphor** y todo Hax. Un solo `curl | bash` lo deja listo.
 - **🧩 Autocontenido y portable** — Repo con todas las dependencias; funciona tanto solo (`qs -p …/SpotlightView.qml`) como inyectado en forks/shells personalizadas (`-t`).
 
-> ✅ **Estado: ESTABLE.** Todo lo anterior está probado de punta a punta y documentado. No se esperan cambios disruptivos.
-
-> 📌 **Política de versiones (a partir de 3.0):**
-> - **Correcciones y mejoras pequeñas** → parche: `3.0.1`, `3.0.2`… o `3.x.1` dentro de una minor.
-> - **Cambios grandes / nuevas funciones principales** → se harán como antes (p. ej. la `2.1` fue un salto grande), subiendo la versión menor/major (`3.1`, `4.0`…). No habrá saltos disruptivos silenciosos: lo gordo se anunciará claramente.
+> ✅ **Estado: LTS — ESTABLE.** Todo lo anterior está probado de punta a punta y documentado. No se esperan cambios disruptivos.
+>
+> 📌 **Política de versiones (a partir de 4.0 LTS):**
+> - Hax ha alcanzado su madurez. **No habrá nuevas funciones.**
+> - Solo **correcciones de bugs** y **ajustes estéticos**.
+> - Versiones: `4.0.1`, `4.0.2`, etc. para bugs; `4.1` si hay cambios estéticos acumulados.
+> - Si quieres una función nueva, **haz un fork** — ¡Hax es libre y abierto!
 
 
 
@@ -441,5 +397,7 @@ Distribuido bajo licencia MIT. Partes del código derivadas de [Ambxst](https://
 
 ---
 
-
-</p>
+> 💖 **Hax v4.0 LTS** — Hecho con amor por Fabio y Maria.
+> Si usas Hax y te gusta, una estrella ⭐ en GitHub alegra el día.
+> ¿Un bug? [Abre un issue](https://github.com/fabiolopezperez-hue/ambxst-Hax/issues).
+> ¿Quieres más funciones? **Haz un fork** — el código es tuyo también.
