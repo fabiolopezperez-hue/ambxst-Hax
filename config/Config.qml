@@ -1227,7 +1227,7 @@ Singleton {
             property bool customColorEnabled: false
             property string customColor: "#ffb3ae"
             property bool ocrEnabled: false
-            property list<var> customShortcuts: []
+            property string customShortcuts: "[]"
         }
     }
 
@@ -3557,7 +3557,28 @@ Singleton {
         aiLoader.writeAdapter();
     }
     function saveHax() {
-        haxLoader.writeAdapter();
+        var a = haxLoader.adapter;
+        var full = {
+            "customColorEnabled": a.customColorEnabled,
+            "customColor": a.customColor,
+            "ocrEnabled": a.ocrEnabled,
+            "customShortcuts": a.customShortcuts
+        };
+        haxLoader.writeAdapter(JSON.stringify(full, null, 4));
+    }
+
+    // Guarda las acciones rápidas escribiendo el JSON COMPLETO de hax de forma
+    // explícita (igual que validateModule). Recibe el array directamente para no
+    // depender de si la asignación de propiedad propaga al adaptador.
+    function saveHaxShortcuts(arr) {
+        var a = haxLoader.adapter;
+        var full = {
+            "customColorEnabled": a.customColorEnabled,
+            "customColor": a.customColor,
+            "ocrEnabled": a.ocrEnabled,
+            "customShortcuts": JSON.stringify(arr)
+        };
+        haxLoader.writeAdapter(JSON.stringify(full, null, 4));
     }
 
     // Color helpers

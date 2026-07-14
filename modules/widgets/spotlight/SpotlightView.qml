@@ -48,6 +48,18 @@ PanelWindow {
     property real notchEndY: 60
     readonly property real screenCenterY: spotlight.height / 2
 
+    // ── Acciones rápidas: customShortcuts se guarda como STRING JSON en el
+    //    adaptador (un string SIEMPRE persiste bien; list<var> no hace round-trip
+    //    fiable en Quickshell y se perdía en reloads/reboots). Parseamos aquí. ──
+    property var haxShortcutsList: (function () {
+        try {
+            var raw = Config.hax.customShortcuts;
+            return (typeof raw === "string" && raw.trim().length > 0) ? JSON.parse(raw) : [];
+        } catch (e) {
+            return [];
+        }
+    })()
+
     visible: showHax
     exclusionMode: ExclusionMode.Ignore
 
@@ -652,8 +664,9 @@ PanelWindow {
                             }
 
                             Keys.onUpPressed: {
-                                if (cmdProcess !== null || _lastCmdVisible || _forceTerminal) {
-                                    // Scroll terminal
+                                var termOverflow = cmdFlickable.contentHeight > cmdFlickable.height;
+                                if ((cmdProcess !== null || _lastCmdVisible || _forceTerminal) && termOverflow) {
+                                    // Scroll terminal (solo si hay contenido que desborda)
                                     var ts = 60;
                                     cmdFlickable.contentY = Math.max(0, cmdFlickable.contentY - ts);
                                 } else {
@@ -669,8 +682,9 @@ PanelWindow {
                             }
 
                             Keys.onDownPressed: {
-                                if (cmdProcess !== null || _lastCmdVisible || _forceTerminal) {
-                                    // Scroll terminal
+                                var termOverflow = cmdFlickable.contentHeight > cmdFlickable.height;
+                                if ((cmdProcess !== null || _lastCmdVisible || _forceTerminal) && termOverflow) {
+                                    // Scroll terminal (solo si hay contenido que desborda)
                                     var ts = 60;
                                     cmdFlickable.contentY = Math.min(
                                         Math.max(0, cmdFlickable.contentHeight - cmdFlickable.height),
@@ -2144,9 +2158,9 @@ PanelWindow {
                             opacity: 0.2
                         }
 
-                        // ── Sección: Atajos personalizados ──
+                        // ── Sección: Acciones rápidas ──
                         Text {
-                            text: "⚡ Atajos personalizados"
+                            text: "⚡ Acciones rápidas"
                             font.bold: true
                             font.pixelSize: Config.theme.fontSize - 1
                             color: Styling.srItem("text")
@@ -2154,7 +2168,7 @@ PanelWindow {
 
                         Text {
                             width: parent.width
-                            text: "Escribe las keywords separadas por comas y la acción a ejecutar."
+                            text: "Crea atajos: escribes una palabra (ej. «cc») y Hax ejecuta la acción. Pulsa 📋 para elegir una app en un clic."
                             font.pixelSize: Config.theme.fontSize - 3
                             color: Styling.srItem("text")
                             opacity: 0.7
@@ -2164,7 +2178,7 @@ PanelWindow {
                         // Lista de atajos editables
                         Repeater {
                             id: shortcutRepeater
-                            model: Config.hax.customShortcuts
+                            model: haxShortcutsList
 
                             delegate: Column {
                                 width: parent.width
@@ -2191,10 +2205,10 @@ PanelWindow {
                                         }
 
                                         onEditingFinished: {
-                                            var arr = Config.hax.customShortcuts.slice();
+                                            var arr = haxShortcutsList.slice();
                                             arr[index].keywords = text.split(",").map(function(s) { return s.trim(); }).filter(function(s) { return s.length > 0; });
-                                            Config.hax.customShortcuts = arr;
-                                            Config.saveHax();
+                                            Config.hax.customShortcuts = JSON.stringify(arr);
+                                            Config.saveHaxShortcuts(arr);
                                         }
                                     }
 
@@ -2215,26 +2229,10 @@ PanelWindow {
                                         }
 
                                         onEditingFinished: {
-                                            var arr = Config.hax.customShortcuts.slice();
+                                            var arr = haxShortcutsList.slice();
                                             arr[index].action = text;
-                                            Config.hax.customShortcuts = arr;
-                                            Config.saveHax();
-                                        }
-                                    }
-
-                                    Rectangle {
-                                        implicitWidth: 60
-                                        height: 26
-                                        radius: 4
-                                        color: "#1a1a2e"
-                                        border { color: "#444466"; width: 1 }
-
-                                        Text {
-                                            anchors.centerIn: parent
-                                            text: modelData.type || "app"
-                                            font.pixelSize: Config.theme.fontSize - 2
-                                            font.family: "monospace"
-                                            color: "#aaaacc"
+                                            Config.hax.customShortcuts = JSON.stringify(arr);
+                                            Config.saveHaxShortcuts(arr);
                                         }
                                     }
 
@@ -2255,10 +2253,10 @@ PanelWindow {
                                             anchors.fill: parent
                                             cursorShape: Qt.PointingHandCursor
                                             onClicked: {
-                                                var arr = Config.hax.customShortcuts.slice();
+                                                var arr = haxShortcutsList.slice();
                                                 arr.splice(index, 1);
-                                                Config.hax.customShortcuts = arr;
-                                                Config.saveHax();
+                                                Config.hax.customShortcuts = JSON.stringify(arr);
+                                                Config.saveHaxShortcuts(arr);
                                             }
                                         }
                                     }
@@ -2266,19 +2264,19 @@ PanelWindow {
                             }
                         }
 
-                        // Formulario para añadir atajo
-                        RowLayout {
+                        // Formulario para añadir acción rápida
+                        Column {
                             width: parent.width
                             spacing: 6
 
+                            // Nombre (opcional) — se muestra en el buscador
                             TextField {
-                                id: newKeywordsInput
-                                Layout.fillWidth: true
+                                id: newNameInput
+                                width: parent.width
                                 height: 28
-                                placeholderText: "keywords (ej: ff, firefox)"
+                                placeholderText: "Nombre (opcional, ej: Abrir Firefox)"
                                 placeholderTextColor: "#666688"
                                 font.pixelSize: Config.theme.fontSize - 2
-                                font.family: "monospace"
                                 color: "#f0f0f0"
                                 padding: 4
                                 verticalAlignment: TextInput.AlignVCenter
@@ -2289,323 +2287,335 @@ PanelWindow {
                                 }
                             }
 
-                            Rectangle {
-                                implicitWidth: 120
-                                height: 28
-                                radius: 4
-                                color: "#1a1a2e"
-                                border { color: "#444466"; width: 1 }
+                            RowLayout {
+                                width: parent.width
+                                spacing: 6
 
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.margins: 4
-                                    spacing: 2
-
-                                    TextField {
-                                        id: newActionInput
-                                        Layout.fillWidth: true
-                                        height: 20
-                                        placeholderText: "acción"
-                                        placeholderTextColor: "#666688"
-                                        font.pixelSize: Config.theme.fontSize - 2
-                                        font.family: "monospace"
-                                        color: "#f0f0f0"
-                                        padding: 0
-                                        verticalAlignment: TextInput.AlignVCenter
-                                        background: null
+                                TextField {
+                                    id: newKeywordsInput
+                                    Layout.fillWidth: true
+                                    height: 28
+                                    placeholderText: "Palabra clave (ej: ff)"
+                                    placeholderTextColor: "#666688"
+                                    font.pixelSize: Config.theme.fontSize - 2
+                                    font.family: "monospace"
+                                    color: "#f0f0f0"
+                                    padding: 4
+                                    verticalAlignment: TextInput.AlignVCenter
+                                    background: Rectangle {
+                                        radius: 4
+                                        color: "#1a1a2e"
+                                        border { color: "#444466"; width: 1 }
                                     }
+                                }
+
+                                Rectangle {
+                                    implicitWidth: 160
+                                    height: 28
+                                    radius: 4
+                                    color: "#1a1a2e"
+                                    border { color: "#444466"; width: 1 }
+
+                                    RowLayout {
+                                        anchors.fill: parent
+                                        anchors.margins: 4
+                                        spacing: 2
+
+                                        TextField {
+                                            id: newActionInput
+                                            Layout.fillWidth: true
+                                            height: 20
+                                            placeholderText: "app, comando o URL"
+                                            placeholderTextColor: "#666688"
+                                            font.pixelSize: Config.theme.fontSize - 2
+                                            font.family: "monospace"
+                                            color: "#f0f0f0"
+                                            padding: 0
+                                            verticalAlignment: TextInput.AlignVCenter
+                                            background: null
+                                        }
+
+                                        Text {
+                                            text: "📋"
+                                            font.pixelSize: 12
+                                            color: "#aaaacc"
+                                            MouseArea {
+                                                anchors.fill: parent
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: {
+                                                    actionPresets.x = morphContainer.x + (morphContainer.width - actionPresets.width) / 2;
+                                                    actionPresets.y = morphContainer.y + (morphContainer.height - actionPresets.height) / 2;
+                                                    actionPresetsOpen = !actionPresetsOpen;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                StyledRect {
+                                    variant: "common"
+                                    radius: Styling.radius(6)
+                                    implicitWidth: 60
+                                    height: 28
 
                                     Text {
-                                        text: "▼"
-                                        font.pixelSize: 8
-                                        color: "#aaaacc"
-                                        MouseArea {
-                                            anchors.fill: parent
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: {
-                                                var pos = newActionInput.mapToItem(null, 0, 0);
-                                                actionPresets.x = pos.x;
-                                                actionPresets.y = pos.y + 28;
-                                                actionPresetsOpen = !actionPresetsOpen;
+                                        anchors.centerIn: parent
+                                        text: "+ Añadir"
+                                        font.pixelSize: Config.theme.fontSize - 2
+                                        color: "#f0f0f0"
+                                    }
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            var kw = newKeywordsInput.text.split(",").map(function(s) { return s.trim(); }).filter(function(s) { return s.length > 0; });
+                                            var act = newActionInput.text.trim();
+                                            if (kw.length > 0 && act.length > 0) {
+                                                var t = "app";
+                                                if (/^https?:\/\//i.test(act)) t = "web";
+                                                else if (/[|&;<>]/.test(act) || act.indexOf(" ") >= 0 || act.startsWith("/") || act.startsWith("sudo")) t = "command";
+                                                var arr = haxShortcutsList.slice();
+                                                arr.push({
+                                                    "keywords": kw,
+                                                    "action": act,
+                                                    "type": t,
+                                                    "name": newNameInput.text.trim()
+                                                });
+                                                Config.hax.customShortcuts = JSON.stringify(arr);
+                                                Config.saveHaxShortcuts(arr);
+                                                newKeywordsInput.text = "";
+                                                newActionInput.text = "";
+                                                newNameInput.text = "";
                                             }
                                         }
                                     }
                                 }
                             }
-
-                            StyledRect {
-                                variant: "common"
-                                radius: Styling.radius(6)
-                                implicitWidth: 60
-                                height: 28
-
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: "+ Añadir"
-                                    font.pixelSize: Config.theme.fontSize - 2
-                                    color: "#f0f0f0"
-                                }
-
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        var kw = newKeywordsInput.text.split(",").map(function(s) { return s.trim(); }).filter(function(s) { return s.length > 0; });
-                                        var act = newActionInput.text.trim();
-                                        if (kw.length > 0 && act.length > 0) {
-                                            var arr = Config.hax.customShortcuts.slice();
-                                            arr.push({
-                                                "keywords": kw,
-                                                "action": act,
-                                                "type": "app"
-                                            });
-                                            Config.hax.customShortcuts = arr;
-                                            Config.saveHax();
-                                            newKeywordsInput.text = "";
-                                            newActionInput.text = "";
-                                        }
-                                    }
-                                }
-                            }
                         }
                     }
                 }
 
-            }
+
+        }
+    }
+
+    // 🎨 Selector de color flotante (overlay del PanelWindow)
+    StyledRect {
+        id: colorPicker
+        variant: "popup"
+        radius: Styling.radius(10)
+        width: 230
+        height: colorPickerColumn.implicitHeight + 16
+        visible: spotlight.colorPickerOpen
+        opacity: spotlight.colorPickerOpen ? 1 : 0
+        z: 100
+
+        Behavior on opacity {
+            NumberAnimation { duration: 80 }
         }
 
-        // 🎨 Selector de color flotante (overlay del PanelWindow)
-        StyledRect {
-            id: colorPicker
-            variant: "popup"
-            radius: Styling.radius(10)
-            width: 230
-            height: colorPickerColumn.implicitHeight + 16
-            visible: spotlight.colorPickerOpen
-            opacity: spotlight.colorPickerOpen ? 1 : 0
-            z: 100
+        Column {
+            id: colorPickerColumn
+            anchors { left: parent.left; right: parent.right; top: parent.top; margins: 8 }
+            spacing: 6
 
-            Behavior on opacity {
-                NumberAnimation { duration: 80 }
+            Text {
+                text: "Selecciona un color:"
+                font.pixelSize: Config.theme.fontSize - 2
+                font.bold: true
+                color: Styling.srItem("text")
+            }
+
+            Flow {
+                width: parent.width
+                spacing: 4
+
+                Repeater {
+                    model: [
+                        "#ff0000", "#ff4444", "#ff8888", "#ffb3ae",
+                        "#ff8800", "#ffaa44", "#ffcc88", "#ffddbb",
+                        "#ffff00", "#ffdd44", "#ffee88", "#fff5cc",
+                        "#00ff00", "#44ff44", "#88ff88", "#ccffcc",
+                        "#00ffff", "#44ddff", "#88ddff", "#bbeeff",
+                        "#0088ff", "#4488ff", "#6699ff", "#99bbff",
+                        "#0000ff", "#4444ff", "#6666ff", "#8888ff",
+                        "#8800ff", "#8844ff", "#aa66ff", "#cc99ff",
+                        "#ff00ff", "#ff44ff", "#ff88ff", "#ffbbff",
+                        "#ff0088", "#ff4488", "#ff8888", "#ffbbcc",
+                        "#000000", "#333333", "#666666", "#999999",
+                        "#cccccc", "#ffffff"
+                    ]
+
+                    Rectangle {
+                        required property var modelData
+                        width: 26; height: 26; radius: 4
+                        color: modelData
+                        border { color: Styling.srItem("overprimary"); width: modelData === Config.hax.customColor ? 2 : 1 }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                Config.hax.customColor = modelData;
+                                Config.hax.customColorEnabled = true;
+                                Config.saveHax();
+                                colorInput.text = modelData;
+                                spotlight.colorPickerOpen = false;
+                            }
+                        }
+                    }
+                }
+            }
+
+            RowLayout {
+                width: parent.width
+                spacing: 4
+                Text {
+                    text: "Hex:"
+                    font.pixelSize: Config.theme.fontSize - 2
+                    color: Styling.srItem("text")
+                }
+                TextField {
+                    Layout.fillWidth: true
+                    height: 24
+                    text: Config.hax.customColor
+                    font.pixelSize: Config.theme.fontSize - 2
+                    font.family: "monospace"
+                    onTextChanged: {
+                        if (/^#[0-9a-fA-F]{6}$/.test(text)) {
+                            Config.hax.customColor = text;
+                            Config.saveHax();
+                        }
+                    }
+                    background: Rectangle {
+                        radius: 4
+                        color: Styling.srItem("bg")
+                        border { color: Styling.srItem("overprimary"); width: 1 }
+                    }
+                }
+            }
+        }
+    }
+
+    // ⚡ Selector de apps/comandos para acciones rápidas
+    StyledRect {
+        id: actionPresets
+        variant: "popup"
+        radius: Styling.radius(10)
+        width: 280
+        height: Math.min(actionPresetsInner.implicitHeight + 24, 440)
+        visible: spotlight.actionPresetsOpen
+        opacity: spotlight.actionPresetsOpen ? 1 : 0
+        z: 100
+        clip: true
+
+        Behavior on opacity {
+            NumberAnimation { duration: 80 }
+        }
+
+        Flickable {
+            anchors.fill: parent
+            anchors.margins: 8
+            contentHeight: actionPresetsInner.implicitHeight
+            interactive: true
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+
+            ScrollBar.vertical: ScrollBar {
+                width: 6
+                policy: ScrollBar.AsNeeded
+                opacity: 0.7
+                contentItem: Rectangle {
+                    radius: 3
+                    color: Styling.srItem("overprimary")
+                    opacity: 0.5
+                }
             }
 
             Column {
-                id: colorPickerColumn
-                anchors { left: parent.left; right: parent.right; top: parent.top; margins: 8 }
-                spacing: 6
+                id: actionPresetsInner
+                width: parent.width - 8
+                spacing: 3
 
                 Text {
-                    text: "Selecciona un color:"
+                    text: "Elige una app o comando:"
                     font.pixelSize: Config.theme.fontSize - 2
                     font.bold: true
                     color: Styling.srItem("text")
+                    bottomPadding: 4
                 }
 
-                Flow {
-                    width: parent.width
-                    spacing: 4
-
-                    Repeater {
-                        model: [
-                            "#ff0000", "#ff4444", "#ff8888", "#ffb3ae",
-                            "#ff8800", "#ffaa44", "#ffcc88", "#ffddbb",
-                            "#ffff00", "#ffdd44", "#ffee88", "#fff5cc",
-                            "#00ff00", "#44ff44", "#88ff88", "#ccffcc",
-                            "#00ffff", "#44ddff", "#88ddff", "#bbeeff",
-                            "#0088ff", "#4488ff", "#6699ff", "#99bbff",
-                            "#0000ff", "#4444ff", "#6666ff", "#8888ff",
-                            "#8800ff", "#8844ff", "#aa66ff", "#cc99ff",
-                            "#ff00ff", "#ff44ff", "#ff88ff", "#ffbbff",
-                            "#ff0088", "#ff4488", "#ff8888", "#ffbbcc",
-                            "#000000", "#333333", "#666666", "#999999",
-                            "#cccccc", "#ffffff"
-                        ]
-
-                        Rectangle {
-                            width: 26; height: 26; radius: 4
-                            color: modelData
-                            border { color: Styling.srItem("overprimary"); width: modelData === Config.hax.customColor ? 2 : 1 }
-
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    Config.hax.customColor = modelData;
-                                    Config.hax.customColorEnabled = true;
-                                    Config.saveHax();
-                                    colorInput.text = modelData;
-                                    spotlight.colorPickerOpen = false;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                RowLayout {
-                    width: parent.width
-                    spacing: 4
-                    Text {
-                        text: "Hex:"
-                        font.pixelSize: Config.theme.fontSize - 2
-                        color: Styling.srItem("text")
-                    }
-                    TextField {
-                        Layout.fillWidth: true
-                        height: 24
-                        text: Config.hax.customColor
-                        font.pixelSize: Config.theme.fontSize - 2
-                        font.family: "monospace"
-                        onTextChanged: {
-                            if (/^#[0-9a-fA-F]{6}$/.test(text)) {
-                                Config.hax.customColor = text;
-                                Config.saveHax();
-                            }
-                        }
-                        background: Rectangle {
-                            radius: 4
-                            color: Styling.srItem("bg")
-                            border { color: Styling.srItem("overprimary"); width: 1 }
-                        }
-                    }
-                }
-            }
-        }
-
-        // ⚡ Selector de acciones predefinidas para atajos
-        StyledRect {
-            id: actionPresets
-            variant: "popup"
-            radius: Styling.radius(10)
-            width: 260
-            height: Math.min(actionPresetsList.height + 24, 380)
-            visible: spotlight.actionPresetsOpen
-            opacity: spotlight.actionPresetsOpen ? 1 : 0
-            z: 100
-            clip: true
-
-            Behavior on opacity {
-                NumberAnimation { duration: 80 }
-            }
-
-            Flickable {
-                id: actionPresetsFlick
-                anchors.fill: parent
-                anchors.margins: 6
-                contentHeight: actionPresetsList.height
-                clip: true
-                boundsBehavior: Flickable.StopAtBounds
-
-                ScrollBar.vertical: ScrollBar {
-                    width: 6
-                    policy: ScrollBar.AsNeeded
-                    contentItem: Rectangle {
-                        radius: 3
-                        color: Styling.srItem("overprimary")
-                        opacity: 0.4
-                    }
-                }
-
-                Column {
-                    id: actionPresetsList
-                    width: parent.width - 10
-                    spacing: 2
-
-                    Text {
-                        text: "Selecciona una acción:"
-                        font.pixelSize: Config.theme.fontSize - 2
-                        font.bold: true
-                        color: Styling.srItem("text")
-                        bottomPadding: 4
-                    }
-
-                    Repeater {
-                        model: [
-                        // ── Navegadores ──
-                        { cat: true, label: "── Navegadores ──" },
-                        { cat: false, label: "Firefox",          value: "firefox" },
-                        { cat: false, label: "Zen Browser",      value: "zen" },
-                        // ── Terminales ──
-                        { cat: true, label: "── Terminales ──" },
-                        { cat: false, label: "Kitty",            value: "kitty" },
-                        { cat: false, label: "Foot",             value: "foot" },
-                        // ── Coding ──
-                        { cat: true, label: "── Coding ──" },
-                        { cat: false, label: "VS Code (OSS)",    value: "code-oss" },
-                        { cat: false, label: "Vim",              value: "vim" },
-                        // ── Oficina ──
-                        { cat: true, label: "── Oficina ──" },
-                        { cat: false, label: "ONLYOFFICE",       value: "onlyoffice-desktopeditors" },
-                        { cat: false, label: "WPS Writer",       value: "wps" },
-                        { cat: false, label: "WPS PDF",          value: "wpspdf" },
-                        { cat: false, label: "Obsidian",         value: "obsidian" },
-                        // ── Multimedia ──
-                        { cat: true, label: "── Multimedia ──" },
-                        { cat: false, label: "Spotify",          value: "spotify-launcher" },
-                        { cat: false, label: "VLC",              value: "vlc" },
-                        { cat: false, label: "mpv",              value: "mpv" },
-                        { cat: false, label: "Audacity",         value: "audacity" },
-                        { cat: false, label: "Easy Effects",     value: "easyeffects" },
-                        { cat: false, label: "Swappy",           value: "swappy" },
-                        { cat: false, label: "Gradia",           value: "gradia" },
-                        // ── Juegos ──
-                        { cat: true, label: "── Juegos ──" },
-                        { cat: false, label: "Sober (Roblox)",   value: "flatpak run org.vinegarhq.Sober" },
-                        // ── Social ──
-                        { cat: true, label: "── Social ──" },
-                        { cat: false, label: "Discord",          value: "discord" },
-                        { cat: false, label: "KDE Connect",      value: "kdeconnect-app" },
-                        { cat: false, label: "LocalSend",        value: "localsend" },
-                        // ── Archivos ──
-                        { cat: true, label: "── Archivos ──" },
-                        { cat: false, label: "Dolphin",          value: "dolphin" },
-                        { cat: false, label: "Thunar",           value: "thunar" },
-                        { cat: false, label: "PeaZip",           value: "flatpak run io.github.peazip.PeaZip" },
-                        { cat: false, label: "Documentos",       value: "dolphin ~/Documentos" },
-                        { cat: false, label: "Descargas",        value: "dolphin ~/Descargas" },
-                        { cat: false, label: "Capturas",         value: "dolphin ~/Pictures/Screenshots" },
-                        // ── Sistema ──
-                        { cat: true, label: "── Sistema ──" },
-                        { cat: false, label: "Monitor sistema",  value: "io.missioncenter.MissionCenter" },
-                        { cat: false, label: "Ajustes sistema",  value: "systemsettings" },
-                        { cat: false, label: "Bloquear",         value: "loginctl lock-session" },
-                        { cat: false, label: "Suspender",        value: "systemctl suspend" },
-                        { cat: false, label: "Apagar",           value: "systemctl poweroff" },
-                        { cat: false, label: "Reiniciar",        value: "systemctl reboot" },
-                        { cat: false, label: "VirtualBox",       value: "virtualbox" },
-                        { cat: false, label: "QEMU",             value: "qemu" },
-                        // ── Monitores ──
-                        { cat: true, label: "── Monitores ──" },
-                        { cat: false, label: "btop",             value: "btop" },
-                        { cat: false, label: "htop",             value: "htop" },
-                        { cat: false, label: "nvtop",            value: "nvtop" },
-                        { cat: false, label: "Mission Center",   value: "io.missioncenter.MissionCenter" },
-                        // ── Web ──
-                        { cat: true, label: "── Web ──" },
-                        { cat: false, label: "YouTube",          value: "https://youtube.com" },
-                        { cat: false, label: "GitHub",           value: "https://github.com" },
-                        { cat: false, label: "Gmail",            value: "https://mail.google.com" },
-                        { cat: false, label: "Google",           value: "https://google.com" },
-                        // ── Hax ──
-                        { cat: true, label: "── Hax ──" },
-                        { cat: false, label: "Configurar Hax",   value: "config" },
-                        { cat: false, label: "Monitor Hax",      value: "/stats" },
-                        { cat: false, label: "Diccionario",      value: "g " },
-                        { cat: false, label: "OCR / Live Text",  value: "live" },
-                        { cat: false, label: "Ayuda",            value: "help" }
+                Repeater {
+                    model: [
+                        { cat: true, label: "Navegadores" },
+                        { cat: false, label: "Firefox", value: "firefox" },
+                        { cat: false, label: "Zen Browser", value: "zen" },
+                        { cat: true, label: "Terminales" },
+                        { cat: false, label: "Kitty", value: "kitty" },
+                        { cat: false, label: "Foot", value: "foot" },
+                        { cat: true, label: "Coding" },
+                        { cat: false, label: "VS Code (OSS)", value: "code-oss" },
+                        { cat: false, label: "Vim", value: "vim" },
+                        { cat: true, label: "Oficina" },
+                        { cat: false, label: "ONLYOFFICE", value: "onlyoffice-desktopeditors" },
+                        { cat: false, label: "WPS Writer", value: "wps" },
+                        { cat: false, label: "Obsidian", value: "obsidian" },
+                        { cat: true, label: "Multimedia" },
+                        { cat: false, label: "Spotify", value: "spotify-launcher" },
+                        { cat: false, label: "VLC", value: "vlc" },
+                        { cat: false, label: "mpv", value: "mpv" },
+                        { cat: true, label: "Social" },
+                        { cat: false, label: "Discord", value: "discord" },
+                        { cat: false, label: "KDE Connect", value: "kdeconnect-app" },
+                        { cat: true, label: "Archivos" },
+                        { cat: false, label: "Dolphin", value: "dolphin" },
+                        { cat: false, label: "Documentos", value: "dolphin ~/Documentos" },
+                        { cat: false, label: "Descargas", value: "dolphin ~/Descargas" },
+                        { cat: true, label: "Sistema" },
+                        { cat: false, label: "Ajustes", value: "systemsettings" },
+                        { cat: false, label: "Bloquear", value: "loginctl lock-session" },
+                        { cat: false, label: "Suspender", value: "systemctl suspend" },
+                        { cat: false, label: "Apagar", value: "systemctl poweroff" },
+                        { cat: false, label: "Reiniciar", value: "systemctl reboot" },
+                        { cat: true, label: "Web" },
+                        { cat: false, label: "YouTube", value: "https://youtube.com" },
+                        { cat: false, label: "GitHub", value: "https://github.com" },
+                        { cat: true, label: "Temporizadores" },
+                        { cat: false, label: "⏱️ Timer personalizado…", value: "timer " },
+                        { cat: false, label: "Timer 5 min", value: "timer 5m" },
+                        { cat: false, label: "Timer 10 min", value: "timer 10m" },
+                        { cat: false, label: "Timer 15 min", value: "timer 15m" },
+                        { cat: false, label: "Timer 25 min (Pomodoro)", value: "timer 25m pomodoro" },
+                        { cat: false, label: "Timer 30 min", value: "timer 30m" },
+                        { cat: false, label: "Timer 1 hora", value: "timer 1h" },
+                        { cat: false, label: "Cancelar todos los timers", value: "timer cancel" },
+                        { cat: true, label: "Alarmas" },
+                        { cat: false, label: "Alarma 7:00", value: "alarm 7:00" },
+                        { cat: false, label: "Alarma 7:30", value: "alarm 7:30" },
+                        { cat: false, label: "Alarma 8:00", value: "alarm 8:00" },
+                        { cat: false, label: "Alarma 14:30", value: "alarm 14:30" },
+                        { cat: false, label: "Alarma 22:00", value: "alarm 22:00" },
+                        { cat: false, label: "Eliminar todas las alarmas", value: "alarm clear" },
+                        { cat: true, label: "Hax" },
+                        { cat: false, label: "Configurar Hax", value: "config" },
+                        { cat: false, label: "OCR / Live Text", value: "live" },
+                        { cat: false, label: "Ayuda", value: "help" }
                     ]
 
                     delegate: Item {
+                        required property var modelData
                         width: parent.width
-                        height: modelData.cat ? 22 : 24
+                        height: modelData.cat ? 24 : 26
 
                         Text {
                             anchors.fill: parent
-                            anchors.leftMargin: modelData.cat ? 4 : 12
-                            text: modelData.label
-                            font.pixelSize: Config.theme.fontSize - (modelData.cat ? 1 : 2)
+                            anchors.leftMargin: modelData.cat ? 2 : 12
+                            text: modelData.cat ? "▸ " + modelData.label : modelData.label
+                            font.pixelSize: Config.theme.fontSize - 2
                             font.bold: modelData.cat
                             color: modelData.cat ? Styling.srItem("overprimary") : Styling.srItem("text")
-                            opacity: modelData.cat ? 0.6 : 0.9
+                            opacity: modelData.cat ? 0.7 : 0.95
                             verticalAlignment: Text.AlignVCenter
                         }
 
@@ -2614,20 +2624,24 @@ PanelWindow {
                             enabled: !modelData.cat
                             cursorShape: modelData.cat ? Qt.ArrowCursor : Qt.PointingHandCursor
                             hoverEnabled: true
-                            onEntered: if (!modelData.cat) parent.opacity = 0.7
+                            onEntered: if (!modelData.cat) parent.opacity = 0.6
                             onExited: if (!modelData.cat) parent.opacity = 1
-                            onClicked: {
-                                if (!modelData.cat && modelData.value) {
-                                    newActionInput.text = modelData.value;
-                                    spotlight.actionPresetsOpen = false;
-                                }
+                        onClicked: {
+                            if (!modelData.cat && modelData.value) {
+                                newActionInput.text = modelData.value;
+                                newNameInput.text = modelData.label;
+                                spotlight.actionPresetsOpen = false;
+                                newActionInput.forceActiveFocus();
+                                newActionInput.cursorPosition = newActionInput.text.length;
                             }
+                        }
                         }
                     }
                 }
             }
-
         }
+
+    }
 
 
     // ── Terminal integrada ─────────────────────────────────────────────────
@@ -2706,6 +2720,73 @@ PanelWindow {
         proc.command = ["bash", "-c", cmd];
         proc.onExited.connect(function() { proc.destroy(); });
         proc.running = true;
+    }
+
+    // Lanza un atajo personalizado según su tipo, igual que el resto de Hax.
+    function launchShortcut(shortcut) {
+        var action = shortcut.action;
+        var type = shortcut.type;
+        // Acciones integradas de Hax (atajos que abren paneles internos)
+        if (action === "config") { spotlight.showConfig = true; return; }
+        // Temporizadores y alarmas (funciones internas de Hax, no comandos de bash)
+        var _a = action.toLowerCase();
+        if (_a === "timer" || _a.indexOf("timer ") === 0) { _runTimerFromShortcut(action); Visibilities.setActiveModule(""); return; }
+        if (_a === "alarm" || _a === "alarma" || _a.indexOf("alarm") === 0) { _runAlarmFromShortcut(action); Visibilities.setActiveModule(""); return; }
+        if (type === "web" || /^https?:\/\//i.test(action)) {
+            Qt.openUrlExternally(action);
+        } else if (type === "command" || /[|&;<>]/.test(action) || action.indexOf(" ") >= 0 || action.startsWith("/") || action.startsWith("sudo")) {
+            bash(action);
+        } else {
+            // tipo "app": resolver y lanzar como app ( igual que la búsqueda de Hax )
+            try {
+                var res = AppSearch.fuzzyQuery(action);
+                if (res && res.length > 0 && res[0].execute) {
+                    res[0].execute();
+                    Visibilities.setActiveModule("");
+                    return;
+                }
+            } catch (e) {}
+            bash(action);
+        }
+        Visibilities.setActiveModule("");
+    }
+
+    // Lanza un timer desde un atajo rápido (action tipo "timer 5m pomodoro")
+    function _runTimerFromShortcut(action) {
+        var args = action.trim().replace(/^timer\s*/i, "").trim();
+        if (/^(cancel|clear|stop)\s*$/i.test(args)) { clearAllTimers(); return; }
+        var m = args.match(/^(\d+)\s*([smh])\s*(.*)$/i);
+        if (!m) return;
+        var val = parseInt(m[1]);
+        var unit = m[2].toLowerCase();
+        var seconds = unit === 's' ? val : unit === 'm' ? val * 60 : val * 3600;
+        var label = (m[3] || "").trim();
+        if (seconds > 0 && seconds <= 86400) startTimer(label || "Timer", seconds);
+    }
+
+    // Lanza una alarma desde un atajo rápido (action tipo "alarm 7:30 despertar")
+    function _runAlarmFromShortcut(action) {
+        var args = action.trim().replace(/^alarm\s*/i, "").trim();
+        if (/^(clear|cancel)\s*$/i.test(args)) { clearAllAlarms(); return; }
+        var m = args.match(/^(\d{1,2}):(\d{2})\s*(.*)$/);
+        if (!m) return;
+        var hour = parseInt(m[1]);
+        var minute = parseInt(m[2]);
+        if (hour < 0 || hour >= 24 || minute < 0 || minute >= 60) return;
+        var rest = (m[3] || "").trim();
+        var days = [];
+        var dayParse = rest.match(/([L M X J V S D]+)$/i);
+        if (dayParse) {
+            var dayStr = dayParse[1].toUpperCase();
+            var dayMap = { 'L': 1, 'M': 2, 'X': 3, 'J': 4, 'V': 5, 'S': 6, 'D': 0 };
+            for (var dk = 0; dk < dayStr.length; dk++) {
+                var dval = dayMap[dayStr[dk]];
+                if (dval !== undefined && days.indexOf(dval) < 0) days.push(dval);
+            }
+            rest = rest.substring(0, rest.length - dayParse[0].length).trim();
+        }
+        var label = rest || "Alarma";
+        setAlarm(label, hour, minute, days);
     }
 
     // ── Terminal embebida (QMLTermWidget) ────────────────────────────────────
@@ -2830,38 +2911,33 @@ PanelWindow {
             }
         }
 
-        // ── Atajos personalizados (config → customShortcuts) ──────────────
-        if (Config.hax.customShortcuts && Config.hax.customShortcuts.length > 0) {
-            for (var si = 0; si < Config.hax.customShortcuts.length; si++) {
-                var shortcut = Config.hax.customShortcuts[si];
+        // ── Acciones rápidas (config → customShortcuts, guardado como string JSON) ──
+        if (haxShortcutsList && haxShortcutsList.length > 0) {
+            for (var si = 0; si < haxShortcutsList.length; si++) {
+                var shortcut = haxShortcutsList[si];
                 var kw = shortcut.keywords || [];
+                var scName = (shortcut.name && shortcut.name.length > 0) ? shortcut.name : shortcut.action;
+                var exact = false;
                 for (var ki = 0; ki < kw.length; ki++) {
-                    if (query === kw[ki].toLowerCase().trim()) {
-                        var iconChar = shortcut.type === "app" ? "🚀"
-                            : shortcut.type === "web" ? "🌐"
-                            : shortcut.type === "command" ? "⚡"
-                            : "⚡";
-                        newResults.push({
-                            name: iconChar + " " + shortcut.action,
-                            description: "Atajo personalizado — escribe «" + kw.join(", ") + "»",
-                            icon: Icons.notepad,
-                            type: "info",
-                            exec: function(action, type) {
-                                return function() {
-                                    if (type === "command") {
-                                        bash(action);
-                                    } else if (type === "web") {
-                                        Qt.openUrlExternally(action);
-                                    } else {
-                                        // type "app" o por defecto: lanzar app
-                                        bash(action);
-                                    }
-                                    Visibilities.setActiveModule("");
-                                };
-                            }(shortcut.action, shortcut.type)
-                        });
-                        break;
-                    }
+                    if (query === kw[ki].toLowerCase().trim()) { exact = true; break; }
+                }
+                var byName = query.length > 0 && scName.toLowerCase().indexOf(query) >= 0;
+                if (exact || byName) {
+                    var iconChar = shortcut.type === "app" ? "🚀"
+                        : shortcut.type === "web" ? "🌐"
+                        : shortcut.type === "command" ? "⚡"
+                        : "⚡";
+                    var scResult = {
+                        name: iconChar + " " + scName,
+                        description: "Acción rápida — escribe «" + kw.join(", ") + "»",
+                        icon: Icons.notepad,
+                        type: "shortcut",
+                        exec: (function(sc) {
+                            return function() { launchShortcut(sc); };
+                        })(shortcut)
+                    };
+                    if (exact) newResults.unshift(scResult);   // prioridad: el atajo exacto va primero
+                    else newResults.push(scResult);
                 }
             }
         }
