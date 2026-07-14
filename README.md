@@ -68,6 +68,7 @@
 | 🐞 **Modo desarrollador (debug)** | Escribe `d`, `dev` o `debug` → la opción **🐞 Modo desarrollador (debug)** aparece la **primera** en la lista. Pulsa **Enter** (o clic) para abrir un panel **persistente abajo**, con errores capturados, tiempos de carga (apertura + última búsqueda + sesión) y consumo de recursos del propio Hax (memoria/CPU). Ciérralo con el botón **✕** o **Esc** |
 | 📋 **Historial inteligente** | con **Enter** copia el resultado, y para abrir el historial solo pon en el buscador `history` |
 | 🎯 **Autocompletado inline** | Mientras escribes, Hax sugiere en gris el resultado que coincide; acepta con **Tab** / **→** |
+| ⚙️ **Panel de configuración** | Escribe `config` para abrir el panel de configuración de Hax: activar OCR, cambiar color, gestionar acciones rápidas personalizadas y más |
 | 📖 **Glosario / Diccionario** | Escribe `g`, `glo` o `glosario` y pulsa **Enter**: Hax entra en modo diccionario y se queda esperando la palabra. Al escribirla, la **definición aparece en vivo abajo** (es→en, vía Wiktionary). **Enter** copia la definición, **Esc** sale del modo |
 
 ---
@@ -176,6 +177,7 @@ hl.bind("SUPER + Slash", hl.dsp.exec_cmd('qs -p "/ruta/a/tu-shell/modules/widget
 | update | Actualizar sistema (pacman -Syu) |
 | remove firefox | Desinstalar paquete |
 | stats / monitor | Monitor del sistema con CPU, RAM, disco y temperatura en vivo |
+| config | Abre el **panel de configuración de Hax**: OCR, color, acciones rápidas personalizadas |
 | d / dev / debug | Abre el **Modo desarrollador (debug)** — panel con errores, tiempos y recursos de Hax (abajo, donde el monitor) |
 | ayuda / help / ? | Muestra la ayuda completa |
 | reindexar / ocr | **Live Text:** reindexa todas tus imágenes (vuelve a leer el texto con OCR) |
