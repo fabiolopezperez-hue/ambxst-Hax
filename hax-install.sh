@@ -4,21 +4,17 @@ set -euo pipefail
 # ═══════════════════════════════════════════════════════════════
 # Hax — Installer
 # ═══════════════════════════════════════════════════════════════
-# Instala Hax (el spotlight/launcher de Axenide) con todas
-# sus dependencias sobre Ambxst.
+# Instala Hax (el spotlight/launcher de Axenide) sobre Ambxst.
 #
 # ¿Qué instala?
-#   • Hax (SpotlightView.qml) — buscador universal
-#   • Servicios: Visibilities, GlobalShortcuts, LockscreenService,
-#     Screenshot, WeatherService, AppSearch, AxctlService, SuspendManager
-#   • GlobalStates
-#   • Theme: Colors, Icons, Styling
-#   • Componentes: StyledRect
-#   • Config + defaults
-#   • Scripts: google_lens.sh, weather.sh
-#   • Fuente de iconos Phosphor (bundleada en assets/fonts, se instala en ~/.local/share/fonts)
-#   • shell.qml (entry point con el Loader de Hax — solo si no existe; lo provee la shell host)
+#   • Hax (SpotlightView.qml + qmldir) — buscador universal (~4577 líneas)
+#   • Config.qml — con persistencia de acciones rápidas
+#   • config/defaults/hax.js — defaults de Hax
+#   • assets/presets/.../hax.json — preset inicial
 #   • Terminal embebida: qmltermwidget (plugin QML que compila contra Qt6)
+#
+# El resto (servicios, theme, componentes, scripts, fuentes) los provee
+# Ambxst, que se instala automáticamente si no está presente.
 # ═══════════════════════════════════════════════════════════════
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -329,64 +325,18 @@ install_qmltermwidget \
   || log_warn "No se pudo instalar qmltermwidget — la terminal embebida no funcionará, pero Hax se instala igual."
 
 # ── 4c. Fuente de iconos Phosphor ──
-# Hax usa la fuente Phosphor (Icons.qml) para los glifos de iconos.
-# Se bundlea en assets/fonts y se instala en ~/.local/share/fonts.
-install_fonts() {
-  local FONT_SRC="$REPO_DIR/assets/fonts"
-  if [[ ! -d "$FONT_SRC" ]]; then
-    log_info "No hay fuentes empaquetadas en el repo — saltando instalación de fuentes."
-    return 0
-  fi
-  local FONT_DST="$HOME/.local/share/fonts/Hax"
-  mkdir -p "$FONT_DST"
-  local needs_update=0
-  for f in "$FONT_SRC"/*.ttf; do
-    [[ -e "$f" ]] || continue
-    local base; base="$(basename "$f")"
-    if [[ ! -f "$FONT_DST/$base" ]]; then
-      cp "$f" "$FONT_DST/$base"
-      needs_update=1
-    fi
-  done
-  if [[ $needs_update -eq 1 ]]; then
-    log_info "Instalando fuente de iconos Phosphor en $FONT_DST..."
-    fc-cache -f "$FONT_DST" >/dev/null 2>&1 || true
-    log_success "Fuente Phosphor instalada (iconos de Hax garantizados)."
-  else
-    log_info "Fuente Phosphor ya está instalada."
-  fi
-}
-install_fonts
+# La fuente Phosphor la provee Ambxst — no se empaqueta en el repo.
 
 # ── 5. Instalar Hax + dependencias en la shell ────────────────
 log_info "Instalando Hax en $SHELL_SRC..."
 
-# Crear estructura de directorios si no existe
+# Crear estructura de directorios donde va Hax
 mkdir -p "$SHELL_SRC/modules/widgets"
-mkdir -p "$SHELL_SRC/modules/services"
-mkdir -p "$SHELL_SRC/modules/globals"
-mkdir -p "$SHELL_SRC/modules/theme"
-mkdir -p "$SHELL_SRC/modules/components"
-mkdir -p "$SHELL_SRC/modules/tools"
 mkdir -p "$SHELL_SRC/config/defaults"
-mkdir -p "$SHELL_SRC/scripts"
 mkdir -p "$SHELL_SRC/assets/presets"
 
 # Módulos propios de Hax
 cp -r "$REPO_DIR/modules/widgets/spotlight"   "$SHELL_SRC/modules/widgets/"
-
-# Dependencias (servicios, theme, etc.)
-cp    "$REPO_DIR/modules/services/"*.qml      "$SHELL_SRC/modules/services/" 2>/dev/null || true
-cp    "$REPO_DIR/modules/globals/"*.qml       "$SHELL_SRC/modules/globals/" 2>/dev/null || true
-cp    "$REPO_DIR/modules/theme/"*.qml         "$SHELL_SRC/modules/theme/" 2>/dev/null || true
-cp    "$REPO_DIR/modules/components/"*.qml    "$SHELL_SRC/modules/components/" 2>/dev/null || true
-cp -n "$REPO_DIR/modules/tools/"*.qml         "$SHELL_SRC/modules/tools/" 2>/dev/null || true
-
-# Scripts de servicio (google_lens.sh, weather.sh)
-cp -n "$REPO_DIR/scripts/"*.sh                "$SHELL_SRC/scripts/" 2>/dev/null || true
-
-# JS de configuración (KeybindActions, ConfigValidator)
-cp -n "$REPO_DIR/config/"*.js                 "$SHELL_SRC/config/" 2>/dev/null || true
 
 # Config (SIEMPRE se sobrescribe — Hax necesita su versión con persistencia)
 if [[ -f "$SHELL_SRC/config/Config.qml" ]]; then
