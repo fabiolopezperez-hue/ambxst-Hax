@@ -4012,6 +4012,7 @@ PanelWindow {
 
     // ── Búsqueda de archivos ───────────────────────────────────────────────
     property var currentSearch: null
+    property var currentSystemSearch: null
 
     function startFileSearch(query) {
         if (query.length < 2) return;
@@ -4019,11 +4020,16 @@ PanelWindow {
         // Guardar la generación actual para evitar resultados obsoletos
         var gen = searchGeneration;
         
-        // Cancelar búsqueda anterior si aún corre
+        // Cancelar búsquedas anteriores si aún corren
         if (currentSearch) {
             currentSearch.running = false;
             currentSearch.destroy();
             currentSearch = null;
+        }
+        if (currentSystemSearch) {
+            currentSystemSearch.running = false;
+            currentSystemSearch.destroy();
+            currentSystemSearch = null;
         }
         
         const home = Quickshell.env("HOME") || "/home/fabio";
@@ -4031,7 +4037,11 @@ PanelWindow {
         const q = query.replace(/[^a-zA-Z0-9\u00C0-\u024F\u0400-\u04FF_.-\s]/g, "");
         if (q.length < 2) return;
         
-        // Crear el proceso de find
+        var fileAccum = [];
+        var systemAccum = [];
+        var pendingSearches = 2;
+        
+        // ── Búsqueda 1: Home del usuario (rápido) ──
         var proc = Qt.createQmlObject(
             'import Quickshell.Io; Process { stdout: SplitParser {} }', 
             spotlight
@@ -4043,18 +4053,19 @@ PanelWindow {
             home + "/Escritorio",
             home,
             "-maxdepth", "4",
+            "-not", "-path", "*/\.cache/*",
+            "-not", "-path", "*/node_modules/*",
+            "-not", "-path", "*/.git/*",
+            "-not", "-path", "*/venv/*",
+            "-not", "-path", "*/__pycache__/*",
             "-iname", "*" + q + "*",
             "-type", "f"
         ];
-        
-        var fileAccum = [];
         proc.stdout.onRead.connect(function(data) {
-            // Si la generación cambió, estos resultados ya no sirven
             if (gen !== searchGeneration) return;
             var line = data.trim();
             if (line.length === 0) return;
             var fname = line.split("/").pop();
-            // Comprobar duplicados en el mismo batch
             var isDup = false;
             for (var fi = 0; fi < fileAccum.length; fi++) {
                 if (fileAccum[fi].name === fname) { isDup = true; break; }
@@ -4067,7 +4078,6 @@ PanelWindow {
                     icon: Icons.file,
                     type: "file",
                     exec: function() {
-                        // Mismo patrón que AppSearch.runInActiveWorkspace (funciona siempre)
                         var safePath = capturedLine.replace(/'/g, "'\\''");
                         var p = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
                         p.command = ["bash", "-c",
@@ -4079,24 +4089,80 @@ PanelWindow {
                 });
             }
         });
-        
         proc.onExited.connect(function(code) {
-            // Si la generación cambió, descartar resultados obsoletos
-            if (gen !== searchGeneration) {
-                proc.destroy();
-                if (currentSearch === proc) currentSearch = null;
-                return;
-            }
-            if (fileAccum.length > 0) {
-                // Crear copia + nuevos resultados para que QML detecte el cambio
-                results = results.concat(fileAccum);
-            }
+            if (gen !== searchGeneration) { try { proc.destroy(); } catch (e) {} return; }
+            if (fileAccum.length > 0) results = results.concat(fileAccum);
             proc.destroy();
             if (currentSearch === proc) currentSearch = null;
+            pendingSearches--;
+            if (pendingSearches <= 0 && systemAccum.length > 0) results = results.concat(systemAccum);
         });
-        
         currentSearch = proc;
         proc.running = true;
+        
+        // ── Búsqueda 2: Carpetas del sistema + ocultas ──
+        var sysProc = Qt.createQmlObject(
+            'import Quickshell.Io; Process { stdout: SplitParser {} }', 
+            spotlight
+        );
+        sysProc.command = [
+            "find",
+            home + "/.config",
+            "/usr/share",
+            "/etc",
+            "/opt",
+            "-maxdepth", "3",
+            "-not", "-path", "*/\.cache/*",
+            "-not", "-path", "*/node_modules/*",
+            "-not", "-path", "*/.git/*",
+            "-not", "-path", "*/venv/*",
+            "-not", "-path", "*/__pycache__/*",
+            "-iname", "*" + q + "*",
+            "-type", "f"
+        ];
+        sysProc.stdout.onRead.connect(function(data) {
+            if (gen !== searchGeneration) return;
+            var line = data.trim();
+            if (line.length === 0) return;
+            var fname = line.split("/").pop();
+            // Evitar duplicados con resultados del home
+            var isDup = false;
+            for (var si = 0; si < systemAccum.length; si++) {
+                if (systemAccum[si].name === fname) { isDup = true; break; }
+            }
+            if (!isDup) {
+                for (var hi = 0; hi < fileAccum.length; hi++) {
+                    if (fileAccum[hi].name === fname) { isDup = true; break; }
+                }
+            }
+            if (!isDup && systemAccum.length < 3) {
+                var capturedLine = line;
+                systemAccum.push({
+                    name: fname,
+                    description: capturedLine,
+                    icon: Icons.file,
+                    type: "file",
+                    exec: function() {
+                        var safePath = capturedLine.replace(/'/g, "'\\''");
+                        var p = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+                        p.command = ["bash", "-c",
+                            "cd ~ && env -u HL_INITIAL_WORKSPACE_TOKEN setsid thunar '" + safePath + "' < /dev/null > /dev/null 2>&1 &"];
+                        p.onExited.connect(() => p.destroy());
+                        p.running = true;
+                        Visibilities.setActiveModule("");
+                    }
+                });
+            }
+        });
+        sysProc.onExited.connect(function(code) {
+            if (gen !== searchGeneration) { try { sysProc.destroy(); } catch (e) {} return; }
+            sysProc.destroy();
+            if (currentSystemSearch === sysProc) currentSystemSearch = null;
+            pendingSearches--;
+            if (pendingSearches <= 0 && systemAccum.length > 0) results = results.concat(systemAccum);
+        });
+        currentSystemSearch = sysProc;
+        sysProc.running = true;
 
         // ── Live Text: también buscar en el texto de las imágenes (OCR) ──
         (function() {
