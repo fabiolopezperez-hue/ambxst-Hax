@@ -397,7 +397,7 @@ Distribuido bajo licencia MIT. Partes del código derivadas de [Ambxst](https://
 
 ---
 
-> 💖 **Hax v4.0 LTS** — Hecho con amor por Fabio y Maria.
+> **Hax v4.0 LTS**
 > Si usas Hax y te gusta, una estrella ⭐ en GitHub alegra el día.
 > ¿Un bug? [Abre un issue](https://github.com/fabiolopezperez-hue/ambxst-Hax/issues).
 > ¿Quieres más funciones? **Haz un fork** — el código es tuyo también.
