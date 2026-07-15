@@ -8,7 +8,7 @@
 
 > 🏆 **v4.0 LTS — Versión estable de largo plazo.** A partir de ahora solo habrá correcciones de bugs y ajustes estéticos. Hax está completo y listo para el día a día.
 >
-> 📊 `SpotlightView.qml` pesa **~4577 líneas** de QML/JS puro.
+> 📊 `SpotlightView.qml` pesa **~5050 líneas** de QML/JS puro.
 
 > ⚠️ Hax se instala **sobre Ambxst**. Este repo contiene solo los archivos de Hax y nuestras modificaciones. Ambxst se instala primero (automáticamente con `hax-install.sh`) y luego Hax se inyecta encima.
 
@@ -64,7 +64,7 @@
 | 🗑️ **Desinstalar** | `remove paquete` |
 | 🌐 **Búsqueda web** | Cualquier texto que no sea comando se busca en Google |
 | 📖 **Ayuda integrada** | Escribe `ayuda`, `help` o `?` para ver todos los comandos |
-| 👁 **Vista rápida (Quick Look)** | 100% teclado: navega con **↑/↓** y los archivos se previsualizan solos dentro de Hax (imágenes renderizadas, texto/binario leído al instante). Cierra con ✕ o **Esc** |
+| 🪟 **Hax View (Workspace Grid)** | Escribe `show` para abrir una **cuadrícula visual** de todos tus espacios de trabajo con las ventanas en miniatura en vivo. Navega con **↑↓←→** y pulsa **Enter** para ir a la ventana seleccionada. Compatible con Hyprland (usa hyprctl para cambiar de workspace/enfocar). |
 | 🐞 **Modo desarrollador (debug)** | Escribe `d`, `dev` o `debug` → la opción **🐞 Modo desarrollador (debug)** aparece la **primera** en la lista. Pulsa **Enter** (o clic) para abrir un panel **persistente abajo**, con errores capturados, tiempos de carga (apertura + última búsqueda + sesión) y consumo de recursos del propio Hax (memoria/CPU). Ciérralo con el botón **✕** o **Esc** |
 | 📋 **Historial inteligente** | con **Enter** copia el resultado, y para abrir el historial solo pon en el buscador `history` |
 | 🎯 **Autocompletado inline** | Mientras escribes, Hax sugiere en gris el resultado que coincide; acepta con **Tab** / **→** |
@@ -179,6 +179,7 @@ hl.bind("SUPER + Slash", hl.dsp.exec_cmd('qs -p "/ruta/a/tu-shell/modules/widget
 | stats / monitor | Monitor del sistema con CPU, RAM, disco y temperatura en vivo |
 | config | Abre el **panel de configuración de Hax**: OCR, color, acciones rápidas personalizadas |
 | d / dev / debug | Abre el **Modo desarrollador (debug)** — panel con errores, tiempos y recursos de Hax (abajo, donde el monitor) |
+| show | Abre el **Hax View**: cuadrícula visual con todos los workspaces y sus ventanas en miniatura en vivo. Navega con **↑↓←→**, pulsa **Enter** para ir a la ventana, **Esc** para cerrar |
 | ayuda / help / ? | Muestra la ayuda completa |
 | reindexar / ocr | **Live Text:** reindexa todas tus imágenes (vuelve a leer el texto con OCR) |
 | / | Abre la **terminal embebida** (PTY real) dentro de Hax |
@@ -191,7 +192,9 @@ hl.bind("SUPER + Slash", hl.dsp.exec_cmd('qs -p "/ruta/a/tu-shell/modules/widget
 | Super + / | Abrir Hax |
 | ↑ / ↓ | Navegar resultados / scroll en terminal |
 | Tab / → | Aceptar sugerencia de autocompletado |
-| Esc | Cerrar / cerrar monitor / cerrar modo debug |
+| ↑↓←→ | Navegar ventanas en el **Hax View** (cuando está abierto con `show`) |
+| Enter | Ir a la ventana seleccionada en el **Hax View** |
+| Esc | Cerrar / cerrar monitor / cerrar modo debug / cerrar Hax View |
 | historial / clip | Muestra el historial de copias |
 
 
@@ -215,7 +218,7 @@ ambxst-Hax/
 ├── modules/
 │   └── widgets/spotlight/
 │       ├── qmldir                        # Registro del módulo
-│       └── SpotlightView.qml             # 🧠 Todo Hax (~4577 líneas)
+│               └── SpotlightView.qml             # 🧠 Todo Hax (~5050 líneas)
 └── screenshots/
     ├── hax-search-bar.png
     ├── new-animation-Hax.mp4
@@ -224,7 +227,7 @@ ambxst-Hax/
     └── terminal-Hax.png`
 ```
 
-**Nota:** A diferencia de otros launchers, Hax es **monolítico** por diseño — todo el código vive en un solo archivo `SpotlightView.qml` (~4577 líneas). Esto evita la fragmentación y hace que sea fácil de mantener y modificar.
+**Nota:** A diferencia de otros launchers, Hax es **monolítico** por diseño — todo el código vive en un solo archivo `SpotlightView.qml` (~5050 líneas). Esto evita la fragmentación y hace que sea fácil de mantener y modificar.
 
 > Este repo contiene **solo los archivos de Hax** que modificamos. El resto de dependencias (servicios, theme, componentes, scripts) las provee Ambxst, que se instala primero. Si tu shell ya los tiene, el instalador no los duplica.
 
@@ -253,6 +256,12 @@ El instalador:
 ### v4.0 LTS — Julio 2026 — 🏆 Versión estable de largo plazo
 
 Hax alcanza la madurez. **A partir de esta versión, no habrá nuevas funciones.** Solo correcciones de bugs y ajustes estéticos.
+
+#### 🪟 Hax View — Cuadrícula visual de workspaces
+- **🖥️ Vista en vivo de todos los workspaces** — Escribe `show` para abrir una cuadrícula 16:9 con miniaturas en vivo (ScreencopyView) de todas las ventanas abiertas, agrupadas por espacio de trabajo.
+- **⌨️ Navegación total con teclado** — **↑↓** navegan entre ventanas, **←→** saltan entre workspaces, **Enter** cambia al workspace y enfoca la ventana seleccionada, **Esc** cierra la vista.
+- **📐 Grid adaptativo** — Cada workspace se muestra como una tarjeta 16:9. Las ventanas se distribuyen en un grid que las rellena sin desbordar: 1 ventana → ocupa todo, 2 → lado a lado, 3-4 → 2×2, 5-6 → 3×2. Más de 6 → indicador "+X".
+- **🔄 Actualización automática** — Un timer interno refresca el grid cada 2 segundos para reflejar cambios de ventanas en tiempo real.
 
 #### 🎯 Acciones rápidas personalizadas (persistencia real)
 - **⚡ `customShortcuts`** — Añade, edita y elimina acciones rápidas desde el panel de configuración de Hax. Ahora **persisten** de verdad tras reiniciar Quickshell o el sistema.
