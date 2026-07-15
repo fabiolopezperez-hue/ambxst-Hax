@@ -267,6 +267,7 @@ PanelWindow {
         debugErrorLog = debugErrorLog.slice(-50);
     }
     property int selectedIndex: 0
+    property int windowGridSelectedIndex: 0
     property bool showTerminal: false
 
     // Seguir la selección en la lista de resultados (scroll automático)
@@ -688,6 +689,17 @@ PanelWindow {
                             }
 
                             Keys.onUpPressed: {
+                                if (spotlight.showWindowGrid) {
+                                    // Navegar grid de ventanas
+                                    var totalWindows = 0;
+                                    for (var i = 0; i < spotlight.windowGridData.length; i++) {
+                                        totalWindows += Math.min(spotlight.windowGridData[i].windows.length, 6);
+                                    }
+                                    if (spotlight.windowGridSelectedIndex > 0) {
+                                        spotlight.windowGridSelectedIndex--;
+                                    }
+                                    return;
+                                }
                                 var termOverflow = cmdFlickable.contentHeight > cmdFlickable.height;
                                 if ((cmdProcess !== null || _lastCmdVisible || _forceTerminal) && termOverflow) {
                                     // Scroll terminal (solo si hay contenido que desborda)
@@ -710,6 +722,17 @@ PanelWindow {
                             }
 
                             Keys.onDownPressed: {
+                                if (spotlight.showWindowGrid) {
+                                    // Navegar grid de ventanas
+                                    var totalWindows = 0;
+                                    for (var i = 0; i < spotlight.windowGridData.length; i++) {
+                                        totalWindows += Math.min(spotlight.windowGridData[i].windows.length, 6);
+                                    }
+                                    if (spotlight.windowGridSelectedIndex < totalWindows - 1) {
+                                        spotlight.windowGridSelectedIndex++;
+                                    }
+                                    return;
+                                }
                                 var termOverflow = cmdFlickable.contentHeight > cmdFlickable.height;
                                 if ((cmdProcess !== null || _lastCmdVisible || _forceTerminal) && termOverflow) {
                                     // Scroll terminal (solo si hay contenido que desborda)
@@ -737,6 +760,12 @@ PanelWindow {
                             // Enter, Tab, flecha derecha, Ctrl+C, Esc
                             Keys.onPressed: (event) => {
                 if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                    if (spotlight.showWindowGrid) {
+                        // Enter en grid de ventanas → ir a la seleccionada
+                        spotlight.goToSelectedWindow();
+                        event.accepted = true;
+                        return;
+                    }
                     if (spotlight.dictMode) {
                         if (spotlight.dictResultText.length > 0) {
                             var dp = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
@@ -775,6 +804,43 @@ PanelWindow {
                                     // Aceptar sugerencia
                                     searchInput.text = text + autoCompleteSuffix;
                                     searchInput.cursorPosition = searchInput.text.length;
+                                    event.accepted = true;
+                                } else if (spotlight.showWindowGrid && event.key === Qt.Key_Left) {
+                                    // ←: ir al workspace anterior
+                                    var prevWs = -1;
+                                    for (var li = spotlight.windowGridData.length - 1; li >= 0; li--) {
+                                        if (spotlight.windowGridData[li].offset < spotlight.windowGridSelectedIndex) {
+                                            prevWs = li;
+                                            break;
+                                        }
+                                    }
+                                    if (prevWs >= 0) {
+                                        spotlight.windowGridSelectedIndex = spotlight.windowGridData[prevWs].offset;
+                                    } else if (spotlight.windowGridData.length > 0) {
+                                        // Ir al último si estamos en el primero
+                                        var last = spotlight.windowGridData[spotlight.windowGridData.length - 1];
+                                        spotlight.windowGridSelectedIndex = last.offset + Math.min(last.windows.length, 6) - 1;
+                                    }
+                                    event.accepted = true;
+                                } else if (spotlight.showWindowGrid && event.key === Qt.Key_Right) {
+                                    // →: ir al siguiente workspace
+                                    var nextWs = -1;
+                                    for (var ri = 0; ri < spotlight.windowGridData.length; ri++) {
+                                        var wsOff = spotlight.windowGridData[ri].offset;
+                                        var wsLen = Math.min(spotlight.windowGridData[ri].windows.length, 6);
+                                        if (spotlight.windowGridSelectedIndex >= wsOff && spotlight.windowGridSelectedIndex < wsOff + wsLen) {
+                                            if (ri + 1 < spotlight.windowGridData.length) {
+                                                nextWs = ri + 1;
+                                            }
+                                            break;
+                                        }
+                                    }
+                                    if (nextWs >= 0) {
+                                        spotlight.windowGridSelectedIndex = spotlight.windowGridData[nextWs].offset;
+                                    } else if (spotlight.windowGridData.length > 0) {
+                                        // Ir al primero si estamos en el último
+                                        spotlight.windowGridSelectedIndex = spotlight.windowGridData[0].offset;
+                                    }
                                     event.accepted = true;
                                 } else if (event.key === Qt.Key_C && (event.modifiers & Qt.ControlModifier)) {
                                     // Ctrl+C → copiar resultado seleccionado
@@ -1567,11 +1633,24 @@ PanelWindow {
 
                                                     delegate: Item {
                                                         readonly property var win: ws.windows[index]
+                                                        readonly property bool isSelected: win && win.globalIdx === spotlight.windowGridSelectedIndex
                                                         width: cellW
                                                         height: cellH
 
+                                                        // Resalte de selección (background glow)
+                                                        Rectangle {
+                                                            anchors.fill: parent
+                                                            radius: 3
+                                                            color: Styling.srItem("overprimary")
+                                                            opacity: isSelected ? 0.15 : 0
+                                                            border.color: isSelected ? Styling.srItem("overprimary") : "transparent"
+                                                            border.width: isSelected ? 2 : 0
+                                                            Behavior on opacity { NumberAnimation { duration: 100 } }
+                                                        }
+
                                                         ClippingRectangle {
                                                             anchors.fill: parent
+                                                            anchors.margins: isSelected ? 3 : 0
                                                             radius: 2
                                                             antialiasing: true
                                                             color: "transparent"
@@ -3262,6 +3341,7 @@ PanelWindow {
             if (!showWindowGrid) {
                 showWindowGrid = true;
                 selectedIndex = 0;
+                windowGridSelectedIndex = 0;
                 // Construir el grid en el siguiente frame
                 Qt.callLater(function() { buildWindowGrid(); });
             }
@@ -4331,16 +4411,51 @@ PanelWindow {
                 toplevel: matched
             });
         }
+        // Calcular offset global para navegación con flechas
+        var flatIdx = 0;
         var result = [];
         var sorted = Object.keys(wsMap).sort(function(a,b) { return parseInt(a) - parseInt(b); });
         for (var k = 0; k < sorted.length; k++) {
-            result.push(wsMap[sorted[k]]);
+            var ws = wsMap[sorted[k]];
+            ws.offset = flatIdx;
+            // Asignar índice global a cada ventana (máximo 6 por workspace)
+            var n = Math.min(ws.windows.length, 6);
+            for (var j = 0; j < ws.windows.length; j++) {
+                ws.windows[j].globalIdx = j < n ? flatIdx + j : -1;
+            }
+            flatIdx += n;
+            result.push(ws);
         }
         windowGridData = result;
         // Calcular altura: columnas de workspace cards
         var cols = Math.max(1, Math.floor((contentColumn.width - 16) / 300));
         var rows = Math.ceil(result.length / cols);
         windowGridHeight = Math.min(rows * 195 + 8, 600);
+    }
+
+    // Va a la ventana seleccionada en el grid
+    function goToSelectedWindow() {
+        if (windowGridSelectedIndex < 0) return;
+        // Buscar qué workspace y ventana corresponde al índice global
+        for (var wsi = 0; wsi < windowGridData.length; wsi++) {
+            var ws = windowGridData[wsi];
+            var n = Math.min(ws.windows.length, 6);
+            if (windowGridSelectedIndex >= ws.offset && windowGridSelectedIndex < ws.offset + n) {
+                var win = ws.windows[windowGridSelectedIndex - ws.offset];
+                if (win && win.address) {
+                    var p1 = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+                    p1.command = ["hyprctl", "dispatch", "workspace", String(ws.id)];
+                    p1.onExited.connect(function() { try { p1.destroy(); } catch (e) {} });
+                    p1.running = true;
+                    var p2 = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+                    p2.command = ["hyprctl", "dispatch", "focuswindow", "address:" + win.address];
+                    p2.onExited.connect(function() { try { p2.destroy(); } catch (e) {} });
+                    p2.running = true;
+                    Visibilities.setActiveModule("");
+                }
+                break;
+            }
+        }
     }
 
     // ── Búsqueda de archivos ───────────────────────────────────────────────
