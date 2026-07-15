@@ -9,6 +9,7 @@ import qs.modules.globals
 import qs.modules.theme
 import qs.modules.services
 import qs.modules.components
+import qs.modules.bar.workspaces
 import qs.config
 import QMLTermWidget 2.0
 
@@ -293,6 +294,9 @@ PanelWindow {
 
     // ── Monitor del sistema ───────────────────────────────────────────────
     property bool showMonitor: false
+    property bool showWindowGrid: false
+    property var windowGridData: []
+    property real windowGridHeight: 300
     property real monCpu: 0
     property real monRamPct: 0
     property real monRamUsed: 0
@@ -552,6 +556,9 @@ PanelWindow {
             + (spotlight.showConfig
                 ? 8 + configPane.height
                 : 0)
+            + (spotlight.showWindowGrid
+                ? 8 + spotlight.windowGridHeight
+                : 0)
 
         // ── Contenido que aparece dentro mientras se transforma ────────────
         Column {
@@ -563,7 +570,7 @@ PanelWindow {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.margins: 16
-            spacing: (results.length > 0 || cmdProcess !== null || isCommandMode || _lastCmdVisible || _forceTerminal || _haxNotifications.length > 0 || showMonitor || spotlight.showDebug) ? 8 : 0
+            spacing: (results.length > 0 || cmdProcess !== null || isCommandMode || _lastCmdVisible || _forceTerminal || _haxNotifications.length > 0 || showMonitor || spotlight.showDebug || showWindowGrid) ? 8 : 0
 
                 // ── Campo de búsqueda ──────────────────────────────────────────
                 StyledRect {
@@ -656,6 +663,9 @@ PanelWindow {
                     spotlight.showDebug = false;
                 } else if (spotlight.dictMode) {
                     spotlight.exitDictMode();
+                } else if (spotlight.showWindowGrid) {
+                    spotlight.showWindowGrid = false;
+                    clear();
                 } else if (text.length > 0) {
                     clear();
                 } else {
@@ -1415,6 +1425,175 @@ PanelWindow {
                                 color: Styling.srItem("text")
                                 opacity: 0.06
                                 visible: index < results.length - 1
+                            }
+                        }
+                    }
+                }
+
+                // ── Grid visual de ventanas (comando "show") ────────────────────
+                StyledRect {
+                    id: windowGridPane
+                    width: contentColumn.width
+                    height: showWindowGrid ? windowGridHeight : 0
+                    visible: showWindowGrid
+                    variant: "pane"
+                    radius: Styling.radius(12)
+                    clip: true
+                    Behavior on height {
+                        enabled: Config.animDuration > 0
+                        NumberAnimation { duration: Config.animDuration * 3; easing.type: Easing.OutQuint }
+                    }
+                    Behavior on opacity {
+                        enabled: Config.animDuration > 0
+                        NumberAnimation { duration: Config.animDuration * 2; easing.type: Easing.OutQuint }
+                    }
+
+                    Column {
+                        width: parent.width
+                        anchors.fill: parent
+                        anchors.margins: 8
+                        spacing: 8
+
+                        Text {
+                            text: "🪟 Ventanas activas"
+                            font.bold: true
+                            font.pixelSize: Config.theme.fontSize
+                            color: Styling.srItem("text")
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            opacity: 0.7
+                        }
+
+                        // Mensaje si no hay ventanas
+                        Text {
+                            text: "No hay ventanas abiertas"
+                            font.pixelSize: Config.theme.fontSize - 1
+                            color: Styling.srItem("text")
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            opacity: 0.4
+                            visible: windowGridData.length === 0
+                        }
+
+                        // Workspace cards en flow
+                        Flow {
+                            id: windowGridFlow
+                            width: parent.width
+                            spacing: 8
+
+                            Repeater {
+                                model: windowGridData
+
+                                delegate: Item {
+                                    required property var modelData
+                                    readonly property var ws: modelData
+                                    readonly property int cardWidth: Math.min(200, (windowGridFlow.width - 8) / Math.max(1, Math.floor((windowGridFlow.width + 8) / 208)))
+                                    width: cardWidth
+                                    height: cardHeight
+                                    property real cardHeight: 36 + Math.min(ws.windows.length, 4) * 80 + (ws.windows.length > 4 ? 20 : 0)
+
+                                    // Card background
+                                    Rectangle {
+                                        anchors.fill: parent
+                                        radius: Styling.radius(8)
+                                        color: Styling.srItem("overprimary")
+                                        opacity: 0.06
+                                    }
+
+                                    Column {
+                                        anchors.fill: parent
+                                        anchors.margins: 6
+                                        spacing: 4
+
+                                        // Workspace header
+                                        Text {
+                                            text: "Espacio " + ws.id
+                                            font.bold: true
+                                            font.pixelSize: Config.theme.fontSize - 1
+                                            color: Styling.srItem("text")
+                                            opacity: 0.7
+                                        }
+
+                                        // Windows grid dentro del workspace
+                                        Flow {
+                                            width: parent.width
+                                            spacing: 4
+
+                                            Repeater {
+                                                model: ws.windows
+
+                                                delegate: Item {
+                                                    required property var modelData
+                                                    readonly property var win: modelData
+                                                    readonly property real winW: 80
+                                                    readonly property real winH: 64
+
+                                                    width: winW
+                                                    height: winH
+
+                                                    Rectangle {
+                                                        anchors.fill: parent
+                                                        radius: Styling.radius(4)
+                                                        color: Styling.srItem("overprimary")
+                                                        opacity: 0.1
+                                                        border.color: win.is_focused ? Styling.srItem("overprimary") : "transparent"
+                                                        border.width: win.is_focused ? 2 : 0
+
+                                                        // ScreencopyView (live preview)
+                                                        ScreencopyView {
+                                                            id: winPreview
+                                                            anchors.fill: parent
+                                                            anchors.margins: 1
+                                                            captureSource: win.toplevel
+                                                            live: showWindowGrid
+                                                            visible: win.toplevel !== null
+                                                            radius: Styling.radius(3)
+                                                        }
+
+                                                        // Fallback: icono de app
+                                                        Text {
+                                                            anchors.centerIn: parent
+                                                            text: "□"
+                                                            font.pixelSize: 24
+                                                            color: Styling.srItem("text")
+                                                            opacity: 0.4
+                                                            visible: !winPreview.hasContent || win.toplevel === null
+                                                        }
+                                                    }
+
+                                                    // Window title tooltip
+                                                    Text {
+                                                        anchors.top: parent.bottom
+                                                        anchors.topMargin: 2
+                                                        anchors.horizontalCenter: parent.horizontalCenter
+                                                        text: win.title
+                                                        font.pixelSize: Config.theme.fontSize - 4
+                                                        color: Styling.srItem("text")
+                                                        opacity: 0.5
+                                                        elide: Text.ElideRight
+                                                        width: winW
+                                                    }
+
+                                                    MouseArea {
+                                                        anchors.fill: parent
+                                                        cursorShape: Qt.PointingHandCursor
+                                                        onClicked: {
+                                                            (function(addr, wsId) {
+                                                                var p1 = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+                                                                p1.command = ["hyprctl", "dispatch", "workspace", String(wsId)];
+                                                                p1.onExited.connect(function() { p1.destroy(); });
+                                                                p1.running = true;
+                                                                var p2 = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+                                                                p2.command = ["hyprctl", "dispatch", "focuswindow", "address:" + addr];
+                                                                p2.onExited.connect(function() { p2.destroy(); });
+                                                                p2.running = true;
+                                                                Visibilities.setActiveModule("");
+                                                            })(win.address, ws.id);
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -3019,9 +3198,17 @@ PanelWindow {
 
         // ── Show: ventanas activas ──────────────────────────────────────────
         if (query === "show") {
-            results = [{ name: "🔄 Cargando ventanas…", description: "Obteniendo lista de ventanas activas con hyprctl", icon: Icons.notepad, type: "info", exec: null }];
-            startWindowSearch();
+            if (!showWindowGrid) {
+                showWindowGrid = true;
+                selectedIndex = 0;
+                // Construir el grid en el siguiente frame
+                Qt.callLater(function() { buildWindowGrid(); });
+            }
+            results = [];
             return;
+        } else if (query !== "show" && showWindowGrid) {
+            // Si se escribe cualquier otra cosa, cerrar el grid
+            showWindowGrid = false;
         }
 
         // ── Monitor del sistema ──────────────────────────────────────────────
@@ -4056,71 +4243,45 @@ PanelWindow {
         return results;
     }
 
-    // ── Show: ventanas activas (hyprctl) ────────────────────────────────────
-    function startWindowSearch() {
-        var proc = Qt.createQmlObject('import Quickshell.Io; Process { stdout: StdioCollector {} }', spotlight);
-        proc.command = ["hyprctl", "clients", "-j"];
-        proc.onExited.connect(function() {
-            try {
-                var out = (proc.stdout ? proc.stdout.text : "") || "";
-                if (out.trim().length === 0) {
-                    results = [{ name: "No hay ventanas activas", description: "hyprctl no devolvió datos", icon: "window", type: "info", exec: null }];
-                    try { proc.destroy(); } catch (e) {} return;
-                }
-                var windows = JSON.parse(out);
-                var wsMap = {};
-                for (var i = 0; i < windows.length; i++) {
-                    var w = windows[i];
-                    if (!w.mapped) continue;
-                    var wsId = w.workspace.id;
-                    if (!wsMap[wsId]) wsMap[wsId] = { id: wsId, windows: [] };
-                    wsMap[wsId].windows.push(w);
-                }
-                var wins = [];
-                var sorted = Object.keys(wsMap).sort(function(a,b) { return parseInt(a) - parseInt(b); });
-                for (var k = 0; k < sorted.length; k++) {
-                    var ws = wsMap[sorted[k]];
-                    // Separador visual de espacio de trabajo
-                    wins.push({ cat: true, label: "Espacio " + ws.id + "  ·  " + ws.windows.length + " ventana" + (ws.windows.length !== 1 ? "s" : "") });
-                    for (var j = 0; j < ws.windows.length; j++) {
-                        var win = ws.windows[j];
-                        var cls = win.class || "?";
-                        var title = win.title || "?";
-                        var iconName = cls;
-                        // Mapear clases conocidas a nombres de icono estándar
-                        if (cls === "code-oss") iconName = "code-oss";
-                        else if (cls === "zen") iconName = "zen";
-                        else if (cls === "firefox") iconName = "firefox";
-                        else if (cls === "org.kde.dolphin") iconName = "dolphin";
-                        else if (cls === "foot" || cls === "kitty" || cls === "alacritty") iconName = "terminal";
-                        (function(addr, wsId, cls, title, iconName) {
-                            wins.push({
-                                name: title,
-                                description: "Espacio " + wsId + " · " + cls,
-                                icon: iconName,
-                                type: "app",
-                                exec: function() {
-                                    var p1 = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
-                                    p1.command = ["hyprctl", "dispatch", "workspace", String(wsId)];
-                                    p1.onExited.connect(function() { p1.destroy(); });
-                                    p1.running = true;
-                                    var p2 = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
-                                    p2.command = ["hyprctl", "dispatch", "focuswindow", "address:" + addr];
-                                    p2.onExited.connect(function() { p2.destroy(); });
-                                    p2.running = true;
-                                    Visibilities.setActiveModule("");
-                                }
-                            });
-                        })(win.address, ws.id, cls, title, iconName);
-                    }
-                }
-                results = wins.length > 0 ? wins : [{ name: "Sin ventanas abiertas", description: "No hay ventanas activas en ningún workspace", icon: "window", type: "info", exec: null }];
-            } catch (e) {
-                results = [{ name: "Error al obtener ventanas", description: String(e), icon: "window", type: "info", exec: null }];
+    // ── Show: grid visual de ventanas (CompositorData + ScreencopyView) ────
+    function buildWindowGrid() {
+        var windows = CompositorData ? (CompositorData.windowList || []) : [];
+        var toplevels = ToplevelManager ? (ToplevelManager.toplevels.values || []) : [];
+        var wsMap = {};
+        for (var i = 0; i < windows.length; i++) {
+            var w = windows[i];
+            if (!w.mapped) continue;
+            var wsId = w.workspace.id;
+            if (!wsMap[wsId]) wsMap[wsId] = { id: wsId, windows: [] };
+            // Parear con Toplevel para ScreencopyView
+            var cls = w.class || "";
+            var matched = null;
+            if (cls) {
+                var candidates = toplevels.filter(function(t) { return t.appId === cls; });
+                if (candidates.length === 1) matched = candidates[0];
+                else if (candidates.length > 1)
+                    matched = candidates.find(function(t) { return t.title === (w.title || ""); }) || candidates[0];
             }
-            try { proc.destroy(); } catch (e) {}
-        });
-        proc.running = true;
+            wsMap[wsId].windows.push({
+                address: w.address,
+                class: cls,
+                title: w.title || "?",
+                at: w.at || [0, 0],
+                size: w.size || [100, 100],
+                is_focused: w.is_focused || false,
+                toplevel: matched
+            });
+        }
+        var result = [];
+        var sorted = Object.keys(wsMap).sort(function(a,b) { return parseInt(a) - parseInt(b); });
+        for (var k = 0; k < sorted.length; k++) {
+            result.push(wsMap[sorted[k]]);
+        }
+        windowGridData = result;
+        // Calcular altura: filas de workspaces * alto de cada card
+        var cols = Math.max(1, Math.floor((contentColumn.width - 16) / 200));
+        var rows = Math.ceil(result.length / cols);
+        windowGridHeight = Math.min(rows * 210 + 16, 500);
     }
 
     // ── Búsqueda de archivos ───────────────────────────────────────────────
