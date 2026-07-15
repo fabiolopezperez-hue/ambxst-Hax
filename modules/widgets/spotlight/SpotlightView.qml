@@ -2972,9 +2972,17 @@ PanelWindow {
                 { name: "🐞 d / dev / debug", description: "Abre el modo desarrollador (debug) con métricas en pantalla", icon: Icons.notepad, type: "info", exec: null },
                 { name: "🖼️ live / livetext / ocr / status", description: "Live Text (OCR) — busca texto DENTRO de imágenes", icon: Icons.notepad, type: "info", exec: null },
                 { name: "🖼️ reindexar / reindex", description: "Reindexa todas las imágenes con OCR (Tesseract)", icon: Icons.notepad, type: "info", exec: null },
+                { name: "🪟 show", description: "Muestra todas las ventanas abiertas agrupadas por espacio de trabajo", icon: Icons.notepad, type: "info", exec: null },
                 { name: "❓ ayuda / help / h / ?", description: "Muestra esta ayuda", icon: Icons.notepad, type: "info", exec: null }
             ];
             results = newResults;
+            return;
+        }
+
+        // ── Show: ventanas activas ──────────────────────────────────────────
+        if (query === "show") {
+            results = [{ name: "🔄 Cargando ventanas…", description: "Obteniendo lista de ventanas activas con hyprctl", icon: Icons.notepad, type: "info", exec: null }];
+            startWindowSearch();
             return;
         }
 
@@ -4008,6 +4016,65 @@ PanelWindow {
             }
         }
         return results;
+    }
+
+    // ── Show: ventanas activas (hyprctl) ────────────────────────────────────
+    function startWindowSearch() {
+        var proc = Qt.createQmlObject('import Quickshell.Io; Process { stdout: StdioCollector {} }', spotlight);
+        proc.command = ["hyprctl", "clients", "-j"];
+        proc.onExited.connect(function() {
+            try {
+                var out = (proc.stdout ? proc.stdout.text : "") || "";
+                if (out.trim().length === 0) {
+                    results = [{ name: "⚠️ No hay ventanas activas", description: "hyprctl no devolvió datos", icon: Icons.notepad, type: "info", exec: null }];
+                    try { proc.destroy(); } catch (e) {} return;
+                }
+                var windows = JSON.parse(out);
+                var wsMap = {};
+                for (var i = 0; i < windows.length; i++) {
+                    var w = windows[i];
+                    if (!w.mapped) continue;
+                    var wsId = w.workspace.id;
+                    if (!wsMap[wsId]) wsMap[wsId] = { id: wsId, windows: [] };
+                    wsMap[wsId].windows.push(w);
+                }
+                var wins = [];
+                var sorted = Object.keys(wsMap).sort(function(a,b) { return parseInt(a) - parseInt(b); });
+                for (var k = 0; k < sorted.length; k++) {
+                    var ws = wsMap[sorted[k]];
+                    wins.push({ cat: true, label: "Espacio " + ws.id + " (" + ws.windows.length + ")" });
+                    for (var j = 0; j < ws.windows.length; j++) {
+                        var win = ws.windows[j];
+                        var cls = win.class || "?";
+                        var title = win.title || "?";
+                        (function(addr, wsId, cls, title) {
+                            wins.push({
+                                name: cls,
+                                description: (title || "?") + " · Espacio " + wsId,
+                                icon: Icons.notepad,
+                                type: "window",
+                                exec: function() {
+                                    var p1 = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+                                    p1.command = ["hyprctl", "dispatch", "workspace", String(wsId)];
+                                    p1.onExited.connect(function() { p1.destroy(); });
+                                    p1.running = true;
+                                    var p2 = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+                                    p2.command = ["hyprctl", "dispatch", "focuswindow", "address:" + addr];
+                                    p2.onExited.connect(function() { p2.destroy(); });
+                                    p2.running = true;
+                                    Visibilities.setActiveModule("");
+                                }
+                            });
+                        })(win.address, ws.id, cls, title);
+                    }
+                }
+                results = wins.length > 0 ? wins : [{ name: "🪟 Sin ventanas abiertas", description: "No hay ventanas activas en ningún workspace", icon: Icons.notepad, type: "info", exec: null }];
+            } catch (e) {
+                results = [{ name: "⚠️ Error al obtener ventanas", description: String(e), icon: Icons.notepad, type: "info", exec: null }];
+            }
+            try { proc.destroy(); } catch (e) {}
+        });
+        proc.running = true;
     }
 
     // ── Búsqueda de archivos ───────────────────────────────────────────────
