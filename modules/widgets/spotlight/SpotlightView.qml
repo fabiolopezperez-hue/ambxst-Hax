@@ -1500,16 +1500,19 @@ PanelWindow {
                                     required property var modelData
                                     readonly property var ws: modelData
                                     readonly property int cardWidth: Math.min(280, (windowGridFlow.width - 8) / Math.max(1, Math.floor((windowGridFlow.width + 8) / 288)))
-                                    readonly property real cardContentW: cardWidth - 12  // menos márgenes
-                                    readonly property real viewW: cardContentW
+                                    readonly property real viewW: cardWidth - 12
                                     readonly property real viewH: viewW * 9 / 16
-                                    readonly property real scale: Math.min(viewW / ws.workspaceW, viewH / ws.workspaceH)
+                                    // Grid: columnas dinámicas (1, 2 o 3 según número de ventanas)
+                                    readonly property int n: Math.min(ws.windows.length, 6)
+                                    readonly property int gridCols: n <= 1 ? 1 : (n <= 2 ? 2 : (n <= 4 ? 2 : Math.min(3, n)))
+                                    readonly property int gridRows: Math.ceil(n / gridCols)
+                                    readonly property real cellW: (viewW - (gridCols - 1) * 4) / gridCols
+                                    readonly property real cellH: (viewH - (gridRows - 1) * 4) / gridRows
 
                                     width: cardWidth
-                                    // Altura = viewport 16:9 + espacio para header
-                                    height: viewH + 28
+                                    height: viewH + 28  // viewport 16:9 + header
 
-                                    // Card background (clickeable para cambiar de workspace)
+                                    // Card background (clickeable)
                                     Rectangle {
                                         anchors.fill: parent
                                         radius: Styling.radius(8)
@@ -1533,7 +1536,7 @@ PanelWindow {
                                         anchors.fill: parent
                                         anchors.margins: 6
 
-                                        // Workspace header arriba
+                                        // Workspace header
                                         Text {
                                             id: wsHeader
                                             text: "Espacio " + ws.id
@@ -1543,9 +1546,8 @@ PanelWindow {
                                             opacity: 0.6
                                         }
 
-                                        // Viewport del workspace — miniatura del escritorio
+                                        // Área de ventanas — Grid que llena el viewport sin desbordar
                                         Rectangle {
-                                            id: viewport
                                             anchors.top: wsHeader.bottom
                                             anchors.topMargin: 4
                                             anchors.horizontalCenter: parent.horizontalCenter
@@ -1555,91 +1557,101 @@ PanelWindow {
                                             color: "transparent"
                                             clip: true
 
-                                            // Ventanas posicionadas como en el escritorio real
-                                            Repeater {
-                                                model: ws.windows
+                                            Grid {
+                                                anchors.fill: parent
+                                                columns: gridCols
+                                                spacing: 4
 
-                                                delegate: Item {
-                                                    required property var modelData
-                                                    readonly property var win: modelData
-                                                    readonly property real wX: win.normX * scale
-                                                    readonly property real wY: win.normY * scale
-                                                    readonly property real wW: Math.max(20, win.size[0] * scale)
-                                                    readonly property real wH: Math.max(14, win.size[1] * scale)
+                                                Repeater {
+                                                    model: ws.windows.length > 6 ? 6 : ws.windows.length
 
-                                                    x: wX
-                                                    y: wY
-                                                    width: wW
-                                                    height: wH
+                                                    delegate: Item {
+                                                        readonly property var win: ws.windows[index]
+                                                        width: cellW
+                                                        height: cellH
 
-                                                    // ScreencopyView de la ventana (sin tinte)
-                                                    ClippingRectangle {
-                                                        anchors.fill: parent
-                                                        radius: 2
-                                                        antialiasing: true
-                                                        color: "transparent"
-                                                        border.color: win.is_focused ? Styling.srItem("overprimary") : Qt.rgba(1,1,1,0.15)
-                                                        border.width: win.is_focused ? 2 : 0
-
-                                                        ScreencopyView {
-                                                            id: winPreview
+                                                        ClippingRectangle {
                                                             anchors.fill: parent
-                                                            captureSource: win.toplevel
-                                                            live: showWindowGrid
-                                                            visible: win.toplevel !== null
+                                                            radius: 2
+                                                            antialiasing: true
+                                                            color: "transparent"
+                                                            border.color: win && win.is_focused ? Styling.srItem("overprimary") : Qt.rgba(1,1,1,0.12)
+                                                            border.width: win && win.is_focused ? 2 : 0
+
+                                                            ScreencopyView {
+                                                                id: winPreview
+                                                                anchors.fill: parent
+                                                                captureSource: win ? win.toplevel : null
+                                                                live: showWindowGrid
+                                                                visible: win && win.toplevel !== null
+                                                            }
+
+                                                            Text {
+                                                                anchors.centerIn: parent
+                                                                text: "□"
+                                                                font.pixelSize: Math.min(cellW, cellH) * 0.3
+                                                                color: Styling.srItem("text")
+                                                                opacity: 0.3
+                                                                visible: !win || !winPreview.hasContent || win.toplevel === null
+                                                            }
                                                         }
 
-                                                        // Fallback
-                                                        Text {
-                                                            anchors.centerIn: parent
-                                                            text: "□"
-                                                            font.pixelSize: Math.min(wW, wH) * 0.4
-                                                            color: Styling.srItem("text")
-                                                            opacity: 0.3
-                                                            visible: !winPreview.hasContent || win.toplevel === null
+                                                        // Overlay título (solo si la celda es suficientemente grande)
+                                                        Rectangle {
+                                                            anchors.left: parent.left
+                                                            anchors.right: parent.right
+                                                            anchors.bottom: parent.bottom
+                                                            height: Math.min(14, parent.height * 0.2)
+                                                            color: "#80000000"
+                                                            visible: win && win.title.length > 0 && cellH > 24
+
+                                                            Text {
+                                                                anchors.fill: parent
+                                                                anchors.leftMargin: 2
+                                                                anchors.rightMargin: 2
+                                                                text: win ? win.title : ""
+                                                                font.pixelSize: Math.min(9, cellH * 0.12)
+                                                                color: "white"
+                                                                elide: Text.ElideRight
+                                                                verticalAlignment: Text.AlignVCenter
+                                                            }
                                                         }
-                                                    }
 
-                                                    // Overlay título
-                                                    Rectangle {
-                                                        anchors.left: parent.left
-                                                        anchors.right: parent.right
-                                                        anchors.bottom: parent.bottom
-                                                        height: Math.min(14, parent.height * 0.2)
-                                                        color: "#80000000"
-                                                        visible: win.title.length > 0 && wH > 20
-
-                                                        Text {
+                                                        MouseArea {
                                                             anchors.fill: parent
-                                                            anchors.leftMargin: 2
-                                                            anchors.rightMargin: 2
-                                                            text: win.title
-                                                            font.pixelSize: Math.min(8, wH * 0.12)
-                                                            color: "white"
-                                                            elide: Text.ElideRight
-                                                            verticalAlignment: Text.AlignVCenter
-                                                        }
-                                                    }
-
-                                                    MouseArea {
-                                                        anchors.fill: parent
-                                                        cursorShape: Qt.PointingHandCursor
-                                                        onClicked: {
-                                                            (function(addr, wsId) {
-                                                                var p1 = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
-                                                                p1.command = ["hyprctl", "dispatch", "workspace", String(wsId)];
-                                                                p1.onExited.connect(function() { p1.destroy(); });
-                                                                p1.running = true;
-                                                                var p2 = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
-                                                                p2.command = ["hyprctl", "dispatch", "focuswindow", "address:" + addr];
-                                                                p2.onExited.connect(function() { p2.destroy(); });
-                                                                p2.running = true;
-                                                                Visibilities.setActiveModule("");
-                                                            })(win.address, ws.id);
+                                                            cursorShape: Qt.PointingHandCursor
+                                                            enabled: win !== undefined
+                                                            onClicked: {
+                                                                if (!win) return;
+                                                                (function(addr, wsId) {
+                                                                    var p1 = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+                                                                    p1.command = ["hyprctl", "dispatch", "workspace", String(wsId)];
+                                                                    p1.onExited.connect(function() { p1.destroy(); });
+                                                                    p1.running = true;
+                                                                    var p2 = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+                                                                    p2.command = ["hyprctl", "dispatch", "focuswindow", "address:" + addr];
+                                                                    p2.onExited.connect(function() { p2.destroy(); });
+                                                                    p2.running = true;
+                                                                    Visibilities.setActiveModule("");
+                                                                })(win.address, ws.id);
+                                                            }
                                                         }
                                                     }
                                                 }
                                             }
+
+                                            // Más de 6 ventanas: indicador
+                                                            Text {
+                                                                anchors.right: parent.right
+                                                                anchors.bottom: parent.bottom
+                                                                anchors.margins: 4
+                                                                text: "+" + (ws.windows.length - 6)
+                                                                font.pixelSize: Config.theme.fontSize - 3
+                                                                font.bold: true
+                                                                color: Styling.srItem("text")
+                                                                opacity: 0.5
+                                                                visible: ws.windows.length > 6
+                                                            }
                                         }
                                     }
                                 }
@@ -4301,14 +4313,7 @@ PanelWindow {
             var w = windows[i];
             if (!w.mapped) continue;
             var wsId = w.workspace.id;
-            if (!wsMap[wsId]) {
-                wsMap[wsId] = {
-                    id: wsId, windows: [],
-                    minX: 999999, minY: 999999,
-                    maxX: 0, maxY: 0,
-                    workspaceW: 1920, workspaceH: 1080
-                };
-            }
+            if (!wsMap[wsId]) wsMap[wsId] = { id: wsId, windows: [] };
             // Parear con Toplevel para ScreencopyView
             var cls = w.class || "";
             var matched = null;
@@ -4318,44 +4323,18 @@ PanelWindow {
                 else if (candidates.length > 1)
                     matched = candidates.find(function(t) { return t.title === (w.title || ""); }) || candidates[0];
             }
-            var atX = w.at ? w.at[0] : 0;
-            var atY = w.at ? w.at[1] : 0;
-            var szW = w.size ? w.size[0] : 100;
-            var szH = w.size ? w.size[1] : 100;
             wsMap[wsId].windows.push({
                 address: w.address,
                 class: cls,
                 title: w.title || "?",
-                at: [atX, atY],
-                size: [szW, szH],
-                normX: 0, normY: 0, // se calcula abajo
                 is_focused: w.is_focused || false,
                 toplevel: matched
             });
-            // Calcular bounding box completo (min y max)
-            wsMap[wsId].minX = Math.min(wsMap[wsId].minX, atX);
-            wsMap[wsId].minY = Math.min(wsMap[wsId].minY, atY);
-            wsMap[wsId].maxX = Math.max(wsMap[wsId].maxX, atX + szW);
-            wsMap[wsId].maxY = Math.max(wsMap[wsId].maxY, atY + szH);
         }
         var result = [];
         var sorted = Object.keys(wsMap).sort(function(a,b) { return parseInt(a) - parseInt(b); });
         for (var k = 0; k < sorted.length; k++) {
-            var ws = wsMap[sorted[k]];
-            // Si no hay ventanas, usar 1920x1080
-            if (ws.windows.length === 0) {
-                ws.minX = 0; ws.minY = 0;
-                ws.maxX = 1920; ws.maxY = 1080;
-            }
-            ws.workspaceW = Math.max(ws.maxX - ws.minX, 1920);
-            ws.workspaceH = ws.workspaceW * 9 / 16;
-            // Pre-calcular coordenadas normalizadas (relativas al origen del workspace)
-            for (var j = 0; j < ws.windows.length; j++) {
-                var win = ws.windows[j];
-                win.normX = win.at[0] - ws.minX;
-                win.normY = win.at[1] - ws.minY;
-            }
-            result.push(ws);
+            result.push(wsMap[sorted[k]]);
         }
         windowGridData = result;
         // Calcular altura: columnas de workspace cards
