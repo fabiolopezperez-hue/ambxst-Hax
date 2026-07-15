@@ -1486,10 +1486,10 @@ PanelWindow {
                                 delegate: Item {
                                     required property var modelData
                                     readonly property var ws: modelData
-                                    readonly property int cardWidth: Math.min(260, (windowGridFlow.width - 8) / Math.max(1, Math.floor((windowGridFlow.width + 8) / 268)))
+                                    readonly property int cardWidth: Math.min(280, (windowGridFlow.width - 8) / Math.max(1, Math.floor((windowGridFlow.width + 8) / 288)))
                                     width: cardWidth
-                                    height: cardHeight
-                                    property real cardHeight: 40 + Math.min(ws.windows.length, 4) * 112 + (ws.windows.length > 4 ? 20 : 0)
+                                    // Altura fija 16:9 para todos los workspaces (consistentes)
+                                    height: cardWidth * 9 / 16 + 28
 
                                     // Card background (clickeable para cambiar de workspace)
                                     Rectangle {
@@ -1510,22 +1510,26 @@ PanelWindow {
                                         }
                                     }
 
-                                    Column {
+                                    // Contenido
+                                    Item {
                                         anchors.fill: parent
-                                        anchors.margins: 8
-                                        spacing: 6
+                                        anchors.margins: 6
 
-                                        // Workspace header
+                                        // Workspace header arriba
                                         Text {
+                                            id: wsHeader
                                             text: "Espacio " + ws.id
                                             font.bold: true
                                             font.pixelSize: Config.theme.fontSize - 1
                                             color: Styling.srItem("text")
-                                            opacity: 0.7
+                                            opacity: 0.6
                                         }
 
-                                        // Windows grid dentro del workspace
+                                        // Windows thumbnails — centrados en el espacio restante
                                         Flow {
+                                            anchors.top: wsHeader.bottom
+                                            anchors.topMargin: 4
+                                            anchors.horizontalCenter: parent.horizontalCenter
                                             width: parent.width
                                             spacing: 6
 
@@ -1535,45 +1539,36 @@ PanelWindow {
                                                 delegate: Item {
                                                     required property var modelData
                                                     readonly property var win: modelData
-                                                    readonly property real winW: 110
-                                                    readonly property real winH: 90
+                                                    // 16:9 ratio — calculado del ancho del flow interior
+                                                    readonly property real winW: Math.min(130, (parent.width - 6) / Math.max(1, Math.floor((parent.width + 6) / 136)))
+                                                    readonly property real winH: winW * 9 / 16
 
                                                     width: winW
-                                                    height: winH + 16
+                                                    height: winH
 
-                                                    // Preview thumbnail
-                                                    Rectangle {
-                                                        id: thumbFrame
-                                                        width: winW
-                                                        height: winH
+                                                    // ScreencopyView directo — sin fondo/tinte detrás
+                                                    ClippingRectangle {
+                                                        anchors.fill: parent
                                                         radius: Styling.radius(4)
-                                                        color: Styling.srItem("overprimary")
-                                                        opacity: 0.1
+                                                        antialiasing: true
                                                         border.color: win.is_focused ? Styling.srItem("overprimary") : "transparent"
                                                         border.width: win.is_focused ? 2 : 0
-                                                        clip: true
 
-                                                        // ScreencopyView (live preview)
-                                                        ClippingRectangle {
+                                                        ScreencopyView {
+                                                            id: winPreview
                                                             anchors.fill: parent
-                                                            radius: Styling.radius(3)
-                                                            antialiasing: true
-                                                            ScreencopyView {
-                                                                id: winPreview
-                                                                anchors.fill: parent
-                                                                captureSource: win.toplevel
-                                                                live: showWindowGrid
-                                                                visible: win.toplevel !== null
-                                                            }
+                                                            captureSource: win.toplevel
+                                                            live: showWindowGrid
+                                                            visible: win.toplevel !== null
                                                         }
 
                                                         // Fallback: icono de app
                                                         Text {
                                                             anchors.centerIn: parent
                                                             text: "□"
-                                                            font.pixelSize: 24
+                                                            font.pixelSize: 20
                                                             color: Styling.srItem("text")
-                                                            opacity: 0.4
+                                                            opacity: 0.3
                                                             visible: !winPreview.hasContent || win.toplevel === null
                                                         }
 
@@ -1582,38 +1577,38 @@ PanelWindow {
                                                             anchors.left: parent.left
                                                             anchors.right: parent.right
                                                             anchors.bottom: parent.bottom
-                                                            height: 18
+                                                            height: 16
                                                             color: "#80000000"
                                                             visible: win.title.length > 0
 
                                                             Text {
                                                                 anchors.fill: parent
-                                                                anchors.leftMargin: 4
-                                                                anchors.rightMargin: 4
+                                                                anchors.leftMargin: 3
+                                                                anchors.rightMargin: 3
                                                                 text: win.title
-                                                                font.pixelSize: Config.theme.fontSize - 4
+                                                                font.pixelSize: Config.theme.fontSize - 5
                                                                 color: "white"
                                                                 elide: Text.ElideRight
                                                                 verticalAlignment: Text.AlignVCenter
                                                             }
                                                         }
+                                                    }
 
-                                                        MouseArea {
-                                                            anchors.fill: parent
-                                                            cursorShape: Qt.PointingHandCursor
-                                                            onClicked: {
-                                                                (function(addr, wsId) {
-                                                                    var p1 = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
-                                                                    p1.command = ["hyprctl", "dispatch", "workspace", String(wsId)];
-                                                                    p1.onExited.connect(function() { p1.destroy(); });
-                                                                    p1.running = true;
-                                                                    var p2 = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
-                                                                    p2.command = ["hyprctl", "dispatch", "focuswindow", "address:" + addr];
-                                                                    p2.onExited.connect(function() { p2.destroy(); });
-                                                                    p2.running = true;
-                                                                    Visibilities.setActiveModule("");
-                                                                })(win.address, ws.id);
-                                                            }
+                                                    MouseArea {
+                                                        anchors.fill: parent
+                                                        cursorShape: Qt.PointingHandCursor
+                                                        onClicked: {
+                                                            (function(addr, wsId) {
+                                                                var p1 = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+                                                                p1.command = ["hyprctl", "dispatch", "workspace", String(wsId)];
+                                                                p1.onExited.connect(function() { p1.destroy(); });
+                                                                p1.running = true;
+                                                                var p2 = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+                                                                p2.command = ["hyprctl", "dispatch", "focuswindow", "address:" + addr];
+                                                                p2.onExited.connect(function() { p2.destroy(); });
+                                                                p2.running = true;
+                                                                Visibilities.setActiveModule("");
+                                                            })(win.address, ws.id);
                                                         }
                                                     }
                                                 }
@@ -4305,10 +4300,10 @@ PanelWindow {
             result.push(wsMap[sorted[k]]);
         }
         windowGridData = result;
-        // Calcular altura: filas de workspaces * alto de cada card
-        var cols = Math.max(1, Math.floor((contentColumn.width - 16) / 268));
+        // Calcular altura: filas de workspaces * alto de cada card (16:9)
+        var cols = Math.max(1, Math.floor((contentColumn.width - 16) / 288));
         var rows = Math.ceil(result.length / cols);
-        windowGridHeight = Math.min(rows * 280 + 16, 600);
+        windowGridHeight = Math.min(rows * 200 + 16, 600);
     }
 
     // ── Búsqueda de archivos ───────────────────────────────────────────────
