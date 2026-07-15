@@ -206,6 +206,19 @@ PanelWindow {
         onTriggered: spotlight.refreshLiveTextStatus()
     }
 
+    // Timer para refrescar el grid de ventanas cada 2s mientras está abierto
+    Timer {
+        id: windowGridRefreshTimer
+        interval: 2000
+        repeat: true
+        running: showWindowGrid
+        onTriggered: {
+            if (showWindowGrid) {
+                try { spotlight.buildWindowGrid(); } catch (e) {}
+            }
+        }
+    }
+
     Component.onCompleted: {
         // Indexar imágenes en segundo plano al iniciar Hax (Live Text).
         spotlight.startOcrIndexing();
