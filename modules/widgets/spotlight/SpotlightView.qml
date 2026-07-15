@@ -347,9 +347,10 @@ PanelWindow {
     function stopMonitor() {
         showMonitor = false;
         if (monProcess) {
-            monProcess.running = false;
-            monProcess.destroy();
+            var proc = monProcess;
             monProcess = null;
+            proc.running = false;
+            // onExited se encarga de proc.destroy() — EVITAR double destroy
         }
     }
 
@@ -448,9 +449,10 @@ PanelWindow {
 
     function stopDebugMonitor() {
         if (_debugResProc) {
-            _debugResProc.running = false;
-            _debugResProc.destroy();
+            var proc = _debugResProc;
             _debugResProc = null;
+            proc.running = false;
+            // onExited se encarga de proc.destroy() — EVITAR double destroy
         }
     }
 
@@ -3981,9 +3983,10 @@ PanelWindow {
 
     function stopClipWatcher() {
         if (_clipWatcherProc) {
-            _clipWatcherProc.running = false;
-            _clipWatcherProc.destroy();
+            var proc = _clipWatcherProc;
             _clipWatcherProc = null;
+            proc.running = false;
+            // onExited se encarga de proc.destroy() — EVITAR double destroy
         }
         _lastClipboard = "";
     }
