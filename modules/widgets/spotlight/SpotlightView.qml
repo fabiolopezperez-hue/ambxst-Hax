@@ -1544,7 +1544,7 @@ PanelWindow {
                                         }
 
                                         // Viewport del workspace — miniatura del escritorio
-                                        ClippingRectangle {
+                                        Rectangle {
                                             id: viewport
                                             anchors.top: wsHeader.bottom
                                             anchors.topMargin: 4
@@ -1552,9 +1552,9 @@ PanelWindow {
                                             width: viewW
                                             height: viewH
                                             radius: Styling.radius(4)
-                                            antialiasing: true
                                             color: Styling.srItem("overprimary")
                                             opacity: 0.04
+                                            clip: true
 
                                             // Fondo tipo "escritorio"
                                             Rectangle {
@@ -1563,15 +1563,15 @@ PanelWindow {
                                                 opacity: 0.08
                                             }
 
-                                            // ScrollIndicator de que hay más ventanas
+                                            // Ventanas posicionadas como en el escritorio real
                                             Repeater {
                                                 model: ws.windows
 
                                                 delegate: Item {
                                                     required property var modelData
                                                     readonly property var win: modelData
-                                                    readonly property real wX: win.at[0] * scale
-                                                    readonly property real wY: win.at[1] * scale
+                                                    readonly property real wX: win.normX * scale
+                                                    readonly property real wY: win.normY * scale
                                                     readonly property real wW: Math.max(20, win.size[0] * scale)
                                                     readonly property real wH: Math.max(14, win.size[1] * scale)
 
@@ -4308,7 +4308,14 @@ PanelWindow {
             var w = windows[i];
             if (!w.mapped) continue;
             var wsId = w.workspace.id;
-            if (!wsMap[wsId]) wsMap[wsId] = { id: wsId, windows: [], workspaceW: 1920, workspaceH: 1080, maxAtX: 0, maxAtY: 0 };
+            if (!wsMap[wsId]) {
+                wsMap[wsId] = {
+                    id: wsId, windows: [],
+                    minX: 999999, minY: 999999,
+                    maxX: 0, maxY: 0,
+                    workspaceW: 1920, workspaceH: 1080
+                };
+            }
             // Parear con Toplevel para ScreencopyView
             var cls = w.class || "";
             var matched = null;
@@ -4328,21 +4335,33 @@ PanelWindow {
                 title: w.title || "?",
                 at: [atX, atY],
                 size: [szW, szH],
+                normX: 0, normY: 0, // se calcula abajo
                 is_focused: w.is_focused || false,
                 toplevel: matched
             });
-            // Calcular bounding box del workspace
-            wsMap[wsId].maxAtX = Math.max(wsMap[wsId].maxAtX, atX + szW);
-            wsMap[wsId].maxAtY = Math.max(wsMap[wsId].maxAtY, atY + szH);
-            wsMap[wsId].workspaceW = Math.max(wsMap[wsId].maxAtX, 1920);
-            wsMap[wsId].workspaceH = Math.max(wsMap[wsId].maxAtY, 1080);
+            // Calcular bounding box completo (min y max)
+            wsMap[wsId].minX = Math.min(wsMap[wsId].minX, atX);
+            wsMap[wsId].minY = Math.min(wsMap[wsId].minY, atY);
+            wsMap[wsId].maxX = Math.max(wsMap[wsId].maxX, atX + szW);
+            wsMap[wsId].maxY = Math.max(wsMap[wsId].maxY, atY + szH);
         }
         var result = [];
         var sorted = Object.keys(wsMap).sort(function(a,b) { return parseInt(a) - parseInt(b); });
         for (var k = 0; k < sorted.length; k++) {
             var ws = wsMap[sorted[k]];
-            // Forzar aspect ratio 16:9 manteniendo el ancho calculado
+            // Si no hay ventanas, usar 1920x1080
+            if (ws.windows.length === 0) {
+                ws.minX = 0; ws.minY = 0;
+                ws.maxX = 1920; ws.maxY = 1080;
+            }
+            ws.workspaceW = Math.max(ws.maxX - ws.minX, 1920);
             ws.workspaceH = ws.workspaceW * 9 / 16;
+            // Pre-calcular coordenadas normalizadas (relativas al origen del workspace)
+            for (var j = 0; j < ws.windows.length; j++) {
+                var win = ws.windows[j];
+                win.normX = win.at[0] - ws.minX;
+                win.normY = win.at[1] - ws.minY;
+            }
             result.push(ws);
         }
         windowGridData = result;
