@@ -3,12 +3,14 @@ import QtQuick.Layouts
 import QtQuick.Controls
 import QtQuick.Effects
 import Quickshell
+import Quickshell.Widgets
 import Quickshell.Wayland
 import Quickshell.Io
 import qs.modules.globals
 import qs.modules.theme
 import qs.modules.services
 import qs.modules.components
+import qs.modules.bar.workspaces
 import qs.config
 import QMLTermWidget 2.0
 
@@ -46,6 +48,7 @@ PanelWindow {
     property real barBottom: 40
     // Posición Y donde acaba el notch (justo debajo nace la gota)
     property real notchEndY: 60
+
     readonly property real screenCenterY: spotlight.height / 2
 
     // ── Acciones rápidas: customShortcuts se guarda como STRING JSON en el
@@ -203,6 +206,19 @@ PanelWindow {
         onTriggered: spotlight.refreshLiveTextStatus()
     }
 
+    // Timer para refrescar el grid de ventanas cada 2s mientras está abierto
+    Timer {
+        id: windowGridRefreshTimer
+        interval: 2000
+        repeat: true
+        running: showWindowGrid
+        onTriggered: {
+            if (showWindowGrid) {
+                try { spotlight.buildWindowGrid(); } catch (e) {}
+            }
+        }
+    }
+
     Component.onCompleted: {
         // Indexar imágenes en segundo plano al iniciar Hax (Live Text).
         spotlight.startOcrIndexing();
@@ -252,6 +268,7 @@ PanelWindow {
         debugErrorLog = debugErrorLog.slice(-50);
     }
     property int selectedIndex: 0
+    property int windowGridSelectedIndex: 0
     property bool showTerminal: false
 
     // Seguir la selección en la lista de resultados (scroll automático)
@@ -293,6 +310,9 @@ PanelWindow {
 
     // ── Monitor del sistema ───────────────────────────────────────────────
     property bool showMonitor: false
+    property bool showWindowGrid: false
+    property var windowGridData: []
+    property real windowGridHeight: 300
     property real monCpu: 0
     property real monRamPct: 0
     property real monRamUsed: 0
@@ -554,6 +574,9 @@ PanelWindow {
             + (spotlight.showConfig
                 ? 8 + configPane.height
                 : 0)
+            + (spotlight.showWindowGrid
+                ? 8 + spotlight.windowGridHeight
+                : 0)
 
         // ── Contenido que aparece dentro mientras se transforma ────────────
         Column {
@@ -565,7 +588,7 @@ PanelWindow {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.margins: 16
-            spacing: (results.length > 0 || cmdProcess !== null || isCommandMode || _lastCmdVisible || _forceTerminal || _haxNotifications.length > 0 || showMonitor || spotlight.showDebug) ? 8 : 0
+            spacing: (results.length > 0 || cmdProcess !== null || isCommandMode || _lastCmdVisible || _forceTerminal || _haxNotifications.length > 0 || showMonitor || spotlight.showDebug || showWindowGrid) ? 8 : 0
 
                 // ── Campo de búsqueda ──────────────────────────────────────────
                 StyledRect {
@@ -658,6 +681,9 @@ PanelWindow {
                     spotlight.showDebug = false;
                 } else if (spotlight.dictMode) {
                     spotlight.exitDictMode();
+                } else if (spotlight.showWindowGrid) {
+                    spotlight.showWindowGrid = false;
+                    clear();
                 } else if (text.length > 0) {
                     clear();
                 } else {
@@ -666,6 +692,18 @@ PanelWindow {
                             }
 
                             Keys.onUpPressed: {
+                                if (spotlight.showWindowGrid) {
+                                    // Refrescar y navegar grid de ventanas
+                                    try { spotlight.buildWindowGrid(); } catch (e) {}
+                                    var totalWindows = 0;
+                                    for (var i = 0; i < spotlight.windowGridData.length; i++) {
+                                        totalWindows += Math.min(spotlight.windowGridData[i].windows.length, 6);
+                                    }
+                                    if (spotlight.windowGridSelectedIndex > 0) {
+                                        spotlight.windowGridSelectedIndex--;
+                                    }
+                                    return;
+                                }
                                 var termOverflow = cmdFlickable.contentHeight > cmdFlickable.height;
                                 if ((cmdProcess !== null || _lastCmdVisible || _forceTerminal) && termOverflow) {
                                     // Scroll terminal (solo si hay contenido que desborda)
@@ -674,6 +712,10 @@ PanelWindow {
                                 } else {
                                     if (spotlight.selectedIndex > 0) {
                                         spotlight.selectedIndex--;
+                                        // Saltar separadores de categoría
+                                        while (spotlight.selectedIndex > 0 && spotlight.results[spotlight.selectedIndex] && spotlight.results[spotlight.selectedIndex].cat === true) {
+                                            spotlight.selectedIndex--;
+                                        }
                                         if (resultsList) {
                                             resultsList.positionViewAtIndex(spotlight.selectedIndex, ListView.Center);
                                         }
@@ -684,6 +726,18 @@ PanelWindow {
                             }
 
                             Keys.onDownPressed: {
+                                if (spotlight.showWindowGrid) {
+                                    // Refrescar y navegar grid de ventanas
+                                    try { spotlight.buildWindowGrid(); } catch (e) {}
+                                    var totalWindows = 0;
+                                    for (var i = 0; i < spotlight.windowGridData.length; i++) {
+                                        totalWindows += Math.min(spotlight.windowGridData[i].windows.length, 6);
+                                    }
+                                    if (spotlight.windowGridSelectedIndex < totalWindows - 1) {
+                                        spotlight.windowGridSelectedIndex++;
+                                    }
+                                    return;
+                                }
                                 var termOverflow = cmdFlickable.contentHeight > cmdFlickable.height;
                                 if ((cmdProcess !== null || _lastCmdVisible || _forceTerminal) && termOverflow) {
                                     // Scroll terminal (solo si hay contenido que desborda)
@@ -695,6 +749,10 @@ PanelWindow {
                                 } else {
                                     if (spotlight.selectedIndex < spotlight.results.length - 1) {
                                         spotlight.selectedIndex++;
+                                        // Saltar separadores de categoría
+                                        while (spotlight.selectedIndex < spotlight.results.length - 1 && spotlight.results[spotlight.selectedIndex] && spotlight.results[spotlight.selectedIndex].cat === true) {
+                                            spotlight.selectedIndex++;
+                                        }
                                         if (resultsList) {
                                             resultsList.positionViewAtIndex(spotlight.selectedIndex, ListView.Center);
                                         }
@@ -707,6 +765,12 @@ PanelWindow {
                             // Enter, Tab, flecha derecha, Ctrl+C, Esc
                             Keys.onPressed: (event) => {
                 if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                    if (spotlight.showWindowGrid) {
+                        // Enter en grid de ventanas → ir a la seleccionada
+                        spotlight.goToSelectedWindow();
+                        event.accepted = true;
+                        return;
+                    }
                     if (spotlight.dictMode) {
                         if (spotlight.dictResultText.length > 0) {
                             var dp = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
@@ -745,6 +809,43 @@ PanelWindow {
                                     // Aceptar sugerencia
                                     searchInput.text = text + autoCompleteSuffix;
                                     searchInput.cursorPosition = searchInput.text.length;
+                                    event.accepted = true;
+                                } else if (spotlight.showWindowGrid && event.key === Qt.Key_Left) {
+                                    // ←: ir al workspace anterior
+                                    var prevWs = -1;
+                                    for (var li = spotlight.windowGridData.length - 1; li >= 0; li--) {
+                                        if (spotlight.windowGridData[li].offset < spotlight.windowGridSelectedIndex) {
+                                            prevWs = li;
+                                            break;
+                                        }
+                                    }
+                                    if (prevWs >= 0) {
+                                        spotlight.windowGridSelectedIndex = spotlight.windowGridData[prevWs].offset;
+                                    } else if (spotlight.windowGridData.length > 0) {
+                                        // Ir al último si estamos en el primero
+                                        var last = spotlight.windowGridData[spotlight.windowGridData.length - 1];
+                                        spotlight.windowGridSelectedIndex = last.offset + Math.min(last.windows.length, 6) - 1;
+                                    }
+                                    event.accepted = true;
+                                } else if (spotlight.showWindowGrid && event.key === Qt.Key_Right) {
+                                    // →: ir al siguiente workspace
+                                    var nextWs = -1;
+                                    for (var ri = 0; ri < spotlight.windowGridData.length; ri++) {
+                                        var wsOff = spotlight.windowGridData[ri].offset;
+                                        var wsLen = Math.min(spotlight.windowGridData[ri].windows.length, 6);
+                                        if (spotlight.windowGridSelectedIndex >= wsOff && spotlight.windowGridSelectedIndex < wsOff + wsLen) {
+                                            if (ri + 1 < spotlight.windowGridData.length) {
+                                                nextWs = ri + 1;
+                                            }
+                                            break;
+                                        }
+                                    }
+                                    if (nextWs >= 0) {
+                                        spotlight.windowGridSelectedIndex = spotlight.windowGridData[nextWs].offset;
+                                    } else if (spotlight.windowGridData.length > 0) {
+                                        // Ir al primero si estamos en el último
+                                        spotlight.windowGridSelectedIndex = spotlight.windowGridData[0].offset;
+                                    }
                                     event.accepted = true;
                                 } else if (event.key === Qt.Key_C && (event.modifiers & Qt.ControlModifier)) {
                                     // Ctrl+C → copiar resultado seleccionado
@@ -1154,12 +1255,40 @@ PanelWindow {
 
                         delegate: Item {
                             width: resultsList.width
-                            height: 52
+                            height: modelData.cat === true ? 30 : 52
 
-                            // Resaltado de selección (semitransparente)
+                            // ── Separador de categoría ──────────────────────
+                            Rectangle {
+                                anchors.fill: parent
+                                anchors.leftMargin: 16
+                                anchors.rightMargin: 16
+                                visible: modelData.cat === true
+                                color: "transparent"
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: modelData.label || ""
+                                    font.family: Config.theme.font
+                                    font.pixelSize: Config.theme.fontSize - 2
+                                    font.bold: true
+                                    color: Styling.srItem("text")
+                                    opacity: 0.5
+                                    font.letterSpacing: 0.5
+                                }
+                                Rectangle {
+                                    anchors.left: parent.left
+                                    anchors.right: parent.right
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    height: 1
+                                    color: Styling.srItem("text")
+                                    opacity: 0.08
+                                }
+                            }
+
+                            // ── Item normal (cuando no es categoría) ────────
                             Rectangle {
                                 anchors.fill: parent
                                 radius: Styling.radius(10)
+                                visible: modelData.cat !== true
                                 color: index === spotlight.selectedIndex
                                     ? Qt.rgba(spotlight.haxPrimaryColor.r, spotlight.haxPrimaryColor.g, spotlight.haxPrimaryColor.b, 0.25)
                                     : "transparent"
@@ -1174,6 +1303,7 @@ PanelWindow {
                                 id: mouseArea
                                 anchors.fill: parent
                                 hoverEnabled: true
+                                visible: modelData.cat !== true
 
                                 // Hax es 100% teclado: el ratón NO dispara la previsualización.
                                 // (El ratón solo se usa en el Historial para borrar copias antiguas.)
@@ -1196,6 +1326,7 @@ PanelWindow {
                                 anchors.leftMargin: 16
                                 anchors.rightMargin: 16
                                 spacing: 12
+                                visible: modelData.cat !== true
 
                                 // Icono (app → system icon, otros → Phosphor)
                                 Item {
@@ -1379,6 +1510,235 @@ PanelWindow {
                                 color: Styling.srItem("text")
                                 opacity: 0.06
                                 visible: index < results.length - 1
+                            }
+                        }
+                    }
+                }
+
+                // ── Grid visual de ventanas (comando "show") ────────────────────
+                StyledRect {
+                    id: windowGridPane
+                    width: contentColumn.width
+                    height: showWindowGrid ? windowGridHeight : 0
+                    visible: showWindowGrid
+                    variant: "pane"
+                    radius: Styling.radius(12)
+                    clip: true
+                    Behavior on height {
+                        enabled: Config.animDuration > 0
+                        NumberAnimation { duration: Config.animDuration * 3; easing.type: Easing.OutQuint }
+                    }
+                    Behavior on opacity {
+                        enabled: Config.animDuration > 0
+                        NumberAnimation { duration: Config.animDuration * 2; easing.type: Easing.OutQuint }
+                    }
+
+                    Column {
+                        width: parent.width
+                        anchors.fill: parent
+                        anchors.margins: 8
+                        spacing: 8
+
+                        Text {
+                            text: "🪟 Ventanas activas"
+                            font.bold: true
+                            font.pixelSize: Config.theme.fontSize
+                            color: Styling.srItem("text")
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            opacity: 0.7
+                        }
+
+                        // Mensaje si no hay ventanas
+                        Text {
+                            text: "No hay ventanas abiertas"
+                            font.pixelSize: Config.theme.fontSize - 1
+                            color: Styling.srItem("text")
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            opacity: 0.4
+                            visible: windowGridData.length === 0
+                        }
+
+                        // Workspace cards en flow
+                        Flow {
+                            id: windowGridFlow
+                            width: parent.width
+                            spacing: 8
+
+                            Repeater {
+                                model: windowGridData
+
+                                delegate: Item {
+                                    required property var modelData
+                                    readonly property var ws: modelData
+                                    readonly property int cardWidth: Math.min(280, (windowGridFlow.width - 8) / Math.max(1, Math.floor((windowGridFlow.width + 8) / 288)))
+                                    readonly property real viewW: cardWidth - 12
+                                    readonly property real viewH: viewW * 9 / 16
+                                    // Grid: columnas dinámicas (1, 2 o 3 según número de ventanas)
+                                    readonly property int n: Math.min(ws.windows.length, 6)
+                                    readonly property int gridCols: n <= 1 ? 1 : (n <= 2 ? 2 : (n <= 4 ? 2 : Math.min(3, n)))
+                                    readonly property int gridRows: Math.ceil(n / gridCols)
+                                    readonly property real cellW: (viewW - (gridCols - 1) * 4) / gridCols
+                                    readonly property real cellH: (viewH - (gridRows - 1) * 4) / gridRows
+
+                                    width: cardWidth
+                                    height: viewH + 28  // viewport 16:9 + header
+
+                                    // Card background (clickeable)
+                                    Rectangle {
+                                        anchors.fill: parent
+                                        radius: Styling.radius(8)
+                                        color: Styling.srItem("overprimary")
+                                        opacity: 0.06
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: {
+                                                var p = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+                                                p.command = ["hyprctl", "dispatch", "workspace", String(ws.id)];
+                                                p.onExited.connect(function() { p.destroy(); });
+                                                p.running = true;
+                                                Visibilities.setActiveModule("");
+                                            }
+                                        }
+                                    }
+
+                                    // Contenido
+                                    Item {
+                                        anchors.fill: parent
+                                        anchors.margins: 6
+
+                                        // Workspace header
+                                        Text {
+                                            id: wsHeader
+                                            text: "Espacio " + ws.id
+                                            font.bold: true
+                                            font.pixelSize: Config.theme.fontSize - 1
+                                            color: Styling.srItem("text")
+                                            opacity: 0.6
+                                        }
+
+                                        // Área de ventanas — Grid que llena el viewport sin desbordar
+                                        Rectangle {
+                                            anchors.top: wsHeader.bottom
+                                            anchors.topMargin: 4
+                                            anchors.horizontalCenter: parent.horizontalCenter
+                                            width: viewW
+                                            height: viewH
+                                            radius: Styling.radius(4)
+                                            color: "transparent"
+                                            clip: true
+
+                                            Grid {
+                                                anchors.fill: parent
+                                                columns: gridCols
+                                                spacing: 4
+
+                                                Repeater {
+                                                    model: ws.windows.length > 6 ? 6 : ws.windows.length
+
+                                                    delegate: Item {
+                                                        readonly property var win: ws.windows[index]
+                                                        readonly property bool isSelected: win && win.globalIdx === spotlight.windowGridSelectedIndex
+                                                        width: cellW
+                                                        height: cellH
+
+                                                        // Resalte de selección (background glow)
+                                                        Rectangle {
+                                                            anchors.fill: parent
+                                                            radius: 3
+                                                            color: Styling.srItem("overprimary")
+                                                            opacity: isSelected ? 0.15 : 0
+                                                            border.color: isSelected ? Styling.srItem("overprimary") : "transparent"
+                                                            border.width: isSelected ? 2 : 0
+                                                            Behavior on opacity { NumberAnimation { duration: 100 } }
+                                                        }
+
+                                                        ClippingRectangle {
+                                                            anchors.fill: parent
+                                                            anchors.margins: isSelected ? 3 : 0
+                                                            radius: 2
+                                                            antialiasing: true
+                                                            color: "transparent"
+                                                            border.color: win && win.is_focused ? Styling.srItem("overprimary") : Qt.rgba(1,1,1,0.12)
+                                                            border.width: win && win.is_focused ? 2 : 0
+
+                                                            ScreencopyView {
+                                                                id: winPreview
+                                                                anchors.fill: parent
+                                                                captureSource: win ? win.toplevel : null
+                                                                live: showWindowGrid
+                                                                visible: win && win.toplevel !== null
+                                                            }
+
+                                                            Text {
+                                                                anchors.centerIn: parent
+                                                                text: "□"
+                                                                font.pixelSize: Math.min(cellW, cellH) * 0.3
+                                                                color: Styling.srItem("text")
+                                                                opacity: 0.3
+                                                                visible: !win || !winPreview.hasContent || win.toplevel === null
+                                                            }
+                                                        }
+
+                                                        // Overlay título (solo si la celda es suficientemente grande)
+                                                        Rectangle {
+                                                            anchors.left: parent.left
+                                                            anchors.right: parent.right
+                                                            anchors.bottom: parent.bottom
+                                                            height: Math.min(14, parent.height * 0.2)
+                                                            color: "#80000000"
+                                                            visible: win && win.title.length > 0 && cellH > 24
+
+                                                            Text {
+                                                                anchors.fill: parent
+                                                                anchors.leftMargin: 2
+                                                                anchors.rightMargin: 2
+                                                                text: win ? win.title : ""
+                                                                font.pixelSize: Math.min(9, cellH * 0.12)
+                                                                color: "white"
+                                                                elide: Text.ElideRight
+                                                                verticalAlignment: Text.AlignVCenter
+                                                            }
+                                                        }
+
+                                                        MouseArea {
+                                                            anchors.fill: parent
+                                                            cursorShape: Qt.PointingHandCursor
+                                                            enabled: win !== undefined
+                                                            onClicked: {
+                                                                if (!win) return;
+                                                                (function(addr, wsId) {
+                                                                    var p1 = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+                                                                    p1.command = ["hyprctl", "dispatch", "workspace", String(wsId)];
+                                                                    p1.onExited.connect(function() { p1.destroy(); });
+                                                                    p1.running = true;
+                                                                    var p2 = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+                                                                    p2.command = ["hyprctl", "dispatch", "focuswindow", "address:" + addr];
+                                                                    p2.onExited.connect(function() { p2.destroy(); });
+                                                                    p2.running = true;
+                                                                    Visibilities.setActiveModule("");
+                                                                })(win.address, ws.id);
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+
+                                            // Más de 6 ventanas: indicador
+                                                            Text {
+                                                                anchors.right: parent.right
+                                                                anchors.bottom: parent.bottom
+                                                                anchors.margins: 4
+                                                                text: "+" + (ws.windows.length - 6)
+                                                                font.pixelSize: Config.theme.fontSize - 3
+                                                                font.bold: true
+                                                                color: Styling.srItem("text")
+                                                                opacity: 0.5
+                                                                visible: ws.windows.length > 6
+                                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -2974,10 +3334,27 @@ PanelWindow {
                 { name: "🐞 d / dev / debug", description: "Abre el modo desarrollador (debug) con métricas en pantalla", icon: Icons.notepad, type: "info", exec: null },
                 { name: "🖼️ live / livetext / ocr / status", description: "Live Text (OCR) — busca texto DENTRO de imágenes", icon: Icons.notepad, type: "info", exec: null },
                 { name: "🖼️ reindexar / reindex", description: "Reindexa todas las imágenes con OCR (Tesseract)", icon: Icons.notepad, type: "info", exec: null },
+                { name: "🪟 show", description: "Muestra todas las ventanas abiertas agrupadas por espacio de trabajo", icon: Icons.notepad, type: "info", exec: null },
                 { name: "❓ ayuda / help / h / ?", description: "Muestra esta ayuda", icon: Icons.notepad, type: "info", exec: null }
             ];
             results = newResults;
             return;
+        }
+
+        // ── Show: ventanas activas ──────────────────────────────────────────
+        if (query === "show") {
+            if (!showWindowGrid) {
+                showWindowGrid = true;
+                selectedIndex = 0;
+                windowGridSelectedIndex = 0;
+                // Construir el grid en el siguiente frame
+                Qt.callLater(function() { buildWindowGrid(); });
+            }
+            results = [];
+            return;
+        } else if (query !== "show" && showWindowGrid) {
+            // Si se escribe cualquier otra cosa, cerrar el grid
+            showWindowGrid = false;
         }
 
         // ── Monitor del sistema ──────────────────────────────────────────────
@@ -4013,8 +4390,86 @@ PanelWindow {
         return results;
     }
 
+    // ── Show: grid visual de ventanas (CompositorData + ScreencopyView) ────
+    function buildWindowGrid() {
+        try {
+        var windows = CompositorData ? (CompositorData.windowList || []) : [];
+        var toplevels = [];
+        try { toplevels = ToplevelManager && ToplevelManager.toplevels ? (ToplevelManager.toplevels.values || []) : []; } catch (e) { toplevels = []; }
+        var wsMap = {};
+        for (var i = 0; i < windows.length; i++) {
+            var w = windows[i];
+            if (!w.mapped) continue;
+            var wsId = w.workspace.id;
+            if (!wsMap[wsId]) wsMap[wsId] = { id: wsId, windows: [] };
+            // Parear con Toplevel para ScreencopyView
+            var cls = w.class || "";
+            var matched = null;
+            if (cls) {
+                var candidates = toplevels.filter(function(t) { return t.appId === cls; });
+                if (candidates.length === 1) matched = candidates[0];
+                else if (candidates.length > 1)
+                    matched = candidates.find(function(t) { return t.title === (w.title || ""); }) || candidates[0];
+            }
+            wsMap[wsId].windows.push({
+                address: w.address,
+                class: cls,
+                title: w.title || "?",
+                is_focused: w.is_focused || false,
+                toplevel: matched
+            });
+        }
+        // Calcular offset global para navegación con flechas
+        var flatIdx = 0;
+        var result = [];
+        var sorted = Object.keys(wsMap).sort(function(a,b) { return parseInt(a) - parseInt(b); });
+        for (var k = 0; k < sorted.length; k++) {
+            var ws = wsMap[sorted[k]];
+            ws.offset = flatIdx;
+            // Asignar índice global a cada ventana (máximo 6 por workspace)
+            var n = Math.min(ws.windows.length, 6);
+            for (var j = 0; j < ws.windows.length; j++) {
+                ws.windows[j].globalIdx = j < n ? flatIdx + j : -1;
+            }
+            flatIdx += n;
+            result.push(ws);
+        }
+        windowGridData = result;
+        // Calcular altura: columnas de workspace cards
+        var cols = Math.max(1, Math.floor((contentColumn.width - 16) / 300));
+        var rows = Math.ceil(result.length / cols);
+        windowGridHeight = Math.min(rows * 195 + 8, 600);
+        } catch (e) { /* si falla, no romper la shell */ }
+    }
+
+    // Va a la ventana seleccionada en el grid
+    function goToSelectedWindow() {
+        if (windowGridSelectedIndex < 0) return;
+        // Buscar qué workspace y ventana corresponde al índice global
+        for (var wsi = 0; wsi < windowGridData.length; wsi++) {
+            var ws = windowGridData[wsi];
+            var n = Math.min(ws.windows.length, 6);
+            if (windowGridSelectedIndex >= ws.offset && windowGridSelectedIndex < ws.offset + n) {
+                var win = ws.windows[windowGridSelectedIndex - ws.offset];
+                if (win && win.address) {
+                    var p1 = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+                    p1.command = ["hyprctl", "dispatch", "workspace", String(ws.id)];
+                    p1.onExited.connect(function() { try { p1.destroy(); } catch (e) {} });
+                    p1.running = true;
+                    var p2 = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+                    p2.command = ["hyprctl", "dispatch", "focuswindow", "address:" + win.address];
+                    p2.onExited.connect(function() { try { p2.destroy(); } catch (e) {} });
+                    p2.running = true;
+                    Visibilities.setActiveModule("");
+                }
+                break;
+            }
+        }
+    }
+
     // ── Búsqueda de archivos ───────────────────────────────────────────────
     property var currentSearch: null
+    property var currentSystemSearch: null
 
     function startFileSearch(query) {
         if (query.length < 2) return;
@@ -4022,11 +4477,16 @@ PanelWindow {
         // Guardar la generación actual para evitar resultados obsoletos
         var gen = searchGeneration;
         
-        // Cancelar búsqueda anterior si aún corre
+        // Cancelar búsquedas anteriores si aún corren
         if (currentSearch) {
             currentSearch.running = false;
             currentSearch.destroy();
             currentSearch = null;
+        }
+        if (currentSystemSearch) {
+            currentSystemSearch.running = false;
+            currentSystemSearch.destroy();
+            currentSystemSearch = null;
         }
         
         const home = Quickshell.env("HOME") || "/home/fabio";
@@ -4034,7 +4494,11 @@ PanelWindow {
         const q = query.replace(/[^a-zA-Z0-9\u00C0-\u024F\u0400-\u04FF_.-\s]/g, "");
         if (q.length < 2) return;
         
-        // Crear el proceso de find
+        var fileAccum = [];
+        var systemAccum = [];
+        var pendingSearches = 2;
+        
+        // ── Búsqueda 1: Home del usuario (rápido) ──
         var proc = Qt.createQmlObject(
             'import Quickshell.Io; Process { stdout: SplitParser {} }', 
             spotlight
@@ -4046,18 +4510,19 @@ PanelWindow {
             home + "/Escritorio",
             home,
             "-maxdepth", "4",
+            "-not", "-path", "*/\.cache/*",
+            "-not", "-path", "*/node_modules/*",
+            "-not", "-path", "*/.git/*",
+            "-not", "-path", "*/venv/*",
+            "-not", "-path", "*/__pycache__/*",
             "-iname", "*" + q + "*",
             "-type", "f"
         ];
-        
-        var fileAccum = [];
         proc.stdout.onRead.connect(function(data) {
-            // Si la generación cambió, estos resultados ya no sirven
             if (gen !== searchGeneration) return;
             var line = data.trim();
             if (line.length === 0) return;
             var fname = line.split("/").pop();
-            // Comprobar duplicados en el mismo batch
             var isDup = false;
             for (var fi = 0; fi < fileAccum.length; fi++) {
                 if (fileAccum[fi].name === fname) { isDup = true; break; }
@@ -4070,7 +4535,6 @@ PanelWindow {
                     icon: Icons.file,
                     type: "file",
                     exec: function() {
-                        // Mismo patrón que AppSearch.runInActiveWorkspace (funciona siempre)
                         var safePath = capturedLine.replace(/'/g, "'\\''");
                         var p = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
                         p.command = ["bash", "-c",
@@ -4082,24 +4546,80 @@ PanelWindow {
                 });
             }
         });
-        
         proc.onExited.connect(function(code) {
-            // Si la generación cambió, descartar resultados obsoletos
-            if (gen !== searchGeneration) {
-                proc.destroy();
-                if (currentSearch === proc) currentSearch = null;
-                return;
-            }
-            if (fileAccum.length > 0) {
-                // Crear copia + nuevos resultados para que QML detecte el cambio
-                results = results.concat(fileAccum);
-            }
+            if (gen !== searchGeneration) { try { proc.destroy(); } catch (e) {} return; }
+            if (fileAccum.length > 0) results = results.concat(fileAccum);
             proc.destroy();
             if (currentSearch === proc) currentSearch = null;
+            pendingSearches--;
+            if (pendingSearches <= 0 && systemAccum.length > 0) results = results.concat(systemAccum);
         });
-        
         currentSearch = proc;
         proc.running = true;
+        
+        // ── Búsqueda 2: Carpetas del sistema + ocultas ──
+        var sysProc = Qt.createQmlObject(
+            'import Quickshell.Io; Process { stdout: SplitParser {} }', 
+            spotlight
+        );
+        sysProc.command = [
+            "find",
+            home + "/.config",
+            "/usr/share",
+            "/etc",
+            "/opt",
+            "-maxdepth", "3",
+            "-not", "-path", "*/\.cache/*",
+            "-not", "-path", "*/node_modules/*",
+            "-not", "-path", "*/.git/*",
+            "-not", "-path", "*/venv/*",
+            "-not", "-path", "*/__pycache__/*",
+            "-iname", "*" + q + "*",
+            "-type", "f"
+        ];
+        sysProc.stdout.onRead.connect(function(data) {
+            if (gen !== searchGeneration) return;
+            var line = data.trim();
+            if (line.length === 0) return;
+            var fname = line.split("/").pop();
+            // Evitar duplicados con resultados del home
+            var isDup = false;
+            for (var si = 0; si < systemAccum.length; si++) {
+                if (systemAccum[si].name === fname) { isDup = true; break; }
+            }
+            if (!isDup) {
+                for (var hi = 0; hi < fileAccum.length; hi++) {
+                    if (fileAccum[hi].name === fname) { isDup = true; break; }
+                }
+            }
+            if (!isDup && systemAccum.length < 3) {
+                var capturedLine = line;
+                systemAccum.push({
+                    name: fname,
+                    description: capturedLine,
+                    icon: Icons.file,
+                    type: "file",
+                    exec: function() {
+                        var safePath = capturedLine.replace(/'/g, "'\\''");
+                        var p = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+                        p.command = ["bash", "-c",
+                            "cd ~ && env -u HL_INITIAL_WORKSPACE_TOKEN setsid thunar '" + safePath + "' < /dev/null > /dev/null 2>&1 &"];
+                        p.onExited.connect(() => p.destroy());
+                        p.running = true;
+                        Visibilities.setActiveModule("");
+                    }
+                });
+            }
+        });
+        sysProc.onExited.connect(function(code) {
+            if (gen !== searchGeneration) { try { sysProc.destroy(); } catch (e) {} return; }
+            sysProc.destroy();
+            if (currentSystemSearch === sysProc) currentSystemSearch = null;
+            pendingSearches--;
+            if (pendingSearches <= 0 && systemAccum.length > 0) results = results.concat(systemAccum);
+        });
+        currentSystemSearch = sysProc;
+        sysProc.running = true;
 
         // ── Live Text: también buscar en el texto de las imágenes (OCR) ──
         (function() {
