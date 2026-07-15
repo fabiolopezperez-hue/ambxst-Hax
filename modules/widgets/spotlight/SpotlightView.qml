@@ -1538,14 +1538,17 @@ PanelWindow {
                                                         border.width: win.is_focused ? 2 : 0
 
                                                         // ScreencopyView (live preview)
-                                                        ScreencopyView {
-                                                            id: winPreview
+                                                        ClippingRectangle {
                                                             anchors.fill: parent
-                                                            anchors.margins: 1
-                                                            captureSource: win.toplevel
-                                                            live: showWindowGrid
-                                                            visible: win.toplevel !== null
                                                             radius: Styling.radius(3)
+                                                            antialiasing: true
+                                                            ScreencopyView {
+                                                                id: winPreview
+                                                                anchors.fill: parent
+                                                                captureSource: win.toplevel
+                                                                live: showWindowGrid
+                                                                visible: win.toplevel !== null
+                                                            }
                                                         }
 
                                                         // Fallback: icono de app
