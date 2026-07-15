@@ -48,6 +48,19 @@ PanelWindow {
     property real barBottom: 40
     // Posición Y donde acaba el notch (justo debajo nace la gota)
     property real notchEndY: 60
+
+    // Timer para refrescar el grid de ventanas cada 2s mientras está abierto
+    Timer {
+        id: windowGridRefreshTimer
+        interval: 2000
+        repeat: true
+        running: showWindowGrid
+        onTriggered: {
+            if (showWindowGrid) {
+                buildWindowGrid();
+            }
+        }
+    }
     readonly property real screenCenterY: spotlight.height / 2
 
     // ── Acciones rápidas: customShortcuts se guarda como STRING JSON en el
@@ -1487,9 +1500,14 @@ PanelWindow {
                                     required property var modelData
                                     readonly property var ws: modelData
                                     readonly property int cardWidth: Math.min(280, (windowGridFlow.width - 8) / Math.max(1, Math.floor((windowGridFlow.width + 8) / 288)))
+                                    readonly property real cardContentW: cardWidth - 12  // menos márgenes
+                                    readonly property real viewW: cardContentW
+                                    readonly property real viewH: viewW * 9 / 16
+                                    readonly property real scale: Math.min(viewW / ws.workspaceW, viewH / ws.workspaceH)
+
                                     width: cardWidth
-                                    // Altura fija 16:9 para todos los workspaces (consistentes)
-                                    height: cardWidth * 9 / 16 + 28
+                                    // Altura = viewport 16:9 + espacio para header
+                                    height: viewH + 28
 
                                     // Card background (clickeable para cambiar de workspace)
                                     Rectangle {
@@ -1525,33 +1543,49 @@ PanelWindow {
                                             opacity: 0.6
                                         }
 
-                                        // Windows thumbnails — centrados en el espacio restante
-                                        Flow {
+                                        // Viewport del workspace — miniatura del escritorio
+                                        ClippingRectangle {
+                                            id: viewport
                                             anchors.top: wsHeader.bottom
                                             anchors.topMargin: 4
                                             anchors.horizontalCenter: parent.horizontalCenter
-                                            width: parent.width
-                                            spacing: 6
+                                            width: viewW
+                                            height: viewH
+                                            radius: Styling.radius(4)
+                                            antialiasing: true
+                                            color: Styling.srItem("overprimary")
+                                            opacity: 0.04
 
+                                            // Fondo tipo "escritorio"
+                                            Rectangle {
+                                                anchors.fill: parent
+                                                color: Styling.srItem("overprimary")
+                                                opacity: 0.08
+                                            }
+
+                                            // ScrollIndicator de que hay más ventanas
                                             Repeater {
                                                 model: ws.windows
 
                                                 delegate: Item {
                                                     required property var modelData
                                                     readonly property var win: modelData
-                                                    // 16:9 ratio — calculado del ancho del flow interior
-                                                    readonly property real winW: Math.min(130, (parent.width - 6) / Math.max(1, Math.floor((parent.width + 6) / 136)))
-                                                    readonly property real winH: winW * 9 / 16
+                                                    readonly property real wX: win.at[0] * scale
+                                                    readonly property real wY: win.at[1] * scale
+                                                    readonly property real wW: Math.max(20, win.size[0] * scale)
+                                                    readonly property real wH: Math.max(14, win.size[1] * scale)
 
-                                                    width: winW
-                                                    height: winH
+                                                    x: wX
+                                                    y: wY
+                                                    width: wW
+                                                    height: wH
 
-                                                    // ScreencopyView directo — sin fondo/tinte detrás
+                                                    // Borde + ScreencopyView de la ventana
                                                     ClippingRectangle {
                                                         anchors.fill: parent
-                                                        radius: Styling.radius(4)
+                                                        radius: 2
                                                         antialiasing: true
-                                                        border.color: win.is_focused ? Styling.srItem("overprimary") : "transparent"
+                                                        border.color: win.is_focused ? Styling.srItem("overprimary") : Qt.rgba(1,1,1,0.15)
                                                         border.width: win.is_focused ? 2 : 0
 
                                                         ScreencopyView {
@@ -1562,35 +1596,35 @@ PanelWindow {
                                                             visible: win.toplevel !== null
                                                         }
 
-                                                        // Fallback: icono de app
+                                                        // Fallback
                                                         Text {
                                                             anchors.centerIn: parent
                                                             text: "□"
-                                                            font.pixelSize: 20
+                                                            font.pixelSize: Math.min(wW, wH) * 0.4
                                                             color: Styling.srItem("text")
                                                             opacity: 0.3
                                                             visible: !winPreview.hasContent || win.toplevel === null
                                                         }
+                                                    }
 
-                                                        // Overlay: título de ventana abajo
-                                                        Rectangle {
-                                                            anchors.left: parent.left
-                                                            anchors.right: parent.right
-                                                            anchors.bottom: parent.bottom
-                                                            height: 16
-                                                            color: "#80000000"
-                                                            visible: win.title.length > 0
+                                                    // Overlay título
+                                                    Rectangle {
+                                                        anchors.left: parent.left
+                                                        anchors.right: parent.right
+                                                        anchors.bottom: parent.bottom
+                                                        height: Math.min(14, parent.height * 0.2)
+                                                        color: "#80000000"
+                                                        visible: win.title.length > 0 && wH > 20
 
-                                                            Text {
-                                                                anchors.fill: parent
-                                                                anchors.leftMargin: 3
-                                                                anchors.rightMargin: 3
-                                                                text: win.title
-                                                                font.pixelSize: Config.theme.fontSize - 5
-                                                                color: "white"
-                                                                elide: Text.ElideRight
-                                                                verticalAlignment: Text.AlignVCenter
-                                                            }
+                                                        Text {
+                                                            anchors.fill: parent
+                                                            anchors.leftMargin: 2
+                                                            anchors.rightMargin: 2
+                                                            text: win.title
+                                                            font.pixelSize: Math.min(8, wH * 0.12)
+                                                            color: "white"
+                                                            elide: Text.ElideRight
+                                                            verticalAlignment: Text.AlignVCenter
                                                         }
                                                     }
 
@@ -4274,7 +4308,7 @@ PanelWindow {
             var w = windows[i];
             if (!w.mapped) continue;
             var wsId = w.workspace.id;
-            if (!wsMap[wsId]) wsMap[wsId] = { id: wsId, windows: [] };
+            if (!wsMap[wsId]) wsMap[wsId] = { id: wsId, windows: [], workspaceW: 1920, workspaceH: 1080, maxAtX: 0, maxAtY: 0 };
             // Parear con Toplevel para ScreencopyView
             var cls = w.class || "";
             var matched = null;
@@ -4284,26 +4318,38 @@ PanelWindow {
                 else if (candidates.length > 1)
                     matched = candidates.find(function(t) { return t.title === (w.title || ""); }) || candidates[0];
             }
+            var atX = w.at ? w.at[0] : 0;
+            var atY = w.at ? w.at[1] : 0;
+            var szW = w.size ? w.size[0] : 100;
+            var szH = w.size ? w.size[1] : 100;
             wsMap[wsId].windows.push({
                 address: w.address,
                 class: cls,
                 title: w.title || "?",
-                at: w.at || [0, 0],
-                size: w.size || [100, 100],
+                at: [atX, atY],
+                size: [szW, szH],
                 is_focused: w.is_focused || false,
                 toplevel: matched
             });
+            // Calcular bounding box del workspace
+            wsMap[wsId].maxAtX = Math.max(wsMap[wsId].maxAtX, atX + szW);
+            wsMap[wsId].maxAtY = Math.max(wsMap[wsId].maxAtY, atY + szH);
+            wsMap[wsId].workspaceW = Math.max(wsMap[wsId].maxAtX, 1920);
+            wsMap[wsId].workspaceH = Math.max(wsMap[wsId].maxAtY, 1080);
         }
         var result = [];
         var sorted = Object.keys(wsMap).sort(function(a,b) { return parseInt(a) - parseInt(b); });
         for (var k = 0; k < sorted.length; k++) {
-            result.push(wsMap[sorted[k]]);
+            var ws = wsMap[sorted[k]];
+            // Forzar aspect ratio 16:9 manteniendo el ancho calculado
+            ws.workspaceH = ws.workspaceW * 9 / 16;
+            result.push(ws);
         }
         windowGridData = result;
-        // Calcular altura: filas de workspaces * alto de cada card (16:9)
-        var cols = Math.max(1, Math.floor((contentColumn.width - 16) / 288));
+        // Calcular altura: columnas de workspace cards
+        var cols = Math.max(1, Math.floor((contentColumn.width - 16) / 300));
         var rows = Math.ceil(result.length / cols);
-        windowGridHeight = Math.min(rows * 200 + 16, 600);
+        windowGridHeight = Math.min(rows * 195 + 8, 600);
     }
 
     // ── Búsqueda de archivos ───────────────────────────────────────────────
