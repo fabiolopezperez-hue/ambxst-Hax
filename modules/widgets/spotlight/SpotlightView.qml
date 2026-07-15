@@ -672,6 +672,10 @@ PanelWindow {
                                 } else {
                                     if (spotlight.selectedIndex > 0) {
                                         spotlight.selectedIndex--;
+                                        // Saltar separadores de categoría
+                                        while (spotlight.selectedIndex > 0 && spotlight.results[spotlight.selectedIndex] && spotlight.results[spotlight.selectedIndex].cat === true) {
+                                            spotlight.selectedIndex--;
+                                        }
                                         if (resultsList) {
                                             resultsList.positionViewAtIndex(spotlight.selectedIndex, ListView.Center);
                                         }
@@ -693,6 +697,10 @@ PanelWindow {
                                 } else {
                                     if (spotlight.selectedIndex < spotlight.results.length - 1) {
                                         spotlight.selectedIndex++;
+                                        // Saltar separadores de categoría
+                                        while (spotlight.selectedIndex < spotlight.results.length - 1 && spotlight.results[spotlight.selectedIndex] && spotlight.results[spotlight.selectedIndex].cat === true) {
+                                            spotlight.selectedIndex++;
+                                        }
                                         if (resultsList) {
                                             resultsList.positionViewAtIndex(spotlight.selectedIndex, ListView.Center);
                                         }
@@ -1152,12 +1160,40 @@ PanelWindow {
 
                         delegate: Item {
                             width: resultsList.width
-                            height: 52
+                            height: modelData.cat === true ? 30 : 52
 
-                            // Resaltado de selección (semitransparente)
+                            // ── Separador de categoría ──────────────────────
+                            Rectangle {
+                                anchors.fill: parent
+                                anchors.leftMargin: 16
+                                anchors.rightMargin: 16
+                                visible: modelData.cat === true
+                                color: "transparent"
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: modelData.label || ""
+                                    font.family: Config.theme.font
+                                    font.pixelSize: Config.theme.fontSize - 2
+                                    font.bold: true
+                                    color: Styling.srItem("text")
+                                    opacity: 0.5
+                                    font.letterSpacing: 0.5
+                                }
+                                Rectangle {
+                                    anchors.left: parent.left
+                                    anchors.right: parent.right
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    height: 1
+                                    color: Styling.srItem("text")
+                                    opacity: 0.08
+                                }
+                            }
+
+                            // ── Item normal (cuando no es categoría) ────────
                             Rectangle {
                                 anchors.fill: parent
                                 radius: Styling.radius(10)
+                                visible: modelData.cat !== true
                                 color: index === spotlight.selectedIndex
                                     ? Qt.rgba(spotlight.haxPrimaryColor.r, spotlight.haxPrimaryColor.g, spotlight.haxPrimaryColor.b, 0.25)
                                     : "transparent"
@@ -1172,6 +1208,7 @@ PanelWindow {
                                 id: mouseArea
                                 anchors.fill: parent
                                 hoverEnabled: true
+                                visible: modelData.cat !== true
 
                                 // Hax es 100% teclado: el ratón NO dispara la previsualización.
                                 // (El ratón solo se usa en el Historial para borrar copias antiguas.)
@@ -1194,6 +1231,7 @@ PanelWindow {
                                 anchors.leftMargin: 16
                                 anchors.rightMargin: 16
                                 spacing: 12
+                                visible: modelData.cat !== true
 
                                 // Icono (app → system icon, otros → Phosphor)
                                 Item {
@@ -4026,7 +4064,7 @@ PanelWindow {
             try {
                 var out = (proc.stdout ? proc.stdout.text : "") || "";
                 if (out.trim().length === 0) {
-                    results = [{ name: "⚠️ No hay ventanas activas", description: "hyprctl no devolvió datos", icon: Icons.notepad, type: "info", exec: null }];
+                    results = [{ name: "No hay ventanas activas", description: "hyprctl no devolvió datos", icon: "window", type: "info", exec: null }];
                     try { proc.destroy(); } catch (e) {} return;
                 }
                 var windows = JSON.parse(out);
@@ -4042,17 +4080,25 @@ PanelWindow {
                 var sorted = Object.keys(wsMap).sort(function(a,b) { return parseInt(a) - parseInt(b); });
                 for (var k = 0; k < sorted.length; k++) {
                     var ws = wsMap[sorted[k]];
-                    wins.push({ cat: true, label: "Espacio " + ws.id + " (" + ws.windows.length + ")" });
+                    // Separador visual de espacio de trabajo
+                    wins.push({ cat: true, label: "Espacio " + ws.id + "  ·  " + ws.windows.length + " ventana" + (ws.windows.length !== 1 ? "s" : "") });
                     for (var j = 0; j < ws.windows.length; j++) {
                         var win = ws.windows[j];
                         var cls = win.class || "?";
                         var title = win.title || "?";
-                        (function(addr, wsId, cls, title) {
+                        var iconName = cls;
+                        // Mapear clases conocidas a nombres de icono estándar
+                        if (cls === "code-oss") iconName = "code-oss";
+                        else if (cls === "zen") iconName = "zen";
+                        else if (cls === "firefox") iconName = "firefox";
+                        else if (cls === "org.kde.dolphin") iconName = "dolphin";
+                        else if (cls === "foot" || cls === "kitty" || cls === "alacritty") iconName = "terminal";
+                        (function(addr, wsId, cls, title, iconName) {
                             wins.push({
-                                name: cls,
-                                description: (title || "?") + " · Espacio " + wsId,
-                                icon: Icons.notepad,
-                                type: "window",
+                                name: title,
+                                description: "Espacio " + wsId + " · " + cls,
+                                icon: iconName,
+                                type: "app",
                                 exec: function() {
                                     var p1 = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
                                     p1.command = ["hyprctl", "dispatch", "workspace", String(wsId)];
@@ -4065,12 +4111,12 @@ PanelWindow {
                                     Visibilities.setActiveModule("");
                                 }
                             });
-                        })(win.address, ws.id, cls, title);
+                        })(win.address, ws.id, cls, title, iconName);
                     }
                 }
-                results = wins.length > 0 ? wins : [{ name: "🪟 Sin ventanas abiertas", description: "No hay ventanas activas en ningún workspace", icon: Icons.notepad, type: "info", exec: null }];
+                results = wins.length > 0 ? wins : [{ name: "Sin ventanas abiertas", description: "No hay ventanas activas en ningún workspace", icon: "window", type: "info", exec: null }];
             } catch (e) {
-                results = [{ name: "⚠️ Error al obtener ventanas", description: String(e), icon: Icons.notepad, type: "info", exec: null }];
+                results = [{ name: "Error al obtener ventanas", description: String(e), icon: "window", type: "info", exec: null }];
             }
             try { proc.destroy(); } catch (e) {}
         });
