@@ -49,18 +49,6 @@ PanelWindow {
     // Posición Y donde acaba el notch (justo debajo nace la gota)
     property real notchEndY: 60
 
-    // Timer para refrescar el grid de ventanas cada 2s mientras está abierto
-    Timer {
-        id: windowGridRefreshTimer
-        interval: 2000
-        repeat: true
-        running: showWindowGrid
-        onTriggered: {
-            if (showWindowGrid) {
-                buildWindowGrid();
-            }
-        }
-    }
     readonly property real screenCenterY: spotlight.height / 2
 
     // ── Acciones rápidas: customShortcuts se guarda como STRING JSON en el
@@ -690,7 +678,8 @@ PanelWindow {
 
                             Keys.onUpPressed: {
                                 if (spotlight.showWindowGrid) {
-                                    // Navegar grid de ventanas
+                                    // Refrescar y navegar grid de ventanas
+                                    try { spotlight.buildWindowGrid(); } catch (e) {}
                                     var totalWindows = 0;
                                     for (var i = 0; i < spotlight.windowGridData.length; i++) {
                                         totalWindows += Math.min(spotlight.windowGridData[i].windows.length, 6);
@@ -723,7 +712,8 @@ PanelWindow {
 
                             Keys.onDownPressed: {
                                 if (spotlight.showWindowGrid) {
-                                    // Navegar grid de ventanas
+                                    // Refrescar y navegar grid de ventanas
+                                    try { spotlight.buildWindowGrid(); } catch (e) {}
                                     var totalWindows = 0;
                                     for (var i = 0; i < spotlight.windowGridData.length; i++) {
                                         totalWindows += Math.min(spotlight.windowGridData[i].windows.length, 6);
@@ -4386,8 +4376,10 @@ PanelWindow {
 
     // ── Show: grid visual de ventanas (CompositorData + ScreencopyView) ────
     function buildWindowGrid() {
+        try {
         var windows = CompositorData ? (CompositorData.windowList || []) : [];
-        var toplevels = ToplevelManager ? (ToplevelManager.toplevels.values || []) : [];
+        var toplevels = [];
+        try { toplevels = ToplevelManager && ToplevelManager.toplevels ? (ToplevelManager.toplevels.values || []) : []; } catch (e) { toplevels = []; }
         var wsMap = {};
         for (var i = 0; i < windows.length; i++) {
             var w = windows[i];
@@ -4431,6 +4423,7 @@ PanelWindow {
         var cols = Math.max(1, Math.floor((contentColumn.width - 16) / 300));
         var rows = Math.ceil(result.length / cols);
         windowGridHeight = Math.min(rows * 195 + 8, 600);
+        } catch (e) { /* si falla, no romper la shell */ }
     }
 
     // Va a la ventana seleccionada en el grid
