@@ -1552,16 +1552,8 @@ PanelWindow {
                                             width: viewW
                                             height: viewH
                                             radius: Styling.radius(4)
-                                            color: Styling.srItem("overprimary")
-                                            opacity: 0.04
+                                            color: "transparent"
                                             clip: true
-
-                                            // Fondo tipo "escritorio"
-                                            Rectangle {
-                                                anchors.fill: parent
-                                                color: Styling.srItem("overprimary")
-                                                opacity: 0.08
-                                            }
 
                                             // Ventanas posicionadas como en el escritorio real
                                             Repeater {
@@ -1580,11 +1572,12 @@ PanelWindow {
                                                     width: wW
                                                     height: wH
 
-                                                    // Borde + ScreencopyView de la ventana
+                                                    // ScreencopyView de la ventana (sin tinte)
                                                     ClippingRectangle {
                                                         anchors.fill: parent
                                                         radius: 2
                                                         antialiasing: true
+                                                        color: "transparent"
                                                         border.color: win.is_focused ? Styling.srItem("overprimary") : Qt.rgba(1,1,1,0.15)
                                                         border.width: win.is_focused ? 2 : 0
 
