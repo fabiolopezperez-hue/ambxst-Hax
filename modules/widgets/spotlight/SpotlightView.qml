@@ -3029,11 +3029,10 @@ PanelWindow {
             return;
         }
 
-        // Usar el shell por defecto del usuario en modo interactivo (-i) para
-        // respetar sus alias (p. ej. los de fish en config.fish / fish_greeting.fish).
-        // Probado: `fish -i -c` carga los alias y no escupe el saludo en la salida.
-        var shellBin = Quickshell.env("SHELL") || "bash";
-        proc.command = [shellBin, "-i", "-c", cmd + " 2>&1"];
+        // Usar bash siempre para comandos automáticos (update, pacman, etc.)
+        // porque las cadenas usan sintaxis bash (2>&1, 2>/dev/null, etc.).
+        // Para la terminal interactiva (/) el usuario escribe directamente en su shell.
+        proc.command = ["bash", "-c", cmd + " 2>&1"];
         proc.workingDirectory = Quickshell.env("HOME") || "/tmp";
 
         proc.stdout.onRead.connect(function(data) {
