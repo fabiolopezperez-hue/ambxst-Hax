@@ -497,7 +497,7 @@ QtObject {
     // ── Utilidad para crear plugins por defecto ──
     function createDefaultPlugins() {
         var pluginsDir2 = pluginsDir;  // capturar para closures
-        var srcDir = "/home/fabio/.local/src/ambxst/modules/widgets/spotlight";
+        var srcDir = Qt.resolvedUrl(".").replace(/^file:\/\//, "");  // carpeta del propio módulo Hax
         var defaultPlugins = [
             { src: srcDir + "/plugin-ejemplo.sh", dest: pluginsDir2 + "/ejemplo.sh" }
         ];
