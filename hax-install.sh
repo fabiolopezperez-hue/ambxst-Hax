@@ -7,10 +7,12 @@ set -euo pipefail
 # Instala Hax (el spotlight/launcher de Axenide) sobre Ambxst.
 #
 # ¿Qué instala?
-#   • Hax (SpotlightView.qml + qmldir) — buscador universal (~5490 líneas)
+#   • Hax (SpotlightView.qml + PluginManager.qml + HaxPlugin.qml + qmldir)
+#     — buscador universal (~5490 líneas) con sistema de plugins (N2 script + N3 QML)
 #   • Config.qml — con persistencia de acciones rápidas
 #   • config/defaults/hax.js — defaults de Hax
 #   • assets/presets/.../hax.json — preset inicial
+#   • ~/.config/hax/plugins/ejemplo.sh — plugin de ejemplo
 #   • Terminal embebida: qmltermwidget (plugin QML que compila contra Qt6)
 #
 # El resto (servicios, theme, componentes, scripts, fuentes) los provee
@@ -214,17 +216,17 @@ if [[ "$SHELL_SRC" == "$HOME/.local/src/ambxst" ]] || [[ "$SHELL_SRC" == *"ambxs
     git clone "https://github.com/Axenide/Ambxst.git" "$SHELL_SRC"
     log_success "Ambxst original clonado en $SHELL_SRC."
   fi
-  else
-    log_info "Shell personalizada detectada — saltando instalación de Ambxst."
-  fi
+else
+  log_info "Shell personalizada detectada — saltando instalación de Ambxst."
+fi
 
-  # Validar que la shell destino tenga la estructura de módulos
-  # (ya sea la que había o la que acabamos de clonar en el paso 4).
-  if [[ ! -d "$SHELL_SRC/modules/widgets" ]]; then
-    log_error "No se encontró la estructura de módulos en $SHELL_SRC"
-    log_error "¿Seguro que es una shell basada en Ambxst? Debe contener modules/widgets/"
-    exit 1
-  fi
+# Validar que la shell destino tenga la estructura de módulos
+# (ya sea la que había o la que acabamos de clonar en el paso 4).
+if [[ ! -d "$SHELL_SRC/modules/widgets" ]]; then
+  log_error "No se encontró la estructura de módulos en $SHELL_SRC"
+  log_error "¿Seguro que es una shell basada en Ambxst? Debe contener modules/widgets/"
+  exit 1
+fi
 
 # ── 4b. Terminal embebida: build + install de qmltermwidget ──
 # Hax integra una terminal real (PTY) vía el plugin QMLTermWidget.
