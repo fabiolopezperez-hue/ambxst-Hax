@@ -215,11 +215,14 @@ ambxst-Hax/
 │   └── presets/
 │       └── Ambxst Default/
 │           └── hax.json                  # Preset de configuración de Hax
-├── modules/
-│   └── widgets/spotlight/
-│       ├── qmldir                        # Registro del módulo
-│               └── SpotlightView.qml             # 🧠 Todo Hax (~5050 líneas)
-└── screenshots/
+ ├── modules/
+ │   └── widgets/spotlight/
+ │       ├── qmldir                        # Registro del módulo
+ │       ├── SpotlightView.qml             # 🧠 Todo Hax (~5050 líneas)
+ │       ├── PluginManager.qml             # 🔌 Gestor de plugins (scan, hot-reload, persistencia, errores)
+ │       ├── HaxPlugin.qml                 # 🧩 Base para plugins QML (N3)
+ │       └── plugin-ejemplo.sh             # 📦 Plugin de ejemplo (N2 script) que se copia al usuario
+ └── screenshots/
     ├── hax-search-bar.png
     ├── new-animation-Hax.mp4
     ├── new-functions-Hax.mp4
@@ -247,7 +250,65 @@ El instalador:
 - Copia Hax (spotlight, config con persistencia, defaults, assets) en tu shell
 - **Sobrescribe `Config.qml`** con nuestra versión (con backup automático)
 - **No instala Ambxst** — respeta tu shell actual
-- Configura el atajo `Super + /` en Hyprland si no existe
+ - Configura el atajo `Super + /` en Hyprland si no existe
+
+---
+
+## 🔌 Sistema de Plugins
+
+Hax tiene un sistema de plugins de doble capa que se integra **dentro** del propio Hax (no como notificaciones del sistema), con hot-reload automático y aislamiento de errores.
+
+### 📁 Dónde viven los plugins
+
+```
+~/.config/hax/plugins/
+```
+
+El instalador crea esta carpeta y copia el plugin de ejemplo (`ejemplo.sh`). Puedes añadir los tuyos ahí en cualquier momento.
+
+### 🟢 N2 — Plugins tipo script (`.sh` / `.py`)
+
+Son ejecutables que Hax detecta automáticamente. Cada script debe imprimir al stdout un JSON con sus resultados. Ejemplo mínimo (`plugin-ejemplo.sh`):
+
+```bash
+#!/bin/bash
+# Plugin de ejemplo para Hax (N2)
+# Imprime un JSON array con los resultados que Hax mostrará en la lista.
+query="$1"
+
+# Resultado estático de ejemplo
+echo '[
+  {
+    "title": "Hola desde mi plugin 💖",
+    "subtitle": "Este es un resultado de ejemplo",
+    "icon": "🧩",
+    "actions": [
+      { "name": "Saludar", "command": "echo \"Hola, mi amor desde Hax\"" }
+    ]
+  }
+]'
+```
+
+- Hax hace un **precache del catálogo** una vez al arrancar y filtra en memoria en cada búsqueda (rápido).
+- Las acciones (`command`) se ejecutan capturando su salida, que se muestra como **notificación inline dentro de Hax** (se autocierra a los 5s).
+- Si un plugin falla, se aísla con `try/catch` y no rompe el resto.
+
+### 🟣 N3 — Plugins QML (`.qml`)
+
+Herenan de `HaxPlugin.qml` y siguen un ciclo de vida: `onLoad`, `onSearch(query)` y `onExecute(result)`. Permiten UI rica y acceso a todo el ecosistema de Quickshell.
+
+### ⚡ Características del sistema
+
+| Característica | Estado |
+|----------------|:---:|
+| Detección automática de scripts y QML | ✅ |
+| Hot-reload (escanea cambios cada 5s) | ✅ |
+| Persistencia activar/desactivar (`plugin-state.json`) | ✅ |
+| Aislamiento de errores por plugin | ✅ |
+| Resultados y acciones **dentro de Hax** (sin `notify-send`) | ✅ |
+| HaxAPI (`showResult`, `getConfig`, `setConfig`, `copyToClipboard`, `runCommand`, `openUrl`, `openFile`…) | ✅ |
+
+> 💡 Crea el tuyo: copia `plugin-ejemplo.sh` a `~/.config/hax/plugins/`, cámbiale el nombre y edítalo. Hax lo recogerá solo en ≤5s.
 
 ---
 
@@ -292,6 +353,16 @@ Hax no compite solo como "un launcher más". Es un **centro de productividad com
 ### v4.0 LTS — Julio 2026 — 🏆 Versión estable de largo plazo
 
 Hax alcanza la madurez. **A partir de esta versión, no habrá nuevas funciones.** Solo correcciones de bugs y ajustes estéticos.
+
+#### 🔌 Sistema de Plugins (N2 script + N3 QML)
+- **🟢 Plugins script (`.sh`/`.py`)** — Hax detecta ejecutables en `~/.config/hax/plugins/`, hace precache del catálogo y filtra en memoria por búsqueda. Cada script imprime un JSON con `title`, `subtitle`, `icon` y `actions`.
+- **🟣 Plugins QML (`.qml`)** — Herenan de `HaxPlugin.qml` con ciclo de vida `onLoad` / `onSearch` / `onExecute`, para UI rica dentro de Hax.
+- **⚡ Hot-reload** — `PluginManager.qml` escanea cambios cada 5s y registra/elimina plugins en caliente.
+- **💾 Persistencia** — `plugin-state.json` guarda qué plugins están activos; se aplica in-place al cargar.
+- **🛡️ Aislamiento de errores** — `try/catch` por plugin en `queryAll`; si uno falla, los demás siguen funcionando.
+- **🔔 Resultados y acciones dentro de Hax** — Las acciones ejecutan comandos y su salida se muestra como notificación inline (auto-cierre 5s), sin `notify-send`.
+- **🧰 HaxAPI ampliado** — `copyToClipboard`, `runCommand`, `showNotification`, `openUrl`, `openFile`, `readClipboard`, `getPluginDir`, `showResult`, `getConfig`/`setConfig`.
+- **📦 Instalador** — `hax-install.sh` crea `~/.config/hax/plugins/` y copia el plugin de ejemplo (`plugin-ejemplo.sh` → `ejemplo.sh`).
 
 #### 🪟 Hax View — Cuadrícula visual de workspaces
 - **🖥️ Vista en vivo de todos los workspaces** — Escribe `show` para abrir una cuadrícula 16:9 con miniaturas en vivo (ScreencopyView) de todas las ventanas abiertas, agrupadas por espacio de trabajo.
