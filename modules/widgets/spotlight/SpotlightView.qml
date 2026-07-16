@@ -1294,6 +1294,25 @@ PanelWindow {
                     opacity: results.length > 0 ? 1 : 0
                     visible: opacity > 0
                     clip: true
+
+                    // Capturar la rueda del ratón para hacer scroll de la lista
+                    // (por si otros MouseArea padre interceptan el evento)
+                    WheelHandler {
+                        orientation: Qt.Vertical
+                        onWheel: (event) => {
+                            var delta = event.angleDelta.y;
+                            if (delta !== 0 && resultsList.contentHeight > resultsList.height) {
+                                resultsList.contentY = Math.max(
+                                    0,
+                                    Math.min(
+                                        resultsList.contentHeight - resultsList.height,
+                                        resultsList.contentY - delta / 4
+                                    )
+                                );
+                                event.accepted = true;
+                            }
+                        }
+                    }
                     Behavior on opacity {
                         enabled: Config.animDuration > 0
                         NumberAnimation {
@@ -1317,6 +1336,9 @@ PanelWindow {
                         height: parent.height
                         clip: true
                         boundsBehavior: Flickable.StopAtBounds
+                        interactive: true
+                        flickableDirection: Flickable.VerticalFlick
+                        maximumFlickVelocity: 5000
 
                         model: results
                         spacing: 2
@@ -3837,10 +3859,10 @@ PanelWindow {
             if (pkgCmd === "update") {
                 newResults.push({
                     name: "🔄 Actualizar sistema",
-                    description: "sudo pacman -Syu — actualiza todos los paquetes",
+                    description: "yay -Syu — actualiza todos los paquetes (repo + AUR)",
                     icon: Icons.notepad, type: "info",
                     exec: function() {
-                        runCmd('echo "F200607" | sudo -S rm -f /var/lib/pacman/db.lck 2>/dev/null; echo "F200607" | sudo -S pacman -Syu --noconfirm');
+                        runCmd('echo "F200607" | sudo -S rm -f /var/lib/pacman/db.lck 2>/dev/null; echo "F200607" | sudo -S yay -Syu --noconfirm');
                     }
                 });
                 results = newResults;
