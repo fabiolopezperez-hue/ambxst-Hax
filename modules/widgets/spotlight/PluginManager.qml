@@ -21,7 +21,7 @@ QtObject {
     // ── Propiedades ──
     property var plugins: []              // Array de plugins cargados
     property var pluginMap: ({})          // id → plugin
-    property string pluginsDir: (Quickshell.env("HOME") || "/home/fabio") + "/.config/hax/plugins"
+    property string pluginsDir: Quickshell.env("HOME") + "/.config/hax/plugins"
     property var haxAPI: null             // API reference for QML plugins
     property var scriptCache: ({})        // Cache de resultados (id -> [{...}])
 
