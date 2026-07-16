@@ -338,6 +338,15 @@ mkdir -p "$SHELL_SRC/assets/presets"
 # Módulos propios de Hax
 cp -r "$REPO_DIR/modules/widgets/spotlight"   "$SHELL_SRC/modules/widgets/"
 
+# Carpeta de plugins del usuario (~/.config/hax/plugins)
+HAX_PLUGINS_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/hax/plugins"
+mkdir -p "$HAX_PLUGINS_DIR"
+if [[ -f "$REPO_DIR/modules/widgets/spotlight/plugin-ejemplo.sh" ]]; then
+  cp -n "$REPO_DIR/modules/widgets/spotlight/plugin-ejemplo.sh" "$HAX_PLUGINS_DIR/ejemplo.sh" 2>/dev/null || true
+  chmod +x "$HAX_PLUGINS_DIR/ejemplo.sh" 2>/dev/null || true
+  log_success "Carpeta de plugins creada en $HAX_PLUGINS_DIR (con plugin de ejemplo)."
+fi
+
 # Config (SIEMPRE se sobrescribe — Hax necesita su versión con persistencia)
 if [[ -f "$SHELL_SRC/config/Config.qml" ]]; then
   cp "$SHELL_SRC/config/Config.qml" "$SHELL_SRC/config/Config.qml.bak.$(date +%s)"
