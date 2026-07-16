@@ -427,6 +427,78 @@ else
   log_info "  Formato Lua (.lua):        $HAX_LUA_BIND"
 fi
 
+# ── 6b. Validación para forks ─────────────────────────────────
+# Hax sobreescribe Config.qml (el de Ambxst completo), que importa varios
+# archivos de config/defaults/ y config/*.js. En una shell Ambxst estos ya
+# existen (los creó el paso 4). Pero en un FORK que no traiga Ambxst completo,
+# podrían faltar y Quickshell fallaría al cargar. Esta función los completa
+# (copiándolos del repo si los tiene, o de una instalación de Ambxst conocida)
+# y avisa claramente si alguno no se puede resolver.
+log_info "Verificando dependencias de Config.qml (necesario para forks)..."
+REQUIRED_CONFIG_FILES=(
+  "ConfigValidator.js"
+  "KeybindActions.js"
+  "defaults/ai.js"
+  "defaults/bar.js"
+  "defaults/compositor.js"
+  "defaults/desktop.js"
+  "defaults/dock.js"
+  "defaults/hax.js"
+  "defaults/lockscreen.js"
+  "defaults/notch.js"
+  "defaults/overview.js"
+  "defaults/performance.js"
+  "defaults/prefix.js"
+  "defaults/system.js"
+  "defaults/theme.js"
+  "defaults/weather.js"
+  "defaults/workspaces.js"
+)
+
+# Posibles ubicaciones de respaldo de Ambxst (de donde copiar si faltan)
+AMBXST_FALLBACK=""
+for cand in "${AMBXST_SRC:-}" "$HOME/.local/src/ambxst" "$HOME/Repos/ambxst" "$HOME/.local/src/Ambxst"; do
+  if [[ -n "$cand" && -d "$cand/config/defaults" ]]; then
+    AMBXST_FALLBACK="$cand"
+    break
+  fi
+done
+
+MISSING=()
+for rel in "${REQUIRED_CONFIG_FILES[@]}"; do
+  dst="$SHELL_SRC/config/$rel"
+  if [[ -f "$dst" ]]; then
+    continue
+  fi
+  # Intentar copiar del repo
+  if [[ -f "$REPO_DIR/config/$rel" ]]; then
+    mkdir -p "$(dirname "$dst")"
+    cp "$REPO_DIR/config/$rel" "$dst"
+    log_info "Copiado $rel (del repo) a la shell."
+    continue
+  fi
+  # Intentar copiar de una instalación de Ambxst conocida
+  if [[ -n "$AMBXST_FALLBACK" && -f "$AMBXST_FALLBACK/config/$rel" ]]; then
+    mkdir -p "$(dirname "$dst")"
+    cp "$AMBXST_FALLBACK/config/$rel" "$dst"
+    log_info "Copiado $rel (de Ambxst en $AMBXST_FALLBACK) a la shell."
+    continue
+  fi
+  MISSING+=("$rel")
+done
+
+if [[ ${#MISSING[@]} -gt 0 ]]; then
+  log_warn "Faltan archivos de configuración que Config.qml necesita:"
+  for m in "${MISSING[@]}"; do
+    echo -e "    ${YELLOW}• config/$m${NC}" >&2
+  done
+  log_warn "Hax puede no cargar. Si usas un fork, asegúrate de que tu shell"
+  log_warn "tenga estos archivos (o instala Ambxst primero en otra ruta y"
+  log_warn "define AMBXST_SRC apuntando a ella)."
+else
+  log_success "Dependencias de Config.qml verificadas — Hax cargará correctamente."
+fi
+
 # ── 7. Mensaje final ─────────────────────────────────────────
 echo ""
 log_success "¡Instalación completada! 🎯"
