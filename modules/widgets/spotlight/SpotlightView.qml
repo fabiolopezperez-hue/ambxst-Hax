@@ -3859,10 +3859,17 @@ PanelWindow {
             if (pkgCmd === "update") {
                 newResults.push({
                     name: "🔄 Actualizar sistema",
-                    description: "yay -Syu — actualiza todos los paquetes (repo + AUR)",
+                    description: "pacman -Syu — actualiza todos los paquetes (pide permiso vía Polkit)",
                     icon: Icons.notepad, type: "info",
                     exec: function() {
-                        runCmd('yay -Syu --noconfirm');
+                        // pkexec abre el diálogo gráfico de Polkit (no bloquea Hax).
+                        // Si no hay polkit agent, usa sudo (requiere NOPASSWD o que cache la credencial).
+                        runCmd('sudo rm -f /var/lib/pacman/db.lck 2>/dev/null; ' +
+                               'if command -v pkexec >/dev/null 2>&1; then ' +
+                               '  pkexec pacman -Syu --noconfirm --overwrite "*"; ' +
+                               'else ' +
+                               '  sudo pacman -Syu --noconfirm --overwrite "*"; ' +
+                               'fi');
                     }
                 });
                 results = newResults;
