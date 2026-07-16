@@ -7,7 +7,7 @@ set -euo pipefail
 # Instala Hax (el spotlight/launcher de Axenide) sobre Ambxst.
 #
 # ¿Qué instala?
-#   • Hax (SpotlightView.qml + qmldir) — buscador universal (~4577 líneas)
+#   • Hax (SpotlightView.qml + qmldir) — buscador universal (~5490 líneas)
 #   • Config.qml — con persistencia de acciones rápidas
 #   • config/defaults/hax.js — defaults de Hax
 #   • assets/presets/.../hax.json — preset inicial
@@ -230,7 +230,11 @@ if [[ "$SHELL_SRC" == "$HOME/.local/src/ambxst" ]] || [[ "$SHELL_SRC" == *"ambxs
 # Hax integra una terminal real (PTY) vía el plugin QMLTermWidget.
 # Se compila desde fuentes contra Qt6 y se instala en el árbol de QML.
 install_qmltermwidget() {
-  # Detectar el qmake de Qt6
+  # Detectar sudo (si no existe, lo usamos vacío y daremos error claro)
+  local SUDO=""
+  if has_cmd sudo; then SUDO="sudo"; fi
+
+  # Detectar el qmake de Qt6 (el MISMO que usa Quickshell)
   local QMAKE_BIN=""
   if has_cmd qmake6; then QMAKE_BIN="qmake6"
   elif has_cmd qmake-qt6; then QMAKE_BIN="qmake-qt6"
@@ -251,6 +255,13 @@ install_qmltermwidget() {
   fi
 
   log_info "Instalando qmltermwidget (terminal embebida de Hax)..."
+
+  # Si no hay qmake de Qt6, no podemos compilar
+  if [[ -z "$QMAKE_BIN" ]]; then
+    log_error "No se encontró qmake (Qt6). No se puede compilar qmltermwidget."
+    log_error "Instálalo manualmente: https://github.com/Swordfish90/qmltermwidget"
+    return 1
+  fi
 
   # Dependencias de build por distro
   local BUILD_DEPS=()
@@ -279,11 +290,11 @@ install_qmltermwidget() {
           local AUR=""; has_cmd yay && AUR=yay || AUR=paru
           $AUR -S --needed --noconfirm "${BUILD_DEPS[@]}"
         else
-          sudo pacman -S --needed --noconfirm "${BUILD_DEPS[@]}"
+          $SUDO pacman -S --needed --noconfirm "${BUILD_DEPS[@]}"
         fi
         ;;
       fedora)
-        sudo dnf install -y "${BUILD_DEPS[@]}"
+        $SUDO dnf install -y "${BUILD_DEPS[@]}"
         ;;
     esac
   fi
@@ -293,30 +304,45 @@ install_qmltermwidget() {
   elif has_cmd qmake-qt6; then QMAKE_BIN="qmake-qt6"
   elif has_cmd qmake; then QMAKE_BIN="qmake"
   else
-    log_error "No se encontró qmake (Qt6). No se pudo compilar qmltermwidget."
+    log_error "No se encontró qmake (Qt6) tras instalar dependencias. Abortando."
     return 1
   fi
 
-  # Clonar fuentes (commit fijo para reproducibilidad del API)
+  # Clonar fuentes — con la revisión fija (commit 8913504) para API estable.
+  # NOTA: NO usamos --depth para poder hacer checkout de un commit concreto.
   local SRC_TMP="$(mktemp -d)"
   git clone "https://github.com/Swordfish90/qmltermwidget.git" "$SRC_TMP" \
     || { log_error "No se pudo clonar qmltermwidget."; rm -rf "$SRC_TMP"; return 1; }
-  git -C "$SRC_TMP" checkout 8913504 2>/dev/null || true
+  if ! git -C "$SRC_TMP" checkout 8913504 2>/dev/null; then
+    log_warn "No se pudo hacer checkout del commit fijo (8913504) — usando rama por defecto."
+  fi
 
   # Compilar
+  log_info "Compilando qmltermwidget (esto puede tardar un poco)..."
   ( cd "$SRC_TMP" && "$QMAKE_BIN" && make -j"$(nproc 2>/dev/null || echo 4)" ) \
     || { log_error "Falló la compilación de qmltermwidget."; rm -rf "$SRC_TMP"; return 1; }
 
-  # Instalar en el árbol de QML de Qt6
-  sudo make -C "$SRC_TMP" install \
-    || { log_error "Falló la instalación de qmltermwidget."; rm -rf "$SRC_TMP"; return 1; }
+  # Instalar en el árbol de QML de Qt6 (con sudo si hace falta)
+  if [[ -w "$QML_DIR" ]]; then
+    make -C "$SRC_TMP" install \
+      || { log_error "Falló la instalación de qmltermwidget."; rm -rf "$SRC_TMP"; return 1; }
+  else
+    if [[ -z "$SUDO" ]]; then
+      log_error "El directorio $QML_DIR no es escribible y no hay 'sudo'."
+      log_error "Ejecuta como root o instala manualmente qmltermwidget."
+      rm -rf "$SRC_TMP"
+      return 1
+    fi
+    $SUDO make -C "$SRC_TMP" install \
+      || { log_error "Falló la instalación de qmltermwidget."; rm -rf "$SRC_TMP"; return 1; }
+  fi
 
   rm -rf "$SRC_TMP"
 
   if [[ -f "$PLUGIN_DIR/libqmltermwidget.so" ]]; then
     log_success "qmltermwidget instalado en $PLUGIN_DIR."
   else
-    log_error "La instalación de qmltermwidget no produjo el plugin."
+    log_error "La instalación de qmltermwidget no produjo el plugin en $PLUGIN_DIR."
     return 1
   fi
 }
@@ -337,6 +363,15 @@ mkdir -p "$SHELL_SRC/assets/presets"
 
 # Módulos propios de Hax
 cp -r "$REPO_DIR/modules/widgets/spotlight"   "$SHELL_SRC/modules/widgets/"
+
+# Carpeta de plugins del usuario (~/.config/hax/plugins)
+HAX_PLUGINS_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/hax/plugins"
+mkdir -p "$HAX_PLUGINS_DIR"
+if [[ -f "$REPO_DIR/modules/widgets/spotlight/plugin-ejemplo.sh" ]]; then
+  cp -n "$REPO_DIR/modules/widgets/spotlight/plugin-ejemplo.sh" "$HAX_PLUGINS_DIR/ejemplo.sh" 2>/dev/null || true
+  chmod +x "$HAX_PLUGINS_DIR/ejemplo.sh" 2>/dev/null || true
+  log_success "Carpeta de plugins creada en $HAX_PLUGINS_DIR (con plugin de ejemplo)."
+fi
 
 # Config (SIEMPRE se sobrescribe — Hax necesita su versión con persistencia)
 if [[ -f "$SHELL_SRC/config/Config.qml" ]]; then

@@ -251,6 +251,42 @@ El instalador:
 
 ---
 
+## 🏆 ¿Por qué Hax es la mejor opción?
+
+Hax no compite solo como "un launcher más". Es un **centro de productividad completo** que vive dentro de tu shell (Ambxst), y en 2026 sigue siendo la opción más completa para quienes usan una shell Wayland personalizada (Hyprland + Ambxst).
+
+### Comparativa con los launchers más populares de Linux
+
+| Característica | 🎯 **Hax** | Rofi | Ulauncher | Albert | Vicinae |
+|----------------|:---:|:---:|:---:|:---:|:---:|
+| Búsqueda de apps | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Calculadora inline | ✅ nativa | ⚠️ plugin | ⚠️ ext | ✅ | ✅ |
+| **Terminal embebida (PTY real)** | ✅ `/` | ❌ | ❌ | ❌ | ❌ |
+| **Plugins (script + QML)** | ✅ N2 + N3 | ⚠️ complejo | ✅ Py | ✅ C++/Py | ✅ ext |
+| **Notificaciones inline** (sin `notify-send`) | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Monitor del sistema en vivo** | ✅ | ❌ | ❌ | ⚠️ | ❌ |
+| **Timers y Alarmas** | ✅ | ❌ | ⚠️ | ⚠️ | ⚠️ |
+| **Live Text (OCR en imágenes)** | ✅ (off por defecto) | ❌ | ❌ | ❌ | ❌ |
+| **Hax View** (grid visual de workspaces) | ✅ | ⚠️ window switch | ❌ | ❌ | ❌ |
+| **Diccionario en vivo** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Gestión de paquetes** (pacman/AUR/flatpak) | ✅ | ❌ | ❌ | ⚠️ | ❌ |
+| Hot-reload de plugins | ✅ | ❌ | ⚠️ | ⚠️ | ✅ |
+| Aislamiento de errores por plugin | ✅ | n/a | ⚠️ | ⚠️ | ✅ |
+| Estética tipo Spotlight iPadOS | ✅ | ⚠️ | ⚠️ | ⚠️ | ✅ |
+
+### Veredicto por perfil
+
+- 🥇 **Usuario de shell completo (Hyprland + Ambxst): HAX es el mejor.** Ningún launcher tiene terminal embebida real, monitor en vivo, gestión de paquetes, Live Text, Hax View y diccionario integrados. Los otros son *launchers puros*; Hax es un centro de productividad que vive en tu shell.
+- 🥈 **Purista de tiling WM que quiere 0 RAM en reposo: Rofi.** No corre en background, arranca rápido y hace de todo con scripts. Pero la UX es tosca y configurar plugins cuesta horas.
+- 🥉 **Quien quiere algo que "simplemente funcione" fuera de un shell custom: Ulauncher.** El OOB experience más amigable y buen ecosistema de extensiones, pero sin la profundidad de Hax.
+- **Albert** queda descartado por complejidad y memory leaks reportados. **Vicinae** es prometedor (estilo Raycast) pero aún verde.
+
+> 💡 **En resumen:** si ya usas Ambxst, **Hax gana sin discusión**. Si usas un escritorio genérico (GNOME/KDE) sin shell custom, **Ulauncher** es la mejor opción práctica. Y si eres de tiling WM hardcore y prefieres minimalismo, **Rofi**.
+>
+> El único punto débil de Hax es que **corre dentro de Ambxst** (no es standalone como los otros) — pero eso mismo es su superpoder: aprovecha todo el ecosistema de la shell.
+
+---
+
 ## 📋 Changelog
 
 ### v4.0 LTS — Julio 2026 — 🏆 Versión estable de largo plazo
