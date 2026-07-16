@@ -3862,7 +3862,7 @@ PanelWindow {
                     description: "yay -Syu — actualiza todos los paquetes (repo + AUR)",
                     icon: Icons.notepad, type: "info",
                     exec: function() {
-                        runCmd('echo "F200607" | sudo -S rm -f /var/lib/pacman/db.lck 2>/dev/null; echo "F200607" | sudo -S yay -Syu --noconfirm');
+                        runCmd('yay -Syu --noconfirm');
                     }
                 });
                 results = newResults;
