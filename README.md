@@ -268,30 +268,43 @@ El instalador crea esta carpeta y copia el plugin de ejemplo (`ejemplo.sh`). Pue
 
 ### 🟢 N2 — Plugins tipo script (`.sh` / `.py`)
 
-Son ejecutables que Hax detecta automáticamente. Cada script debe imprimir al stdout un JSON con sus resultados. Ejemplo mínimo (`plugin-ejemplo.sh`):
+Son ejecutables que Hax detecta automáticamente y que responden a **tres invocaciones**:
+
+| Invocación | Qué devuelve |
+|------------|--------------|
+| `./plugin.sh --hax-info` | **Un JSON** con `{ "name", "icon", "keywords": [], "description" }` (metadatos del plugin) |
+| `./plugin.sh "query"` | **JSON Lines**: una línea JSON por resultado (`{ "name", "description", "actionId", "icon", "actionData" }`). Hax precarga el catálogo completo una vez y filtra en memoria. |
+| `./plugin.sh --hax-exec ID [data]` | Ejecuta la acción `ID` y su salida se muestra como **notificación inline dentro de Hax** (auto-cierre 5s). |
+
+Ejemplo mínimo (`plugin-ejemplo.sh`):
 
 ```bash
 #!/bin/bash
 # Plugin de ejemplo para Hax (N2)
-# Imprime un JSON array con los resultados que Hax mostrará en la lista.
-query="$1"
 
-# Resultado estático de ejemplo
-echo '[
-  {
-    "title": "Hola desde mi plugin 💖",
-    "subtitle": "Este es un resultado de ejemplo",
-    "icon": "🧩",
-    "actions": [
-      { "name": "Saludar", "command": "echo \"Hola, mi amor desde Hax\"" }
-    ]
-  }
-]'
+# 1) Metadatos del plugin
+if [ "$1" = "--hax-info" ]; then
+  echo '{"name":"Mi Plugin","icon":"🌟","keywords":["ejemplo","test"],"description":"Plugin de ejemplo"}'
+  exit 0
+fi
+
+# 2) Ejecutar una acción (su stdout se muestra inline en Hax)
+if [ "$1" = "--hax-exec" ]; then
+  case "$2" in
+    saludar) echo "👋 ¡Hola desde Hax!" ;;
+    *)       echo "🧩 Acción: $2" ;;
+  esac
+  exit 0
+fi
+
+# 3) Catálogo de resultados (JSON Lines; Hax filtra por query)
+echo '{"name":"Saludar","description":"Muestra un saludo","actionId":"saludar","icon":"👋"}'
+echo '{"name":"Decir hora","description":"Hora actual","actionId":"hora","icon":"🕐"}'
 ```
 
 - Hax hace un **precache del catálogo** una vez al arrancar y filtra en memoria en cada búsqueda (rápido).
-- Las acciones (`command`) se ejecutan capturando su salida, que se muestra como **notificación inline dentro de Hax** (se autocierra a los 5s).
 - Si un plugin falla, se aísla con `try/catch` y no rompe el resto.
+- El plugin de ejemplo completo (`plugin-ejemplo.sh`) ya viene en el repo y se copia a `~/.config/hax/plugins/ejemplo.sh`.
 
 ### 🟣 N3 — Plugins QML (`.qml`)
 
