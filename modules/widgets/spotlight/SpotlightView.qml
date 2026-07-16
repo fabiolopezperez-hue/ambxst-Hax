@@ -63,6 +63,27 @@ PanelWindow {
         }
     })()
 
+    // ── Plugin Manager ──
+    property PluginManager pluginManager: PluginManager {
+        onPluginListChanged: {
+            // When plugins change, update results if there's a query active
+            if (searchText && searchText.trim().length > 0) {
+                Qt.callLater(function() { spotlight.updateResults(); });
+            }
+        }
+        onPluginResultsUpdated: function(pluginId, results) {
+            // Re-run updateResults to show fresh plugin results
+            if (searchText && searchText.trim().length > 0) {
+                Qt.callLater(function() { spotlight.updateResults(); });
+            }
+        }
+        onPluginActionMessage: function(pluginId, title, message) {
+            // Mostrar mensaje de acción de plugin como notificación inline
+            spotlight.addHaxNotification("plugin", title, message, null);
+        }
+    }
+    property var pluginResults: []        // Latest plugin search results
+
     visible: showHax
     exclusionMode: ExclusionMode.Ignore
 
@@ -109,6 +130,7 @@ PanelWindow {
             stopClipWatcher();
             showPreview = false;
             showConfig = false;
+            showPlugins = false;
             closeAnim.start();
         }
     }
@@ -223,12 +245,62 @@ PanelWindow {
         // Indexar imágenes en segundo plano al iniciar Hax (Live Text).
         spotlight.startOcrIndexing();
         spotlight.refreshLiveTextStatus();
+        // Inicializar sistema de plugins
+        Qt.callLater(function() {
+            spotlight.pluginManager.initialize({
+                // ── Básicos ──
+                copyToClipboard: function(text) {
+                    var pr = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+                    pr.command = ["wl-copy", text];
+                    pr.onExited.connect(function() { try { pr.destroy(); } catch(e) {} });
+                    pr.running = true;
+                },
+                runCommand: function(cmd) {
+                    spotlight.bash(cmd);
+                },
+                showNotification: function(title, message) {
+                    spotlight.addHaxNotification("plugin", title, message, null);
+                },
+
+                // ── Utilidades ──
+                openUrl: function(url) {
+                    var pr = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+                    pr.command = ["xdg-open", url];
+                    pr.onExited.connect(function() { try { pr.destroy(); } catch(e) {} });
+                    pr.running = true;
+                },
+                openFile: function(path) {
+                    var pr = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+                    pr.command = ["xdg-open", path];
+                    pr.onExited.connect(function() { try { pr.destroy(); } catch(e) {} });
+                    pr.running = true;
+                },
+                getPluginDir: function() {
+                    return (Quickshell.env("HOME") || "/home/fabio") + "/.config/hax/plugins";
+                },
+
+                // ── Resultados dinámicos ──
+                showResult: function(name, description, icon, actionId, actionData) {
+                    // Añade un resultado dinámico al buscador
+                    spotlight.addPluginResult(name, description, icon || "🧩", actionId, actionData);
+                },
+
+                // ── Config persistente del plugin ──
+                getConfig: function(key, callback) {
+                    spotlight.getPluginConfig(key, callback);
+                },
+                setConfig: function(key, value) {
+                    spotlight.setPluginConfig(key, value);
+                }
+            });
+        });
     }
 
     // ── Modo desarrollador (debug) ──────────────────────────────────────────
     // Se activa escribiendo "d" / "dev" / "debug" y pulsando Enter.
     property bool showDebug: false
     property bool showConfig: false
+    property bool showPlugins: false
     property bool colorPickerOpen: false
     property bool actionPresetsOpen: false
     // El color primario que usa Hax: el custom si está activado, si no el del sistema
@@ -574,6 +646,9 @@ PanelWindow {
             + (spotlight.showConfig
                 ? 8 + configPane.height
                 : 0)
+            + (spotlight.showPlugins
+                ? 8 + pluginPane.height
+                : 0)
             + (spotlight.showWindowGrid
                 ? 8 + spotlight.windowGridHeight
                 : 0)
@@ -675,6 +750,8 @@ PanelWindow {
                                     spotlight.stopMonitor();
                                 } else if (spotlight.showPreview) {
                                     spotlight.showPreview = false;
+                                } else if (spotlight.showPlugins) {
+                                    spotlight.showPlugins = false;
                                 } else if (spotlight.showTerminal) {
                                     spotlight.closeTerminal();
                 } else if (spotlight.showDebug) {
@@ -1164,6 +1241,8 @@ PanelWindow {
                                         Text {
                                             text: modelData.type === "timer"
                                                 ? "⏰ Timer «" + modelData.label + "» completado"
+                                                : modelData.type === "plugin"
+                                                ? "🧩 Plugin: " + modelData.label
                                                 : "🔔 Alarma «" + modelData.label + "»"
                                             font.family: Config.theme.font
                                             font.pixelSize: Config.theme.fontSize
@@ -2758,8 +2837,186 @@ PanelWindow {
                     }
                 }
 
+                // ── Gestión de plugins — "plugins" ─────────────────────────
+                StyledRect {
+                    id: pluginPane
+                    width: contentColumn.width
+                    variant: "pane"
+                    radius: Styling.radius(12)
+                    clip: true
+                    visible: spotlight.showPlugins
+                    opacity: spotlight.showPlugins ? 1 : 0
+                    height: spotlight.showPlugins ? pluginContent.implicitHeight + 20 : 0
+
+                    Behavior on opacity {
+                        enabled: Config.animDuration > 0
+                        NumberAnimation { duration: Config.animDuration * 2 }
+                    }
+                    Behavior on height {
+                        enabled: Config.animDuration > 0
+                        NumberAnimation { duration: Config.animDuration * 2 }
+                    }
+
+                    Column {
+                        id: pluginContent
+                        anchors { left: parent.left; right: parent.right; top: parent.top; margins: 10 }
+                        spacing: 12
+
+                        // Cabecera
+                        Text {
+                            width: parent.width
+                            text: "🧩 Plugins"
+                            font.bold: true
+                            font.pixelSize: Config.theme.fontSize
+                            color: Styling.srItem("text")
+                        }
+
+                        Text {
+                            width: parent.width
+                            text: "Los plugins añaden funciones extra a Hax. Coloca scripts (.sh, .py) o archivos QML en ~/.config/hax/plugins/"
+                            font.pixelSize: Config.theme.fontSize - 3
+                            color: Styling.srItem("text")
+                            opacity: 0.7
+                            wrapMode: Text.WordWrap
+                        }
+
+                        // Lista de plugins
+                        Repeater {
+                            id: pluginRepeater
+                            model: spotlight.pluginManager ? spotlight.pluginManager.plugins : []
+
+                            delegate: RowLayout {
+                                width: parent.width
+                                spacing: 6
+                                height: 28
+
+                                Text {
+                                    text: modelData.icon + " " + modelData.name
+                                    font.pixelSize: Config.theme.fontSize - 2
+                                    color: modelData.enabled ? "#f0f0f0" : "#666688"
+                                    Layout.fillWidth: true
+                                    verticalAlignment: Text.AlignVCenter
+                                }
+
+                                Text {
+                                    text: modelData.type === "qml" ? "🧩" : "📜"
+                                    font.pixelSize: Config.theme.fontSize - 2
+                                    color: Styling.srItem("overprimary")
+                                    opacity: 0.6
+                                    verticalAlignment: Text.AlignVCenter
+                                }
+
+                                StyledRect {
+                                    variant: "common"
+                                    radius: Styling.radius(4)
+                                    implicitWidth: modelData.loaded ? (modelData.enabled ? 60 : 68) : 50
+                                    height: 22
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: !modelData.loaded ? "⏳" : (modelData.enabled ? "✅ Activo" : "☐ Inactivo")
+                                        font.pixelSize: Config.theme.fontSize - 3
+                                        color: Styling.srItem("text")
+                                    }
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        enabled: modelData.loaded
+                                        onClicked: {
+                                            spotlight.pluginManager.setPluginEnabled(modelData.id, !modelData.enabled);
+                                        }
+                                    }
+                                }
+
+                                StyledRect {
+                                    variant: "common"
+                                    radius: Styling.radius(4)
+                                    implicitWidth: 22
+                                    height: 22
+                                    visible: modelData.type === "qml"
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "↻"
+                                        font.pixelSize: Config.theme.fontSize - 2
+                                        color: Styling.srItem("text")
+                                    }
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            spotlight.pluginManager.reloadPlugin(modelData.id);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Botones
+                        RowLayout {
+                            width: parent.width
+                            spacing: 6
+
+                            StyledRect {
+                                variant: "common"
+                                radius: Styling.radius(6)
+                                implicitWidth: 130
+                                height: 26
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "↻ Recargar todos"
+                                    font.pixelSize: Config.theme.fontSize - 2
+                                    color: Styling.srItem("text")
+                                }
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        if (spotlight.pluginManager) {
+                                            spotlight.pluginManager.reloadAll();
+                                        }
+                                    }
+                                }
+                            }
+
+                            StyledRect {
+                                variant: "common"
+                                radius: Styling.radius(6)
+                                implicitWidth: 130
+                                height: 26
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "🌟 Crear ejemplo"
+                                    font.pixelSize: Config.theme.fontSize - 2
+                                    color: Styling.srItem("text")
+                                }
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        if (spotlight.pluginManager) {
+                                            spotlight.pluginManager.createDefaultPlugins();
+                                            Qt.callLater(function() {
+                                                spotlight.pluginManager.reloadAll();
+                                            });
+                                        }
+                                    }
+                                }
+                            }
+
+                            Item { Layout.fillWidth: true }
+                        }
+                    }
+                }
 
         }
+
     }
 
     // 🎨 Selector de color flotante (overlay del PanelWindow)
@@ -3000,6 +3257,7 @@ PanelWindow {
                         }
                     }
                 }
+
             }
         }
 
@@ -3088,7 +3346,8 @@ PanelWindow {
         var action = shortcut.action;
         var type = shortcut.type;
         // Acciones integradas de Hax (atajos que abren paneles internos)
-        if (action === "config") { spotlight.showConfig = true; return; }
+        if (action === "config") { spotlight.showPlugins = false; spotlight.showConfig = true; return; }
+        if (action === "plugins") { spotlight.searchText = ""; spotlight.showConfig = false; spotlight.showPlugins = true; return; }
         // Temporizadores y alarmas (funciones internas de Hax, no comandos de bash)
         var _a = action.toLowerCase();
         if (_a === "timer" || _a.indexOf("timer ") === 0) { _runTimerFromShortcut(action); Visibilities.setActiveModule(""); return; }
@@ -3156,6 +3415,8 @@ PanelWindow {
     function openTerminal() {
         spotlight.showTerminal = true;
         spotlight.showPreview = false;
+        spotlight.showConfig = false;
+        spotlight.showPlugins = false;
         spotlight.showMonitor = false;
         spotlight.cancelCmdProcess();
         spotlight.searchText = "";
@@ -3168,8 +3429,9 @@ PanelWindow {
     // ── Lógica de búsqueda ─────────────────────────────────────────────────
 
     function updateResults() {
-        // Cerrar previsualización al cambiar la búsqueda
+        // Cerrar paneles al cambiar la búsqueda
         spotlight.showPreview = false;
+        spotlight.showPlugins = false;
 
         // En modo comando, no mostrar resultados normales
         if (isCommandMode) {
@@ -3810,7 +4072,24 @@ PanelWindow {
                 icon: Icons.notepad,
                 type: "config",
                 exec: function() {
+                    spotlight.showPlugins = false;
                     spotlight.showConfig = true;
+                }
+            });
+        }
+
+        // ── Plugins ──
+        // Aparece al escribir "plugins".
+        if (query === "plugins") {
+            newResults.unshift({
+                name: "🧩 Plugins",
+                description: "Gestiona los plugins de Hax (scripts y QML)",
+                icon: Icons.notepad,
+                type: "plugins",
+                exec: function() {
+                    spotlight.searchText = "";
+                    spotlight.showConfig = false;
+                    spotlight.showPlugins = true;
                 }
             });
         }
@@ -3852,6 +4131,51 @@ PanelWindow {
                     spotlight.startOcrIndexing();
                 }
             });
+        }
+
+        // ── Plugins: consultar todos los activos ──
+        if (query.length >= 2) {
+            try {
+                var pluginRes = spotlight.pluginManager.queryAll(query);
+                if (pluginRes && pluginRes.length > 0) {
+                    for (var pi = 0; pi < pluginRes.length; pi++) {
+                        var pr = pluginRes[pi];
+                        var pIcon = pr._pluginIcon || "🧩";
+                        // Skip results with no name
+                        if (!pr.name) continue;
+                        var _query = query;  // capturar query actual para pasarlo como actionData
+                        newResults.push({
+                            name: pIcon + " " + pr.name + " (" + pr._pluginName + ")",
+                            description: pr.description || "Resultado de plugin",
+                            icon: Icons.notepad,
+                            type: "plugin",
+                            _pluginId: pr._pluginId,
+                            _actionId: pr.actionId,
+                            exec: (function(origExec, pid, aid, aData, searchQuery) {
+                                return function() {
+                                    // If the result has a direct exec function, use it
+                                    if (typeof origExec === "function") {
+                                        try { origExec(); } catch(e) {}
+                                    } else {
+                                        // Delegate to PluginManager with the search query as actionData
+                                        var ctx = aData || searchQuery || "";
+                                        spotlight.pluginManager.executeAction(pid, aid, ctx);
+                                    }
+                                };
+                            })(pr.exec, pr._pluginId, pr.actionId, pr.actionData, _query)
+                        });
+                    }
+                }
+            } catch(e) {
+                spotlight.debugLogError("plugins", e);
+            }
+        }
+
+        // ── Resultados dinámicos de plugins (showResult) ──
+        if (spotlight._dynamicResults && spotlight._dynamicResults.length > 0) {
+            for (var dri = 0; dri < spotlight._dynamicResults.length; dri++) {
+                newResults.push(spotlight._dynamicResults[dri]);
+            }
         }
 
         // Asignar para que QML detecte el cambio
@@ -4863,7 +5187,7 @@ PanelWindow {
             label: label,
             body: body,
             ts: Date.now(),
-            icon: type === "timer" ? "⏰" : "🔔",
+            icon: type === "timer" ? "⏰" : type === "plugin" ? "🧩" : "🔔",
             notifObj: notifObj
         };
         var arr = _haxNotifications.slice();
@@ -4872,6 +5196,13 @@ PanelWindow {
 
         if (!showHax) {
             Visibilities.setActiveModule("spotlight");
+        }
+
+        // Auto-dismiss para notificaciones de plugin después de 5 segundos
+        if (type === "plugin") {
+            _delay(function() {
+                _dismissHaxNotif(nid);
+            }, 5000);
         }
     }
 
@@ -5094,6 +5425,68 @@ PanelWindow {
         });
         _pkgSearchProcesses = [proc];
         proc.running = true;
+    }
+
+    // ═════════════════════════════════════════════════════════════════════
+    //  UTILIDADES PARA HaxAPI
+    // ═════════════════════════════════════════════════════════════════════
+
+    // ── Añadir resultado dinámico desde un plugin ──
+    property var _dynamicResults: []
+
+    function addPluginResult(name, description, icon, actionId, actionData) {
+        if (!name) return;
+        var entry = {
+            name: icon + " " + name + " (plugin)",
+            description: description || "",
+            icon: Icons.notepad,
+            type: "plugin",
+            _pluginId: "dynamic",
+            _actionId: actionId || "",
+            _actionData: actionData || "",
+            _pluginName: "Plugin",
+            _pluginIcon: icon || "🧩",
+            exec: function() {
+                // Por defecto muestra como notificación inline
+                addHaxNotification("plugin", name, description || "Ejecutado", null);
+            }
+        };
+        var arr = _dynamicResults.slice();
+        arr.push(entry);
+        _dynamicResults = arr;
+        addHaxNotification("plugin", "📌 " + name, description || "Resultado disponible", { actionId: actionId });
+    }
+
+    // ── Config persistente del plugin (sesión actual) ──
+    property var _pluginConfig: ({})
+
+    function getPluginConfig(key, callback) {
+        // Devuelve el valor del key (o todo si key es null)
+        if (typeof callback === "function") {
+            callback(key ? _pluginConfig[key] : _pluginConfig);
+        }
+        return key ? _pluginConfig[key] : _pluginConfig;
+    }
+
+    function setPluginConfig(key, value) {
+        if (key) {
+            _pluginConfig[key] = value;
+        }
+    }
+
+    // ── Delay (timer de un solo uso) ──
+    function _delay(callback, ms) {
+        var timer = Qt.createQmlObject('import QtQuick; Timer { repeat: false }', spotlight);
+        timer.interval = ms;
+        timer.triggered.connect(function() {
+            try {
+                callback();
+            } catch(e) {
+                console.log("_delay error:", e);
+            }
+            try { timer.destroy(); } catch(e) {}
+        });
+        timer.start();
     }
 
 }
