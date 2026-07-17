@@ -4560,13 +4560,8 @@ PanelWindow {
         if (!item || item.type !== "file") return;
         var path = item.description || "";
         if (!path) return;
-        // DEBUG: escribir en /tmp para ver si la función se llama
-        try {
-            var dp = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
-            dp.command = ["bash", "-c", "echo '" + path.replace(/'/g, "'\\''") + "' >> /tmp/hax-dolphin-debug.log; date >> /tmp/hax-dolphin-debug.log"];
-            dp.onExited.connect(function() { try { dp.destroy(); } catch(e) {} });
-            dp.running = true;
-        } catch (e) {}
+        // Lanzar Dolphin con la ruta (abre la carpeta contenedora)
+        bash("/usr/bin/dolphin --select '" + path.replace(/'/g, "'\\''") + "' &");
         Visibilities.setActiveModule("");
     }
 
