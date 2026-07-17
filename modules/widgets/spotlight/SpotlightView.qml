@@ -4556,13 +4556,25 @@ PanelWindow {
     }
 
     // ── Abrir archivo en Dolphin (revelar en el gestor de archivos) ─────────
+    property var _openFileProc: null
     function openFileInDolphin(item) {
         if (!item || item.type !== "file") return;
         var path = item.description || "";
         if (!path) return;
-        spotlight.debugLogDebug("openFileInDolphin:", path);
-        var safePath = path.replace(/'/g, "'\\''");
-        bash("cd ~ && env -u HL_INITIAL_WORKSPACE_TOKEN setsid dolphin --existing-window --select '" + safePath + "' < /dev/null > /dev/null 2>&1 &");
+        if (spotlight._openFileProc) {
+            try { spotlight._openFileProc.running = false; spotlight._openFileProc.destroy(); } catch(e) {}
+        }
+        try {
+            spotlight._openFileProc = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+            spotlight._openFileProc.command = ["dolphin", "--select", path];
+            spotlight._openFileProc.onExited.connect(function() {
+                try { spotlight._openFileProc.destroy(); } catch(e) {}
+                spotlight._openFileProc = null;
+            });
+            spotlight._openFileProc.running = true;
+        } catch (e) {
+            spotlight.debugLogError("openFileInDolphin", e);
+        }
         Visibilities.setActiveModule("");
     }
 
@@ -4894,8 +4906,22 @@ PanelWindow {
                     icon: Icons.file,
                     type: "file",
                     exec: function() {
-                        var sp = capturedLine.replace(/'/g, "'\\''");
-                        spotlight.bash("cd ~ && env -u HL_INITIAL_WORKSPACE_TOKEN setsid dolphin --existing-window --select '" + sp + "' < /dev/null > /dev/null 2>&1 &");
+                        if (capturedLine) {
+                            if (spotlight._openFileProc) {
+                                try { spotlight._openFileProc.running = false; spotlight._openFileProc.destroy(); } catch(e) {}
+                            }
+                            try {
+                                spotlight._openFileProc = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+                                spotlight._openFileProc.command = ["dolphin", "--select", capturedLine];
+                                spotlight._openFileProc.onExited.connect(function() {
+                                    try { spotlight._openFileProc.destroy(); } catch(e) {}
+                                    spotlight._openFileProc = null;
+                                });
+                                spotlight._openFileProc.running = true;
+                            } catch (e) {
+                                spotlight.debugLogError("exec-file-home", e);
+                            }
+                        }
                         Visibilities.setActiveModule("");
                     }
                 });
@@ -4955,8 +4981,22 @@ PanelWindow {
                     icon: Icons.file,
                     type: "file",
                     exec: function() {
-                        var sp = capturedLine.replace(/'/g, "'\\''");
-                        spotlight.bash("cd ~ && env -u HL_INITIAL_WORKSPACE_TOKEN setsid dolphin --existing-window --select '" + sp + "' < /dev/null > /dev/null 2>&1 &");
+                        if (capturedLine) {
+                            if (spotlight._openFileProc) {
+                                try { spotlight._openFileProc.running = false; spotlight._openFileProc.destroy(); } catch(e) {}
+                            }
+                            try {
+                                spotlight._openFileProc = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+                                spotlight._openFileProc.command = ["dolphin", "--select", capturedLine];
+                                spotlight._openFileProc.onExited.connect(function() {
+                                    try { spotlight._openFileProc.destroy(); } catch(e) {}
+                                    spotlight._openFileProc = null;
+                                });
+                                spotlight._openFileProc.running = true;
+                            } catch (e) {
+                                spotlight.debugLogError("exec-file-system", e);
+                            }
+                        }
                         Visibilities.setActiveModule("");
                     }
                 });
@@ -5009,8 +5049,22 @@ PanelWindow {
                             type: "file",
                             ocrMatch: true,
                             exec: function() {
-                                var sp = pp.replace(/'/g, "'\\''");
-                                spotlight.bash("cd ~ && env -u HL_INITIAL_WORKSPACE_TOKEN setsid dolphin --existing-window --select '" + sp + "' < /dev/null > /dev/null 2>&1 &");
+                                if (pp) {
+                                    if (spotlight._openFileProc) {
+                                        try { spotlight._openFileProc.running = false; spotlight._openFileProc.destroy(); } catch(e) {}
+                                    }
+                                    try {
+                                        spotlight._openFileProc = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+                                        spotlight._openFileProc.command = ["dolphin", "--select", pp];
+                                        spotlight._openFileProc.onExited.connect(function() {
+                                            try { spotlight._openFileProc.destroy(); } catch(e) {}
+                                            spotlight._openFileProc = null;
+                                        });
+                                        spotlight._openFileProc.running = true;
+                                    } catch (e) {
+                                        spotlight.debugLogError("exec-file-ocr", e);
+                                    }
+                                }
                                 Visibilities.setActiveModule("");
                             }
                         });
