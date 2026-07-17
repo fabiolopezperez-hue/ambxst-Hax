@@ -487,14 +487,6 @@ PanelWindow {
         }
     }
 
-    // ── Process persistente para abrir archivos en Dolphin ─────────────────
-    Process {
-        id: _dolphinProcess
-        onExited: function(code, status) {
-            spotlight.debugLogDebug("Dolphin cerrado, código:", code);
-        }
-    }
-
     // ── Monitor de recursos para debug (proceso persistente, sin spawn por segundo) ──
     property var _debugResProc: null
 
@@ -4569,8 +4561,8 @@ PanelWindow {
         var path = item.description || "";
         if (!path) return;
         spotlight.debugLogDebug("openFileInDolphin:", path);
-        _dolphinProcess.command = ["dolphin", "--existing-window", "--select", path];
-        _dolphinProcess.running = true;
+        var safePath = path.replace(/'/g, "'\\''");
+        bash("cd ~ && env -u HL_INITIAL_WORKSPACE_TOKEN setsid dolphin --existing-window --select '" + safePath + "' < /dev/null > /dev/null 2>&1 &");
         Visibilities.setActiveModule("");
     }
 
@@ -4902,10 +4894,8 @@ PanelWindow {
                     icon: Icons.file,
                     type: "file",
                     exec: function() {
-                        if (capturedLine) {
-                            _dolphinProcess.command = ["dolphin", "--existing-window", "--select", capturedLine];
-                            _dolphinProcess.running = true;
-                        }
+                        var sp = capturedLine.replace(/'/g, "'\\''");
+                        spotlight.bash("cd ~ && env -u HL_INITIAL_WORKSPACE_TOKEN setsid dolphin --existing-window --select '" + sp + "' < /dev/null > /dev/null 2>&1 &");
                         Visibilities.setActiveModule("");
                     }
                 });
@@ -4965,10 +4955,8 @@ PanelWindow {
                     icon: Icons.file,
                     type: "file",
                     exec: function() {
-                        if (capturedLine) {
-                            _dolphinProcess.command = ["dolphin", "--existing-window", "--select", capturedLine];
-                            _dolphinProcess.running = true;
-                        }
+                        var sp = capturedLine.replace(/'/g, "'\\''");
+                        spotlight.bash("cd ~ && env -u HL_INITIAL_WORKSPACE_TOKEN setsid dolphin --existing-window --select '" + sp + "' < /dev/null > /dev/null 2>&1 &");
                         Visibilities.setActiveModule("");
                     }
                 });
@@ -5021,10 +5009,8 @@ PanelWindow {
                             type: "file",
                             ocrMatch: true,
                             exec: function() {
-                                if (pp) {
-                                    _dolphinProcess.command = ["dolphin", "--existing-window", "--select", pp];
-                                    _dolphinProcess.running = true;
-                                }
+                                var sp = pp.replace(/'/g, "'\\''");
+                                spotlight.bash("cd ~ && env -u HL_INITIAL_WORKSPACE_TOKEN setsid dolphin --existing-window --select '" + sp + "' < /dev/null > /dev/null 2>&1 &");
                                 Visibilities.setActiveModule("");
                             }
                         });
