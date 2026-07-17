@@ -499,6 +499,18 @@ else
   log_success "Dependencias de Config.qml verificadas — Hax cargará correctamente."
 fi
 
+# ── 6b. Copiar script auxiliar hax-reveal ───────────────────────
+HAX_REVEAL_SRC="$REPO_DIR/scripts/hax-reveal.sh"
+HAX_REVEAL_DST="$HOME/.local/bin/hax-reveal.sh"
+if [[ -f "$HAX_REVEAL_SRC" ]]; then
+  mkdir -p "$HOME/.local/bin"
+  cp "$HAX_REVEAL_SRC" "$HAX_REVEAL_DST"
+  chmod +x "$HAX_REVEAL_DST"
+  log_success "Script hax-reveal instalado en $HAX_REVEAL_DST"
+else
+  log_warn "No se encontró $HAX_REVEAL_SRC — la función de revelar archivos no estará disponible."
+fi
+
 # ── 7. Mensaje final ─────────────────────────────────────────
 echo ""
 log_success "¡Instalación completada! 🎯"
