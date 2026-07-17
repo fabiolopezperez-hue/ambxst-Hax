@@ -4556,12 +4556,12 @@ PanelWindow {
     }
 
     // ── Abrir archivo en Dolphin (revelar en el gestor de archivos) ─────────
+    readonly property string _revealScript: Quickshell.env("HOME") + "/.local/bin/hax-reveal.sh"
     function openFileInDolphin(item) {
         if (!item || item.type !== "file") return;
         var path = item.description || "";
         if (!path) return;
-        // Lanzar Dolphin con la ruta (abre la carpeta contenedora)
-        bash("cd ~ && env QT_QPA_PLATFORMTHEME=qtengine setsid /usr/bin/dolphin --select '" + path.replace(/'/g, "'\\''") + "' < /dev/null > /dev/null 2>&1 &");
+        bash("'" + _revealScript + "' '" + path.replace(/'/g, "'\\''") + "' &");
         Visibilities.setActiveModule("");
     }
 
