@@ -487,6 +487,14 @@ PanelWindow {
         }
     }
 
+    // ── Process persistente para abrir archivos en Dolphin ─────────────────
+    Process {
+        id: _dolphinProcess
+        onExited: function(code, status) {
+            spotlight.debugLogDebug("Dolphin cerrado, código:", code);
+        }
+    }
+
     // ── Monitor de recursos para debug (proceso persistente, sin spawn por segundo) ──
     property var _debugResProc: null
 
@@ -4556,29 +4564,14 @@ PanelWindow {
     }
 
     // ── Abrir archivo en Dolphin (revelar en el gestor de archivos) ─────────
-    property var _dolphinProcess: null
     function openFileInDolphin(item) {
         if (!item || item.type !== "file") return;
         var path = item.description || "";
         if (!path) return;
-        try {
-            // Cancelar proceso anterior si existe
-            if (_dolphinProcess) {
-                try { _dolphinProcess.running = false; _dolphinProcess.destroy(); } catch(e) {}
-                _dolphinProcess = null;
-            }
-            var p = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
-            p.command = ["dolphin", "--existing-window", "--select", path];
-            p.onExited.connect(function() {
-                try { p.destroy(); } catch(e) {}
-                if (_dolphinProcess === p) _dolphinProcess = null;
-            });
-            p.running = true;
-            _dolphinProcess = p;
-            Visibilities.setActiveModule("");
-        } catch (e) {
-            spotlight.debugLogError("openFileInDolphin", e);
-        }
+        spotlight.debugLogDebug("openFileInDolphin:", path);
+        _dolphinProcess.command = ["dolphin", "--existing-window", "--select", path];
+        _dolphinProcess.running = true;
+        Visibilities.setActiveModule("");
     }
 
     property string _copyFeedback: ""
@@ -4909,12 +4902,10 @@ PanelWindow {
                     icon: Icons.file,
                     type: "file",
                     exec: function() {
-                        var safePath = capturedLine.replace(/'/g, "'\\''");
-                        var p = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
-                        p.command = ["bash", "-c",
-                            "cd ~ && env -u HL_INITIAL_WORKSPACE_TOKEN setsid dolphin --existing-window --select '" + safePath + "' < /dev/null > /dev/null 2>&1 &"];
-                        p.onExited.connect(() => p.destroy());
-                        p.running = true;
+                        if (capturedLine) {
+                            _dolphinProcess.command = ["dolphin", "--existing-window", "--select", capturedLine];
+                            _dolphinProcess.running = true;
+                        }
                         Visibilities.setActiveModule("");
                     }
                 });
@@ -4974,12 +4965,10 @@ PanelWindow {
                     icon: Icons.file,
                     type: "file",
                     exec: function() {
-                        var safePath = capturedLine.replace(/'/g, "'\\''");
-                        var p = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
-                        p.command = ["bash", "-c",
-                            "cd ~ && env -u HL_INITIAL_WORKSPACE_TOKEN setsid dolphin --existing-window --select '" + safePath + "' < /dev/null > /dev/null 2>&1 &"];
-                        p.onExited.connect(() => p.destroy());
-                        p.running = true;
+                        if (capturedLine) {
+                            _dolphinProcess.command = ["dolphin", "--existing-window", "--select", capturedLine];
+                            _dolphinProcess.running = true;
+                        }
                         Visibilities.setActiveModule("");
                     }
                 });
@@ -5032,12 +5021,10 @@ PanelWindow {
                             type: "file",
                             ocrMatch: true,
                             exec: function() {
-                                var safePath = pp.replace(/'/g, "'\\''");
-                                var pr = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
-                                pr.command = ["bash", "-c",
-                                    "cd ~ && env -u HL_INITIAL_WORKSPACE_TOKEN setsid dolphin --existing-window --select '" + safePath + "' < /dev/null > /dev/null 2>&1 &"];
-                                pr.onExited.connect(function() { try { pr.destroy(); } catch (e) {} });
-                                pr.running = true;
+                                if (pp) {
+                                    _dolphinProcess.command = ["dolphin", "--existing-window", "--select", pp];
+                                    _dolphinProcess.running = true;
+                                }
                                 Visibilities.setActiveModule("");
                             }
                         });
