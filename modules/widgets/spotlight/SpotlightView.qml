@@ -4556,17 +4556,25 @@ PanelWindow {
     }
 
     // ── Abrir archivo en Dolphin (revelar en el gestor de archivos) ─────────
+    property var _dolphinProcess: null
     function openFileInDolphin(item) {
         if (!item || item.type !== "file") return;
         var path = item.description || "";
         if (!path) return;
-        var safePath = path.replace(/'/g, "'\\''");
         try {
+            // Cancelar proceso anterior si existe
+            if (_dolphinProcess) {
+                try { _dolphinProcess.running = false; _dolphinProcess.destroy(); } catch(e) {}
+                _dolphinProcess = null;
+            }
             var p = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
-            p.command = ["bash", "-c",
-                "cd ~ && env -u HL_INITIAL_WORKSPACE_TOKEN setsid dolphin --existing-window --select '" + safePath + "' < /dev/null > /dev/null 2>&1 &"];
-            p.onExited.connect(() => p.destroy());
+            p.command = ["dolphin", "--existing-window", "--select", path];
+            p.onExited.connect(function() {
+                try { p.destroy(); } catch(e) {}
+                if (_dolphinProcess === p) _dolphinProcess = null;
+            });
             p.running = true;
+            _dolphinProcess = p;
             Visibilities.setActiveModule("");
         } catch (e) {
             spotlight.debugLogError("openFileInDolphin", e);
