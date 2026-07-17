@@ -4556,25 +4556,12 @@ PanelWindow {
     }
 
     // ── Abrir archivo en Dolphin (revelar en el gestor de archivos) ─────────
-    property var _openFileProc: null
+    readonly property string _revealScript: Quickshell.env("HOME") + "/.local/bin/hax-reveal.sh"
     function openFileInDolphin(item) {
         if (!item || item.type !== "file") return;
         var path = item.description || "";
         if (!path) return;
-        if (spotlight._openFileProc) {
-            try { spotlight._openFileProc.running = false; spotlight._openFileProc.destroy(); } catch(e) {}
-        }
-        try {
-            spotlight._openFileProc = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
-            spotlight._openFileProc.command = ["dolphin", "--select", path];
-            spotlight._openFileProc.onExited.connect(function() {
-                try { spotlight._openFileProc.destroy(); } catch(e) {}
-                spotlight._openFileProc = null;
-            });
-            spotlight._openFileProc.running = true;
-        } catch (e) {
-            spotlight.debugLogError("openFileInDolphin", e);
-        }
+        bash("'" + _revealScript + "' '" + path.replace(/'/g, "'\\''") + "' &");
         Visibilities.setActiveModule("");
     }
 
@@ -4907,20 +4894,7 @@ PanelWindow {
                     type: "file",
                     exec: function() {
                         if (capturedLine) {
-                            if (spotlight._openFileProc) {
-                                try { spotlight._openFileProc.running = false; spotlight._openFileProc.destroy(); } catch(e) {}
-                            }
-                            try {
-                                spotlight._openFileProc = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
-                                spotlight._openFileProc.command = ["dolphin", "--select", capturedLine];
-                                spotlight._openFileProc.onExited.connect(function() {
-                                    try { spotlight._openFileProc.destroy(); } catch(e) {}
-                                    spotlight._openFileProc = null;
-                                });
-                                spotlight._openFileProc.running = true;
-                            } catch (e) {
-                                spotlight.debugLogError("exec-file-home", e);
-                            }
+                            spotlight.bash("'" + spotlight._revealScript + "' '" + capturedLine.replace(/'/g, "'\\''") + "' &");
                         }
                         Visibilities.setActiveModule("");
                     }
@@ -4982,20 +4956,7 @@ PanelWindow {
                     type: "file",
                     exec: function() {
                         if (capturedLine) {
-                            if (spotlight._openFileProc) {
-                                try { spotlight._openFileProc.running = false; spotlight._openFileProc.destroy(); } catch(e) {}
-                            }
-                            try {
-                                spotlight._openFileProc = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
-                                spotlight._openFileProc.command = ["dolphin", "--select", capturedLine];
-                                spotlight._openFileProc.onExited.connect(function() {
-                                    try { spotlight._openFileProc.destroy(); } catch(e) {}
-                                    spotlight._openFileProc = null;
-                                });
-                                spotlight._openFileProc.running = true;
-                            } catch (e) {
-                                spotlight.debugLogError("exec-file-system", e);
-                            }
+                            spotlight.bash("'" + spotlight._revealScript + "' '" + capturedLine.replace(/'/g, "'\\''") + "' &");
                         }
                         Visibilities.setActiveModule("");
                     }
@@ -5050,20 +5011,7 @@ PanelWindow {
                             ocrMatch: true,
                             exec: function() {
                                 if (pp) {
-                                    if (spotlight._openFileProc) {
-                                        try { spotlight._openFileProc.running = false; spotlight._openFileProc.destroy(); } catch(e) {}
-                                    }
-                                    try {
-                                        spotlight._openFileProc = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
-                                        spotlight._openFileProc.command = ["dolphin", "--select", pp];
-                                        spotlight._openFileProc.onExited.connect(function() {
-                                            try { spotlight._openFileProc.destroy(); } catch(e) {}
-                                            spotlight._openFileProc = null;
-                                        });
-                                        spotlight._openFileProc.running = true;
-                                    } catch (e) {
-                                        spotlight.debugLogError("exec-file-ocr", e);
-                                    }
+                                    spotlight.bash("'" + spotlight._revealScript + "' '" + pp.replace(/'/g, "'\\''") + "' &");
                                 }
                                 Visibilities.setActiveModule("");
                             }
