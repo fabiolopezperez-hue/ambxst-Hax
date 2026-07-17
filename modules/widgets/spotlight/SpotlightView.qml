@@ -343,10 +343,11 @@ PanelWindow {
     property int windowGridSelectedIndex: 0
     property bool showTerminal: false
 
-    // Seguir la selección en la lista de resultados (scroll automático)
+    // Seguir la selección en la lista de resultados (scroll automático + Quick Look)
     onSelectedIndexChanged: {
         if (resultsList && selectedIndex >= 0) {
             resultsList.positionViewAtIndex(selectedIndex, ListView.Center);
+            _previewSelectedIfFile();
         }
     }
     property var results: []
@@ -872,7 +873,7 @@ PanelWindow {
                                             if (sel.type === "calc" || sel.type === "history") {
                                                 spotlight.copyResult(sel);
                                             } else if (sel.type === "file") {
-                                                spotlight.openPreview(sel);
+                                                spotlight.openFileInDolphin(sel);
                                             } else if (sel.exec) {
                                                 spotlight.executeItem(sel);
                                             }
@@ -4554,6 +4555,24 @@ PanelWindow {
         _copyFeedbackTimer.restart();
     }
 
+    // ── Abrir archivo en Dolphin (revelar en el gestor de archivos) ─────────
+    function openFileInDolphin(item) {
+        if (!item || item.type !== "file") return;
+        var path = item.description || "";
+        if (!path) return;
+        var safePath = path.replace(/'/g, "'\\''");
+        try {
+            var p = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+            p.command = ["bash", "-c",
+                "cd ~ && env -u HL_INITIAL_WORKSPACE_TOKEN setsid dolphin --existing-window --select '" + safePath + "' < /dev/null > /dev/null 2>&1 &"];
+            p.onExited.connect(() => p.destroy());
+            p.running = true;
+            Visibilities.setActiveModule("");
+        } catch (e) {
+            spotlight.debugLogError("openFileInDolphin", e);
+        }
+    }
+
     property string _copyFeedback: ""
 
     // ── Previsualización rápida (Quick Look) ───────────────────────────────
@@ -4885,7 +4904,7 @@ PanelWindow {
                         var safePath = capturedLine.replace(/'/g, "'\\''");
                         var p = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
                         p.command = ["bash", "-c",
-                            "cd ~ && env -u HL_INITIAL_WORKSPACE_TOKEN setsid thunar '" + safePath + "' < /dev/null > /dev/null 2>&1 &"];
+                            "cd ~ && env -u HL_INITIAL_WORKSPACE_TOKEN setsid dolphin --existing-window --select '" + safePath + "' < /dev/null > /dev/null 2>&1 &"];
                         p.onExited.connect(() => p.destroy());
                         p.running = true;
                         Visibilities.setActiveModule("");
@@ -4950,7 +4969,7 @@ PanelWindow {
                         var safePath = capturedLine.replace(/'/g, "'\\''");
                         var p = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
                         p.command = ["bash", "-c",
-                            "cd ~ && env -u HL_INITIAL_WORKSPACE_TOKEN setsid thunar '" + safePath + "' < /dev/null > /dev/null 2>&1 &"];
+                            "cd ~ && env -u HL_INITIAL_WORKSPACE_TOKEN setsid dolphin --existing-window --select '" + safePath + "' < /dev/null > /dev/null 2>&1 &"];
                         p.onExited.connect(() => p.destroy());
                         p.running = true;
                         Visibilities.setActiveModule("");
@@ -5008,7 +5027,7 @@ PanelWindow {
                                 var safePath = pp.replace(/'/g, "'\\''");
                                 var pr = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
                                 pr.command = ["bash", "-c",
-                                    "cd ~ && env -u HL_INITIAL_WORKSPACE_TOKEN setsid thunar '" + safePath + "' < /dev/null > /dev/null 2>&1 &"];
+                                    "cd ~ && env -u HL_INITIAL_WORKSPACE_TOKEN setsid dolphin --existing-window --select '" + safePath + "' < /dev/null > /dev/null 2>&1 &"];
                                 pr.onExited.connect(function() { try { pr.destroy(); } catch (e) {} });
                                 pr.running = true;
                                 Visibilities.setActiveModule("");
@@ -5510,5 +5529,4 @@ PanelWindow {
         });
         timer.start();
     }
-
 }
