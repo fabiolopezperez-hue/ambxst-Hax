@@ -152,8 +152,8 @@ if ! has_cmd qs; then
   esac
 fi
 
-# Herramientas esenciales para Hax
-ESSENTIAL_TOOLS=(grim slurp jq playerctl wl-clipboard brightnessctl)
+# Herramientas esenciales para Hax (incluye thunar para revelar archivos)
+ESSENTIAL_TOOLS=(grim slurp jq playerctl wl-clipboard brightnessctl thunar)
 for tool in "${ESSENTIAL_TOOLS[@]}"; do
   has_cmd "$tool" || DEPS_MISSING+=("$tool")
 done
