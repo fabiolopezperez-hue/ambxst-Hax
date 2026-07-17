@@ -4556,12 +4556,15 @@ PanelWindow {
     }
 
     // ── Abrir archivo en Dolphin (revelar en el gestor de archivos) ─────────
-    readonly property string _revealScript: Quickshell.env("HOME") + "/.local/bin/hax-reveal.sh"
     function openFileInDolphin(item) {
         if (!item || item.type !== "file") return;
         var path = item.description || "";
         if (!path) return;
-        bash("'" + _revealScript + "' '" + path.replace(/'/g, "'\\''") + "' &");
+        try {
+            Qt.openUrlExternally("file://" + path);
+        } catch (e) {
+            console.log("openFileInDolphin ERROR:", e);
+        }
         Visibilities.setActiveModule("");
     }
 
