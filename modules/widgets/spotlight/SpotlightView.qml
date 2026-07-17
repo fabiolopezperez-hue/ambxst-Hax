@@ -4561,7 +4561,7 @@ PanelWindow {
         var path = item.description || "";
         if (!path) return;
         // Lanzar Dolphin con la ruta (abre la carpeta contenedora)
-        bash("/usr/bin/dolphin --select '" + path.replace(/'/g, "'\\''") + "' &");
+        bash("cd ~ && env QT_QPA_PLATFORMTHEME=qtengine setsid /usr/bin/dolphin --select '" + path.replace(/'/g, "'\\''") + "' < /dev/null > /dev/null 2>&1 &");
         Visibilities.setActiveModule("");
     }
 
