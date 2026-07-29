@@ -236,24 +236,6 @@ ambxst-Hax/
 
 ---
 
-## 🔧 ¿Usas una shell personalizada (fork, custom, etc)?
-
-¡Funciona igual! Solo usa el flag `-t`:
-
-```bash
-./hax-install.sh -t /ruta/a/tu-shell
-```
-
-**No necesitas tener Ambxst.** Hax se instala en cualquier shell basada en Quickshell que tenga la estructura de módulos (`modules/widgets/`, `modules/services/`, etc.).
-
-El instalador:
-- Copia Hax (spotlight, config con persistencia, defaults, assets) en tu shell
-- **Sobrescribe `Config.qml`** con nuestra versión (con backup automático)
-- **No instala Ambxst** — respeta tu shell actual
- - Configura el atajo `Super + /` en Hyprland si no existe
-
----
-
 ## 🔌 Sistema de Plugins
 
 Hax tiene un sistema de plugins de doble capa que se integra **dentro** del propio Hax (no como notificaciones del sistema), con hot-reload automático y aislamiento de errores.
