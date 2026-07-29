@@ -290,7 +290,7 @@ echo '{"name":"Decir hora","description":"Hora actual","actionId":"hora","icon":
 
 ### 🟣 N3 — Plugins QML (`.qml`)
 
-Herenan de `HaxPlugin.qml` y siguen un ciclo de vida: `onLoad`, `onSearch(query)` y `onExecute(result)`. Permiten UI rica y acceso a todo el ecosistema de Quickshell.
+Heredan de `HaxPlugin.qml` y siguen un ciclo de vida: `onLoad`, `onSearch(query)` y `onExecute(result)`. Permiten UI rica y acceso a todo el ecosistema de Quickshell.
 
 ### ⚡ Características del sistema
 
