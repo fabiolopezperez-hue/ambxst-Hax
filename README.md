@@ -8,7 +8,7 @@
 
 > 🏆 **v4.0 LTS — Versión estable de largo plazo.** A partir de ahora solo habrá correcciones de bugs y ajustes estéticos. Hax está completo y listo para el día a día.
 >
-> 📊 `SpotlightView.qml` pesa **~5050 líneas** de QML/JS puro.
+> 📊 `SpotlightView.qml` pesa **~5050 líneas** de QML/SHELL puro.
 
 > ⚠️ Hax se instala **sobre Ambxst**. Este repo contiene solo los archivos de Hax y nuestras modificaciones. Ambxst se instala primero (automáticamente con `hax-install.sh`) y luego Hax se inyecta encima.
 
