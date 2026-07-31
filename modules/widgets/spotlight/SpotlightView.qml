@@ -458,20 +458,31 @@ PanelWindow {
         return w;
     }
 
+    // ── Grid de ventanas dinámico (1 card por app, máx 10, 2 filas) ────────
+    // Distribución en 2 filas: 1-4 apps → 1 fila; 5 → 3+2; 6 → 3+3; 7 → 4+3;
+    // 8 → 4+4; 9 → 5+4; 10 → 5+5. Ancho real del grid: fullWidth - 48
+    // (32 de márgenes de contentColumn + 16 de márgenes del Column interno
+    // del pane). Debe coincidir con el ancho real del layout para que cards
+    // y altura cuadren.
+    readonly property real windowGridInnerWidth: Math.min(screen.width * 0.9, desiredWidth) - 48
+    readonly property int windowGridRows: windowGridData.length <= 4 ? 1 : 2
+    readonly property int windowGridCols: windowGridData.length <= 4
+        ? Math.max(1, windowGridData.length)
+        : Math.ceil(windowGridData.length / 2)
+    readonly property real windowGridCardWidth: Math.min(440,
+        (windowGridInnerWidth - (windowGridCols - 1) * 8) / windowGridCols)
+    readonly property real windowGridCardViewH: (windowGridCardWidth - 12) * 9 / 16
+    // viewport 16:9 + header espacio + nombre de app
+    readonly property real windowGridCardHeight: windowGridCardViewH + 28 + 20
+
     // Altura del grid de ventanas: depende del ancho disponible y del nº de
-    // workspaces. Se recalcula sola al cambiar el ancho (desiredWidth) o los
-    // datos, sin necesidad de llamadas manuales.
+    // apps. Se recalcula sola al cambiar el ancho (desiredWidth) o los datos,
+    // sin necesidad de llamadas manuales.
     readonly property real windowGridHeight: {
-        if (windowGridData.length === 0) return 20 + 8 + 17 + 8 + 8;
-        // Ancho real del flow: fullWidth - 48 (32 de márgenes de contentColumn
-        // + 16 de márgenes del Column interno del pane). Debe coincidir con
-        // el ancho real de windowGridFlow para que cards y altura cuadren.
-        var w = Math.min(screen.width * 0.9, desiredWidth) - 48;
-        var cols = Math.max(1, Math.floor((w + 8) / 440));
-        var cardW = Math.min(440, (w - 8) / cols);
-        var cardH = (cardW - 12) * 9 / 16 + 28;
-        var rows = Math.ceil(windowGridData.length / cols);
-        var h = 8 + 20 + 8 + rows * cardH + (rows - 1) * 8 + 8;
+        var n = windowGridData.length;
+        if (n === 0) return 20 + 8 + 17 + 8 + 8;
+        var rows = windowGridRows;
+        var h = 8 + 20 + 8 + rows * windowGridCardHeight + (rows - 1) * 8 + 8;
         return Math.min(h, 600);
     }
     property real monCpu: 0
@@ -889,14 +900,22 @@ PanelWindow {
                                     return;
                                 }
                                 if (spotlight.showWindowGrid) {
-                                    // Refrescar y navegar grid de ventanas
+                                    // Refrescar y navegar grid de ventanas (2 filas dinámicas)
                                     try { spotlight.buildWindowGrid(); } catch (e) {}
-                                    var totalWindows = 0;
-                                    for (var i = 0; i < spotlight.windowGridData.length; i++) {
-                                        totalWindows += Math.min(spotlight.windowGridData[i].windows.length, 6);
-                                    }
-                                    if (spotlight.windowGridSelectedIndex > 0) {
-                                        spotlight.windowGridSelectedIndex--;
+                                    var gn = spotlight.windowGridData.length;
+                                    if (gn > 4) {
+                                        var gUp = spotlight.windowGridSelectedIndex;
+                                        var c1Up = Math.ceil(gn / 2);
+                                        var c2Up = Math.floor(gn / 2);
+                                        if (gUp >= c1Up) {
+                                            // fila 2 → fila 1 (misma columna)
+                                            spotlight.windowGridSelectedIndex = Math.min(gUp - c1Up, c1Up - 1);
+                                        } else {
+                                            // fila 1 → fila 2 (wrap, misma columna)
+                                            spotlight.windowGridSelectedIndex = c1Up + Math.min(gUp, c2Up - 1);
+                                        }
+                                    } else if (gn > 0) {
+                                        spotlight.windowGridSelectedIndex = 0;
                                     }
                                     return;
                                 }
@@ -930,14 +949,22 @@ PanelWindow {
                                     return;
                                 }
                                 if (spotlight.showWindowGrid) {
-                                    // Refrescar y navegar grid de ventanas
+                                    // Refrescar y navegar grid de ventanas (2 filas dinámicas)
                                     try { spotlight.buildWindowGrid(); } catch (e) {}
-                                    var totalWindows = 0;
-                                    for (var i = 0; i < spotlight.windowGridData.length; i++) {
-                                        totalWindows += Math.min(spotlight.windowGridData[i].windows.length, 6);
-                                    }
-                                    if (spotlight.windowGridSelectedIndex < totalWindows - 1) {
-                                        spotlight.windowGridSelectedIndex++;
+                                    var gN = spotlight.windowGridData.length;
+                                    if (gN > 4) {
+                                        var gDn = spotlight.windowGridSelectedIndex;
+                                        var c1Dn = Math.ceil(gN / 2);
+                                        var c2Dn = Math.floor(gN / 2);
+                                        if (gDn < c1Dn) {
+                                            // fila 1 → fila 2 (misma columna)
+                                            spotlight.windowGridSelectedIndex = c1Dn + Math.min(gDn, c2Dn - 1);
+                                        } else {
+                                            // fila 2 → fila 1 (wrap, misma columna)
+                                            spotlight.windowGridSelectedIndex = Math.min(gDn - c1Dn, c1Dn - 1);
+                                        }
+                                    } else if (gN > 0) {
+                                        spotlight.windowGridSelectedIndex = gN - 1;
                                     }
                                     return;
                                 }
@@ -1023,41 +1050,14 @@ PanelWindow {
                                     searchInput.cursorPosition = searchInput.text.length;
                                     event.accepted = true;
                                 } else if (spotlight.showWindowGrid && event.key === Qt.Key_Left) {
-                                    // ←: ir al workspace anterior
-                                    var prevWs = -1;
-                                    for (var li = spotlight.windowGridData.length - 1; li >= 0; li--) {
-                                        if (spotlight.windowGridData[li].offset < spotlight.windowGridSelectedIndex) {
-                                            prevWs = li;
-                                            break;
-                                        }
-                                    }
-                                    if (prevWs >= 0) {
-                                        spotlight.windowGridSelectedIndex = spotlight.windowGridData[prevWs].offset;
-                                    } else if (spotlight.windowGridData.length > 0) {
-                                        // Ir al último si estamos en el primero
-                                        var last = spotlight.windowGridData[spotlight.windowGridData.length - 1];
-                                        spotlight.windowGridSelectedIndex = last.offset + Math.min(last.windows.length, 6) - 1;
-                                    }
+                                    // ←: card anterior (con wrap al final)
+                                    var gL = spotlight.windowGridData.length;
+                                    spotlight.windowGridSelectedIndex = gL === 0 ? -1 : (spotlight.windowGridSelectedIndex - 1 + gL) % gL;
                                     event.accepted = true;
                                 } else if (spotlight.showWindowGrid && event.key === Qt.Key_Right) {
-                                    // →: ir al siguiente workspace
-                                    var nextWs = -1;
-                                    for (var ri = 0; ri < spotlight.windowGridData.length; ri++) {
-                                        var wsOff = spotlight.windowGridData[ri].offset;
-                                        var wsLen = Math.min(spotlight.windowGridData[ri].windows.length, 6);
-                                        if (spotlight.windowGridSelectedIndex >= wsOff && spotlight.windowGridSelectedIndex < wsOff + wsLen) {
-                                            if (ri + 1 < spotlight.windowGridData.length) {
-                                                nextWs = ri + 1;
-                                            }
-                                            break;
-                                        }
-                                    }
-                                    if (nextWs >= 0) {
-                                        spotlight.windowGridSelectedIndex = spotlight.windowGridData[nextWs].offset;
-                                    } else if (spotlight.windowGridData.length > 0) {
-                                        // Ir al primero si estamos en el último
-                                        spotlight.windowGridSelectedIndex = spotlight.windowGridData[0].offset;
-                                    }
+                                    // →: card siguiente (con wrap al principio)
+                                    var gR = spotlight.windowGridData.length;
+                                    spotlight.windowGridSelectedIndex = gR === 0 ? -1 : (spotlight.windowGridSelectedIndex + 1) % gR;
                                     event.accepted = true;
                                 } else if (event.key === Qt.Key_C && (event.modifiers & Qt.ControlModifier)) {
                                     // Ctrl+C → copiar resultado seleccionado
@@ -1802,37 +1802,55 @@ PanelWindow {
                             visible: windowGridData.length === 0
                         }
 
-                        // Workspace cards en flow
-                        Flow {
-                            id: windowGridFlow
+                        // Workspace cards: 1 card por app/ventana, en 2 filas dinámicas
+                        // centradas (1-4 apps → 1 fila; 5 → 3+2; 6 → 3+3; 7 → 4+3;
+                        // 8 → 4+4; 9 → 5+4; 10 → 5+5). El ancho y alto de cada card
+                        // vienen de spotlight.windowGridCardWidth/Height.
+                        Item {
+                            id: windowGridPane
                             width: parent.width
-                            spacing: 8
+                            height: spotlight.windowGridHeight - (8 + 20 + 8)
+                            clip: false
 
                             Repeater {
                                 model: windowGridData
 
                                 delegate: Item {
+                                    required property int index
                                     required property var modelData
-                                    readonly property var ws: modelData
-                                    // 2 cards por fila: umbral 440px por card
-                                    // (el Flow real mide fullWidth - 48, así que
-                                    // con 920px salen 2 columnas de ~432px)
-                                    readonly property int cardWidth: Math.min(440, (windowGridFlow.width - 8) / Math.max(1, Math.floor((windowGridFlow.width + 8) / 440)))
-                                    readonly property real viewW: cardWidth - 12
-                                    readonly property real viewH: viewW * 9 / 16
-                                    // Grid: columnas dinámicas (1, 2 o 3 según número de ventanas)
-                                    readonly property int n: Math.min(ws.windows.length, 6)
-                                    readonly property int gridCols: n <= 1 ? 1 : (n <= 2 ? 2 : (n <= 4 ? 2 : Math.min(3, n)))
-                                    readonly property int gridRows: Math.ceil(n / gridCols)
-                                    readonly property real cellW: (viewW - (gridCols - 1) * 4) / gridCols
-                                    readonly property real cellH: (viewH - (gridRows - 1) * 4) / gridRows
+                                    readonly property var win: modelData
+                                    readonly property int total: spotlight.windowGridData.length
+                                    // Fila 2 a partir de ceil(total/2) cuando hay más de 4 apps
+                                    readonly property bool row2: total > 4 && index >= Math.ceil(total / 2)
+                                    readonly property int rowCols: row2
+                                        ? Math.floor(total / 2)
+                                        : (total <= 4 ? total : Math.ceil(total / 2))
+                                    readonly property int rowCol: row2 ? index - Math.ceil(total / 2) : index
+                                    readonly property real cardW: spotlight.windowGridCardWidth
+                                    readonly property real cardH: spotlight.windowGridCardHeight
+                                    readonly property bool isSel: win && win.globalIdx === spotlight.windowGridSelectedIndex
 
-                                    width: cardWidth
-                                    height: viewH + 28  // viewport 16:9 + header
+                                    width: cardW
+                                    height: cardH
+                                    // Centrar cada fila con su propio número de columnas
+                                    x: (windowGridPane.width - (rowCols * cardW + (rowCols - 1) * 8)) / 2 + rowCol * (cardW + 8)
+                                    y: row2 ? cardH + 8 : 0
 
-                                    // Card background (clickeable)
+                                    // Resalte de selección (background glow)
                                     Rectangle {
                                         anchors.fill: parent
+                                        radius: Styling.radius(8)
+                                        color: Styling.srItem("overprimary")
+                                        opacity: isSel ? 0.15 : 0
+                                        border.color: isSel ? Styling.srItem("overprimary") : "transparent"
+                                        border.width: isSel ? 2 : 0
+                                        Behavior on opacity { NumberAnimation { duration: 100 } }
+                                    }
+
+                                    // Card background (clickeable → activa la ventana)
+                                    Rectangle {
+                                        anchors.fill: parent
+                                        anchors.margins: isSel ? 3 : 0
                                         radius: Styling.radius(8)
                                         color: Styling.srItem("overprimary")
                                         opacity: 0.06
@@ -1840,11 +1858,7 @@ PanelWindow {
                                             anchors.fill: parent
                                             cursorShape: Qt.PointingHandCursor
                                             onClicked: {
-                                                var p = procPlain.createObject(spotlight);
-                                                p.command = ["hyprctl", "dispatch", "workspace", String(ws.id)];
-                                                p.onExited.connect(function() { p.destroy(); });
-                                                p.running = true;
-                                                Visibilities.setActiveModule("");
+                                                if (win && win.address) spotlight.activateWindow(win.address, win.wsId);
                                             }
                                         }
                                     }
@@ -1854,125 +1868,54 @@ PanelWindow {
                                         anchors.fill: parent
                                         anchors.margins: 6
 
-                                        // Workspace header
+                                        // Nombre de la app + espacio
                                         Text {
-                                            id: wsHeader
-                                            text: "Espacio " + ws.id
+                                            id: winCardHeader
+                                            text: (win ? (win.class || win.title || "?") : "?")
+                                                + "  ·  Espacio " + (win ? win.wsId : "?")
                                             font.bold: true
                                             font.pixelSize: Config.theme.fontSize - 1
                                             color: Styling.srItem("text")
-                                            opacity: 0.6
+                                            elide: Text.ElideRight
+                                            width: parent.width
                                         }
 
-                                        // Área de ventanas — Grid que llena el viewport sin desbordar
+                                        // Vista previa 16:9
                                         Rectangle {
-                                            anchors.top: wsHeader.bottom
+                                            anchors.top: winCardHeader.bottom
                                             anchors.topMargin: 4
                                             anchors.horizontalCenter: parent.horizontalCenter
-                                            width: viewW
-                                            height: viewH
+                                            width: cardW - 12
+                                            height: spotlight.windowGridCardViewH
                                             radius: Styling.radius(4)
                                             color: "transparent"
                                             clip: true
 
-                                            Grid {
+                                            ClippingRectangle {
                                                 anchors.fill: parent
-                                                columns: gridCols
-                                                spacing: 4
+                                                radius: 2
+                                                antialiasing: true
+                                                color: "transparent"
+                                                border.color: win && win.is_focused ? Styling.srItem("overprimary") : Qt.rgba(1,1,1,0.12)
+                                                border.width: win && win.is_focused ? 2 : 0
 
-                                                Repeater {
-                                                    model: ws.windows.length > 6 ? 6 : ws.windows.length
+                                                ScreencopyView {
+                                                    id: winPreview
+                                                    anchors.fill: parent
+                                                    captureSource: win ? win.toplevel : null
+                                                    live: spotlight.showWindowGrid
+                                                    visible: win && win.toplevel !== null
+                                                }
 
-                                                    delegate: Item {
-                                                        readonly property var win: ws.windows[index]
-                                                        readonly property bool isSelected: win && win.globalIdx === spotlight.windowGridSelectedIndex
-                                                        width: cellW
-                                                        height: cellH
-
-                                                        // Resalte de selección (background glow)
-                                                        Rectangle {
-                                                            anchors.fill: parent
-                                                            radius: 3
-                                                            color: Styling.srItem("overprimary")
-                                                            opacity: isSelected ? 0.15 : 0
-                                                            border.color: isSelected ? Styling.srItem("overprimary") : "transparent"
-                                                            border.width: isSelected ? 2 : 0
-                                                            Behavior on opacity { NumberAnimation { duration: 100 } }
-                                                        }
-
-                                                        ClippingRectangle {
-                                                            anchors.fill: parent
-                                                            anchors.margins: isSelected ? 3 : 0
-                                                            radius: 2
-                                                            antialiasing: true
-                                                            color: "transparent"
-                                                            border.color: win && win.is_focused ? Styling.srItem("overprimary") : Qt.rgba(1,1,1,0.12)
-                                                            border.width: win && win.is_focused ? 2 : 0
-
-                                                            ScreencopyView {
-                                                                id: winPreview
-                                                                anchors.fill: parent
-                                                                captureSource: win ? win.toplevel : null
-                                                                live: showWindowGrid
-                                                                visible: win && win.toplevel !== null
-                                                            }
-
-                                                            Text {
-                                                                anchors.centerIn: parent
-                                                                text: "□"
-                                                                font.pixelSize: Math.min(cellW, cellH) * 0.3
-                                                                color: Styling.srItem("text")
-                                                                opacity: 0.3
-                                                                visible: !win || !winPreview.hasContent || win.toplevel === null
-                                                            }
-                                                        }
-
-                                                        // Overlay título (solo si la celda es suficientemente grande)
-                                                        Rectangle {
-                                                            anchors.left: parent.left
-                                                            anchors.right: parent.right
-                                                            anchors.bottom: parent.bottom
-                                                            height: Math.min(14, parent.height * 0.2)
-                                                            color: "#80000000"
-                                                            visible: win && win.title.length > 0 && cellH > 24
-
-                                                            Text {
-                                                                anchors.fill: parent
-                                                                anchors.leftMargin: 2
-                                                                anchors.rightMargin: 2
-                                                                text: win ? win.title : ""
-                                                                font.pixelSize: Math.min(9, cellH * 0.12)
-                                                                color: "white"
-                                                                elide: Text.ElideRight
-                                                                verticalAlignment: Text.AlignVCenter
-                                                            }
-                                                        }
-
-                                                        MouseArea {
-                                                            anchors.fill: parent
-                                                            cursorShape: Qt.PointingHandCursor
-                                                            enabled: win !== undefined
-                                                            onClicked: {
-                                                                if (!win) return;
-                                                                spotlight.activateWindow(win.address, ws.id);
-                                                            }
-                                                        }
-                                                    }
+                                                Text {
+                                                    anchors.centerIn: parent
+                                                    text: "□"
+                                                    font.pixelSize: 28
+                                                    color: Styling.srItem("text")
+                                                    opacity: 0.3
+                                                    visible: !win || !winPreview.hasContent || win.toplevel === null
                                                 }
                                             }
-
-                                            // Más de 6 ventanas: indicador
-                                                            Text {
-                                                                anchors.right: parent.right
-                                                                anchors.bottom: parent.bottom
-                                                                anchors.margins: 4
-                                                                text: "+" + (ws.windows.length - 6)
-                                                                font.pixelSize: Config.theme.fontSize - 3
-                                                                font.bold: true
-                                                                color: Styling.srItem("text")
-                                                                opacity: 0.5
-                                                                visible: ws.windows.length > 6
-                                                            }
                                         }
                                     }
                                 }
@@ -5348,12 +5291,16 @@ PanelWindow {
     }
 
     // ── Show: grid visual de ventanas (CompositorData + ScreencopyView) ────
+    // Construye el grid de ventanas: UNA card por app/ventana, ordenadas por
+    // workspace (1, 2, 3...), con un máximo de 10 cards. El layout las coloca
+    // después en 2 filas dinámicas: 1-4 apps → 1 fila; 5 → 3+2; 6 → 3+3;
+    // 7 → 4+3; 8 → 4+4; 9 → 5+4; 10 → 5+5.
     function buildWindowGrid() {
         try {
         var windows = CompositorData ? (CompositorData.windowList || []) : [];
         var toplevels = [];
         try { toplevels = ToplevelManager && ToplevelManager.toplevels ? (ToplevelManager.toplevels.values || []) : []; } catch (e) { toplevels = []; }
-        var wsMap = {};
+        var flat = [];
         for (var i = 0; i < windows.length; i++) {
             // Proteger cada ventana: si una tiene datos raros (p.ej. sin
             // workspace), NO debe romper la construcción del resto del grid.
@@ -5362,7 +5309,6 @@ PanelWindow {
                 if (!w) continue;
                 if (!w.mapped) continue;
                 var wsId = w.workspace && w.workspace.id !== undefined ? w.workspace.id : 0;
-                if (wsMap[wsId] === undefined) wsMap[wsId] = { id: wsId, windows: [] };
                 // Parear con Toplevel para ScreencopyView
                 var cls = w.class || "";
                 var matched = null;
@@ -5372,30 +5318,22 @@ PanelWindow {
                     else if (candidates.length > 1)
                         matched = candidates.find(function(t) { return t.title === (w.title || ""); }) || candidates[0];
                 }
-                wsMap[wsId].windows.push({
+                flat.push({
                     address: w.address,
                     class: cls,
                     title: w.title || "?",
                     is_focused: w.is_focused || false,
-                    toplevel: matched
+                    toplevel: matched,
+                    wsId: wsId
                 });
             } catch (e) { continue; }
         }
-        // Calcular offset global para navegación con flechas
-        var flatIdx = 0;
-        var result = [];
-        var sorted = Object.keys(wsMap).sort(function(a,b) { return parseInt(a) - parseInt(b); });
-        for (var k = 0; k < sorted.length; k++) {
-            var ws = wsMap[sorted[k]];
-            ws.offset = flatIdx;
-            // Asignar índice global a cada ventana (máximo 6 por workspace)
-            var n = Math.min(ws.windows.length, 6);
-            for (var j = 0; j < ws.windows.length; j++) {
-                ws.windows[j].globalIdx = j < n ? flatIdx + j : -1;
-            }
-            flatIdx += n;
-            result.push(ws);
-        }
+        // Ordenar por workspace (y mantener el orden interno de cada uno)
+        flat.sort(function(a, b) { return a.wsId - b.wsId; });
+        // Máximo 10 cards
+        var result = flat.slice(0, 10);
+        // Índice global plano para navegación con flechas
+        for (var j = 0; j < result.length; j++) result[j].globalIdx = j;
         windowGridData = result;
         } catch (e) { /* si falla, no romper la shell */ }
     }
@@ -5430,19 +5368,11 @@ PanelWindow {
         p.running = true;
     }
 
-    // Va a la ventana seleccionada en el grid
+    // Va a la ventana seleccionada en el grid (una card = una app)
     function goToSelectedWindow() {
         if (windowGridSelectedIndex < 0) return;
-        // Buscar qué workspace y ventana corresponde al índice global
-        for (var wsi = 0; wsi < windowGridData.length; wsi++) {
-            var ws = windowGridData[wsi];
-            var n = Math.min(ws.windows.length, 6);
-            if (windowGridSelectedIndex >= ws.offset && windowGridSelectedIndex < ws.offset + n) {
-                var win = ws.windows[windowGridSelectedIndex - ws.offset];
-                if (win && win.address) activateWindow(win.address, ws.id);
-                break;
-            }
-        }
+        var win = windowGridData[windowGridSelectedIndex];
+        if (win && win.address) activateWindow(win.address, win.wsId);
     }
 
     // ── Búsqueda de archivos ───────────────────────────────────────────────
