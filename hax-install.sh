@@ -8,7 +8,7 @@ set -euo pipefail
 #
 # ¿Qué instala?
 #   • Hax (SpotlightView.qml + PluginManager.qml + HaxPlugin.qml + qmldir)
-#     — buscador universal (~5490 líneas) con sistema de plugins (N2 script + N3 QML)
+#     — buscador universal (~6100 líneas) con sistema de plugins (N2 script + N3 QML)
 #   • Config.qml — con persistencia de acciones rápidas
 #   • config/defaults/hax.js — defaults de Hax
 #   • assets/presets/.../hax.json — preset inicial
@@ -353,7 +353,28 @@ install_qmltermwidget \
   || log_warn "No se pudo instalar qmltermwidget — la terminal embebida no funcionará, pero Hax se instala igual."
 
 # ── 4c. Fuente de iconos Phosphor ──
-# La fuente Phosphor la provee Ambxst — no se empaqueta en el repo.
+# Hax usa la familia Phosphor para sus iconos (vía Icons.qml de Ambxst).
+# Ambxst original la instala como paquete (ttf-phosphor-icons), pero para
+# forks y shells personalizadas la empaquetamos en assets/fonts/ y la
+# instalamos en ~/.local/share/fonts/Hax sin tocar nada del sistema.
+install_phosphor_fonts() {
+  local FONT_SRC="$REPO_DIR/assets/fonts"
+  local FONT_DST="${XDG_DATA_HOME:-$HOME/.local/share}/fonts/Hax"
+  local FIRST_TTF
+  FIRST_TTF="$(find "$FONT_SRC" -maxdepth 1 -name '*.ttf' 2>/dev/null | head -1 || true)"
+  if [[ -z "$FIRST_TTF" ]]; then
+    log_info "Fuentes Phosphor no empaquetadas en el repo — Ambxst las instalará (ttf-phosphor-icons)."
+    return 0
+  fi
+  mkdir -p "$FONT_DST"
+  cp -f "$FONT_SRC"/*.ttf "$FONT_DST/"
+  if has_cmd fc-cache; then
+    fc-cache -f "$FONT_DST" >/dev/null 2>&1 || true
+  fi
+  log_success "Fuentes Phosphor instaladas en $FONT_DST (fc-cache actualizado)."
+}
+
+install_phosphor_fonts
 
 # ── 5. Instalar Hax + dependencias en la shell ────────────────
 log_info "Instalando Hax en $SHELL_SRC..."

@@ -212,25 +212,33 @@ ambxst-Hax/
 │   └── defaults/
 │       └── hax.js                        # Defaults de Hax
 ├── assets/
+│   ├── fonts/                            # Fuente Phosphor (iconos) — para forks
+│   │   └── Phosphor-*.ttf
 │   └── presets/
 │       └── Ambxst Default/
 │           └── hax.json                  # Preset de configuración de Hax
- ├── modules/
- │   └── widgets/spotlight/
- │       ├── qmldir                        # Registro del módulo
- │       ├── SpotlightView.qml             # 🧠 Todo Hax (~5050 líneas)
- │       ├── PluginManager.qml             # 🔌 Gestor de plugins (scan, hot-reload, persistencia, errores)
- │       ├── HaxPlugin.qml                 # 🧩 Base para plugins QML (N3)
- │       └── plugin-ejemplo.sh             # 📦 Plugin de ejemplo (N2 script) que se copia al usuario
- └── screenshots/
+├── modules/
+│   ├── services/
+│   │   └── SudoPass.qml                  # Servicio de contraseña sudo local
+│   └── widgets/spotlight/
+│       ├── qmldir                        # Registro del módulo
+│       ├── SpotlightView.qml             # 🧠 Todo Hax (~6100 líneas)
+│       ├── PluginManager.qml             # 🔌 Gestor de plugins (scan, hot-reload, persistencia, errores)
+│       ├── HaxPlugin.qml                 # 🧩 Base para plugins QML (N3)
+│       └── plugin-ejemplo.sh             # 📦 Plugin de ejemplo (N2 script) que se copia al usuario
+├── scripts/
+│   ├── hax-reveal.sh                     # Revelar archivos en Thunar
+│   ├── ocr.sh                            # Live Text (OCR con Tesseract)
+│   └── sudopass.py                       # Cifrado de la contraseña de SudoPass
+└── screenshots/
     ├── hax-search-bar.png
     ├── new-animation-Hax.mp4
     ├── new-functions-Hax.mp4
     ├── resultados-Hax.png
-    └── terminal-Hax.png`
+    └── terminal-Hax.png
 ```
 
-**Nota:** A diferencia de otros launchers, Hax es **monolítico** por diseño — todo el código vive en un solo archivo `SpotlightView.qml` (~5050 líneas). Esto evita la fragmentación y hace que sea fácil de mantener y modificar.
+**Nota:** A diferencia de otros launchers, Hax es **monolítico** por diseño — todo el código vive en un solo archivo `SpotlightView.qml` (~6100 líneas). Esto evita la fragmentación y hace que sea fácil de mantener y modificar.
 
 > Este repo contiene **solo los archivos de Hax** que modificamos. El resto de dependencias (servicios, theme, componentes, scripts) las provee Ambxst, que se instala primero. Si tu shell ya los tiene, el instalador no los duplica.
 
