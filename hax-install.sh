@@ -41,7 +41,7 @@ fi
 # ── Ayuda ──────────────────────────────────────────────────────
 usage() {
   cat <<EOF
-Uso: $(basename "$0") [-t <directorio>] [-h]
+Uso: hax-install.sh [-t <directorio>] [-h]
 
 Instala Hax (spotlight/launcher) con todas sus dependencias.
 
@@ -569,4 +569,4 @@ echo -e "${YELLOW}🔄  Para lanzar Hax manualmente:${NC}"
 echo -e "    ${BLUE}qs -p $SHELL_SRC/modules/widgets/spotlight/SpotlightView.qml${NC}"
 echo ""
 echo -e "${YELLOW}💡  ¿Usas un fork?${NC} La próxima vez puedes hacer:"
-echo -e "    ${BLUE}$(basename "$0") -t $SHELL_SRC${NC}"
+echo -e "    ${BLUE}hax-install.sh -t $SHELL_SRC${NC}"
