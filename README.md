@@ -380,7 +380,7 @@ Hax ha alcanzado su **versión final**. El proyecto se da por **acabado y comple
 - **Instalación simulada de punta a punta validada**: en un entorno aislado (HOME temporal + shell tipo fork con `AMBXST_SRC`) se comprobó que los 12 archivos del repo se copian **idénticos**, los scripts quedan ejecutables, las fuentes se instalan, el fallback de Config completa los 15 defaults y el atajo de Hyprland se escribe correctamente en `.conf` y `.lua`.
 
 #### ⌨️ Keybind por defecto: Super + space
-- El instalador ahora configura **`Super + space`** (antes `Super + /`) para los usuarios nuevos, en formato hyprlang (`bind = SUPER, space, …`) y Lua (`hl.bind("SUPER + Space", …)`).
+- El instalador ahora configura **`Super + space`** (antes `Super + /`) para los usuarios nuevos, en formato hyprland (`bind = SUPER, space, …`) y Lua (`hl.bind("SUPER + Space", …)`).
 
 #### 🎯 Fin del proyecto
 - El proyecto ha **terminado**. Hax está completo, estable y listo para el día a día.
