@@ -211,8 +211,11 @@ ambxst-Hax/
 ├── .gitignore
 ├── config/
 │   ├── Config.qml                        # Config central (con persistencia de Hax)
+│   ├── ConfigValidator.js                # Validación de config (respaldo forks)
+│   ├── KeybindActions.js                 # Acciones de keybinds (respaldo forks)
 │   └── defaults/
-│       └── hax.js                        # Defaults de Hax
+│       ├── hax.js                        # Defaults de Hax
+│       └── *.js (14 más)                 # Respaldo completo para forks sin Ambxst
 ├── assets/
 │   ├── fonts/                            # Fuente Phosphor (iconos) — para forks
 │   │   └── Phosphor-*.ttf
@@ -376,8 +379,9 @@ Hax ha alcanzado su **versión final**. El proyecto se da por **acabado y comple
 - **`scripts/ocr.sh` (Live Text) añadido al repo** — el código lo buscaba pero faltaba, y Ambxst original tampoco lo trae. Ahora el instalador lo copia a `<shell>/scripts/ocr.sh`.
 - **Fuente Phosphor empaquetada en `assets/fonts/`** (6 variantes TTF) — el instalador la copia a `~/.local/share/fonts/Hax` + `fc-cache`. Imprescindible en forks; en Ambxst original la instala el paquete `ttf-phosphor-icons` como respaldo.
 - **Fix del chequeo de dependencias**: se verifica el binario real `wl-copy` (el paquete `wl-clipboard` no expone un binario con ese nombre en Arch) — evita un `pacman` innecesario.
+- **Respaldo completo de `config/` para forks** — `ConfigValidator.js`, `KeybindActions.js` y los 14 `defaults/*.js` restantes se incluyen ahora en el repo (el instalador los copia directamente desde él). Un fork puro **sin Ambxst instalado en el sistema** ya valida `Config.qml` sin depender de nada externo.
 - **Auditoría total de referencias**: imports QML, scripts, assets, `Config.qml` + `ConfigValidator.js` + `KeybindActions.js` + los 15 `defaults/*.js`, plugins, terminal y fuente — todo verificado contra el repo y contra Ambxst original.
-- **Instalación simulada de punta a punta validada**: en un entorno aislado (HOME temporal + shell tipo fork con `AMBXST_SRC`) se comprobó que los 12 archivos del repo se copian **idénticos**, los scripts quedan ejecutables, las fuentes se instalan, el fallback de Config completa los 15 defaults y el atajo de Hyprland se escribe correctamente en `.conf` y `.lua`.
+- **Instalación simulada de punta a punta validada**: en un entorno aislado (HOME temporal + shell tipo fork con `AMBXST_SRC`) se comprobó que los 12 archivos del repo se copian **idénticos**, los scripts quedan ejecutables, las fuentes se instalan, el fallback de Config completa los 15 defaults y el atajo de Hyprland se escribe correctamente en `.conf` y `.lua`. Además se validó el **fork puro sin Ambxst** (17 archivos de `config/` copiados e idénticos) y el **flujo `curl | bash` real** desde GitHub.
 
 #### ⌨️ Keybind por defecto: Super + space
 - El instalador ahora configura **`Super + space`** (antes `Super + /`) para los usuarios nuevos, en formato hyprland (`bind = SUPER, space, …`) y Lua (`hl.bind("SUPER + Space", …)`).
