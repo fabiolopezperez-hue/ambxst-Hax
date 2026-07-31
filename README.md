@@ -2,13 +2,15 @@
 
 
 
-# Hax 🎯 **v4.0 LTS**
+# Hax 🎯 **v5.0 — FINAL** 🏁
 
 **Hax** es un spotlight/launcher modular para shells Wayland basadas en **Ambxst**, construido con Quickshell y Qt QML. Inspirado en Spotlight de macOS, ofrece búsqueda instantánea de aplicaciones, archivos, cálculos inline, acciones rápidas del sistema, terminal integrada, timers, alarmas, instalación de paquetes, clima y mucho más — todo desde una interfaz limpia, rápida y nativa.
 
-> 🏆 **v4.0 LTS — Versión estable de largo plazo.** A partir de ahora solo habrá correcciones de bugs y ajustes estéticos. Hax está completo y listo para el día a día.
+> 🏁 **v5.0 FINAL — Proyecto terminado.** Hax ha llegado a su versión final: completo, estable y probado de punta a punta. El desarrollo ha concluido.
 >
-> 📊 `SpotlightView.qml` pesa **~5050 líneas** de QML/SHELL puro.
+> 📊 `SpotlightView.qml` pesa **~6100 líneas** de QML/SHELL puro.
+>
+> 💬 ¿Dudas o problemas? Contacta conmigo en Discord: **fabio_777**
 
 > ⚠️ Hax se instala **sobre Ambxst**. Este repo contiene solo los archivos de Hax y nuestras modificaciones. Ambxst se instala primero (automáticamente con `hax-install.sh`) y luego Hax se inyecta encima.
 
@@ -79,7 +81,7 @@
 - [Quickshell](https://git.outfoxxed.me/outfoxxed/quickshell) — Motor QML para Wayland
 - Qt6 (base, declarative, wayland, svg)
 - **Hyprland** u otro compositor Wayland compatible
-- Herramientas: `grim`, `slurp`, `jq`, `playerctl`, `wl-clipboard`, `brightnessctl`
+- Herramientas: `grim`, `slurp`, `jq`, `playerctl`, `wl-clipboard`, `brightnessctl`, `thunar` (para "Revelar en carpeta")
 - **Para la terminal embebida:** el instalador compila e instala [`qmltermwidget`](https://github.com/Swordfish90/qmltermwidget) (plugin QML para Qt6) automáticamente. En instalación manual, instálalo tú mismo.
 - **Fuente de iconos Phosphor:** Hax usa la fuente *Phosphor* (`Phosphor-Bold`, etc.) para sus iconos. El instalador la copia automáticamente desde `assets/fonts/` a `~/.local/share/fonts/Hax` y ejecuta `fc-cache`. En instalación manual, instala el paquete `phosphor-icons` (o copia los `.ttf` a tu directorio de fuentes).
 - **Para Live Text (OCR):** el instalador instala **Tesseract** + los datos de idioma **inglés y español** (`tesseract-data-eng`, `tesseract-data-spa` en Arch; equivalentes en Debian/Fedora). Sin esto, la búsqueda dentro de imágenes no funciona. Puedes ampliar los idiomas con la variable `HAX_OCR_LANGS` (p. ej. `eng+spa+fra`).
@@ -204,7 +206,7 @@ hl.bind("SUPER + Space", hl.dsp.exec_cmd('qs -p "/ruta/a/tu-shell/modules/widget
 
 ambxst-Hax/
 ├── hax-install.sh                        # Instalador automático
-├── version                               # v4.0
+├── version                               # v5.0
 ├── README.md                             # Este archivo
 ├── .gitignore
 ├── config/
@@ -352,6 +354,38 @@ Hax no compite solo como "un launcher más". Es un **centro de productividad com
 ---
 
 ## 📋 Changelog
+
+### v5.0 — Julio 2026 — 🏁 FINAL — Proyecto completado
+
+Hax ha alcanzado su **versión final**. El proyecto se da por **acabado y completo**: todo lo prometido está implementado, probado de punta a punta y documentado. A partir de aquí no habrá más versiones — el código queda libre y abierto para quien quiera hacer un fork.
+
+#### 🎨 Hax Look — Grid dinámico rediseñado
+- **1 tarjeta por aplicación** (antes: 1 por ventana) — mucho más limpio y legible.
+- **Hasta 10 aplicaciones** mostradas a la vez, ordenadas por workspace.
+- **Filas balanceadas y centradas**: 1-4 apps → una sola fila; 5→3+2; 6→3+3; 7→4+3; 8→4+4; 9→5+4; 10→5+5.
+- `buildWindowGrid` reescrito: array plano con `globalIdx` y `wsId` por tarjeta.
+- **Navegación ↑/↓ con wrap** entre las dos filas; **←/→** con wrap simple.
+- El grid se abre con `show` y se navega con el teclado; **Enter** va a la ventana seleccionada.
+
+#### 🔧 Activación de ventanas corregida (Hax View)
+- **El overlay de Hax robaba el foco al cerrarse** → el cambio de ventana debe ir **desprendido** del overlay (proceso `nohup` + retardo de 0.25s) para sobrevivir a su cierre.
+- Se usa **`hyprctl dispatch focuswindow "class:^(…)$"`** — nativo de Hyprland, funciona desde cualquier workspace (antes se probó con `address` y fallaba al venir de otro workspace; y con `axctl`, que es exclusivo de Ambxst, y se descartó).
+- Verificado en vivo: cambia de workspace **y** enfoca la ventana correcta.
+
+#### 📦 Repositorio 100% autocontenido (auditoría completa)
+- **`scripts/ocr.sh` (Live Text) añadido al repo** — el código lo buscaba pero faltaba, y Ambxst original tampoco lo trae. Ahora el instalador lo copia a `<shell>/scripts/ocr.sh`.
+- **Fuente Phosphor empaquetada en `assets/fonts/`** (6 variantes TTF) — el instalador la copia a `~/.local/share/fonts/Hax` + `fc-cache`. Imprescindible en forks; en Ambxst original la instala el paquete `ttf-phosphor-icons` como respaldo.
+- **Fix del chequeo de dependencias**: se verifica el binario real `wl-copy` (el paquete `wl-clipboard` no expone un binario con ese nombre en Arch) — evita un `pacman` innecesario.
+- **Auditoría total de referencias**: imports QML, scripts, assets, `Config.qml` + `ConfigValidator.js` + `KeybindActions.js` + los 15 `defaults/*.js`, plugins, terminal y fuente — todo verificado contra el repo y contra Ambxst original.
+- **Instalación simulada de punta a punta validada**: en un entorno aislado (HOME temporal + shell tipo fork con `AMBXST_SRC`) se comprobó que los 12 archivos del repo se copian **idénticos**, los scripts quedan ejecutables, las fuentes se instalan, el fallback de Config completa los 15 defaults y el atajo de Hyprland se escribe correctamente en `.conf` y `.lua`.
+
+#### ⌨️ Keybind por defecto: Super + space
+- El instalador ahora configura **`Super + space`** (antes `Super + /`) para los usuarios nuevos, en formato hyprlang (`bind = SUPER, space, …`) y Lua (`hl.bind("SUPER + Space", …)`).
+
+#### 🎯 Fin del proyecto
+- El proyecto ha **terminado**. Hax está completo, estable y listo para el día a día.
+- ¿Dudas, problemas o sugerencias? Contacta conmigo en Discord: **fabio_777**.
+- El código es libre (MIT) — si quieres más funciones, **haz un fork**.
 
 ### v4.0 LTS — Julio 2026 — 🏆 Versión estable de largo plazo
 
@@ -518,7 +552,8 @@ Distribuido bajo licencia MIT. Partes del código derivadas de [Ambxst](https://
 
 ---
 
-> **Hax v4.0 LTS**
+> **Hax v5.0 FINAL** 🏁
+> El proyecto ha **terminado** — Hax está completo y estable.
 > Si usas Hax y te gusta, una estrella ⭐ en GitHub alegra el día.
-> ¿Un bug? [Abre un issue](https://github.com/fabiolopezperez-hue/ambxst-Hax/issues).
+> ¿Dudas, problemas o sugerencias? Contacta conmigo en Discord: **fabio_777**
 > ¿Quieres más funciones? **Haz un fork** — el código es tuyo también.
