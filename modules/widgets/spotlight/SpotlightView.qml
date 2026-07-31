@@ -814,7 +814,7 @@ PanelWindow {
                                 x: 2
                                 text: cmdProcess !== null
                                     ? qsTr("Ejecutando comando...  (Esc para salir)")
-                                    : qsTr("Hax — El buscador Universal para Hyprland (pon ? para el manual)")
+                                    : qsTr("Hax — El buscador Universal para Hyprland (pon init para iniciar la configuración)")
                                 font: parent.font
                                 color: Styling.srItem("text")
                                 opacity: 0.35
