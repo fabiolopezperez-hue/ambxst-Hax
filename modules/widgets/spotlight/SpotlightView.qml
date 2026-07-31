@@ -1807,7 +1807,7 @@ PanelWindow {
                         // 8 → 4+4; 9 → 5+4; 10 → 5+5). El ancho y alto de cada card
                         // vienen de spotlight.windowGridCardWidth/Height.
                         Item {
-                            id: windowGridPane
+                            id: windowGridCards
                             width: parent.width
                             height: spotlight.windowGridHeight - (8 + 20 + 8)
                             clip: false
@@ -1833,7 +1833,7 @@ PanelWindow {
                                     width: cardW
                                     height: cardH
                                     // Centrar cada fila con su propio número de columnas
-                                    x: (windowGridPane.width - (rowCols * cardW + (rowCols - 1) * 8)) / 2 + rowCol * (cardW + 8)
+                                    x: (windowGridCards.width - (rowCols * cardW + (rowCols - 1) * 8)) / 2 + rowCol * (cardW + 8)
                                     y: row2 ? cardH + 8 : 0
 
                                     // Resalte de selección (background glow)
