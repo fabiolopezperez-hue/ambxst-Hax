@@ -153,7 +153,8 @@ if ! has_cmd qs; then
 fi
 
 # Herramientas esenciales para Hax (incluye thunar para revelar archivos)
-ESSENTIAL_TOOLS=(grim slurp jq playerctl wl-clipboard brightnessctl thunar)
+# wl-copy es el binario real del paquete wl-clipboard (en Arch no existe "wl-clipboard")
+ESSENTIAL_TOOLS=(grim slurp jq playerctl wl-copy brightnessctl thunar)
 for tool in "${ESSENTIAL_TOOLS[@]}"; do
   has_cmd "$tool" || DEPS_MISSING+=("$tool")
 done
