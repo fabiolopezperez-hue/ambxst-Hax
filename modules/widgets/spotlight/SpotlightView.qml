@@ -1858,7 +1858,7 @@ PanelWindow {
                                             anchors.fill: parent
                                             cursorShape: Qt.PointingHandCursor
                                             onClicked: {
-                                                if (win && win.address) spotlight.activateWindow(win.address, win.wsId);
+                                                if (win && win.address) spotlight.activateWindow(win.address, win.wsId, win.class);
                                             }
                                         }
                                     }
@@ -5348,21 +5348,23 @@ PanelWindow {
         }
     }
 
-    // Activa una ventana: primero cambia al workspace y, SOLO después de un
-    // retardo de 0.3s (tiempo real que Hyprland necesita para completar el
-    // cambio), enfoca la ventana por address.
-    // - `focuswindow address:` SOLO desde otro workspace cambia el workspace
-    //   pero NO enfoca la ventana (se queda la última activa del destino).
-    // - El retardo debe ser >= 0.3s; con 0.1s el focuswindow llega antes de
-    //   que Hyprland termine el cambio y tampoco enfoca.
+    // Activa una ventana con UN SOLO hyprctl dispatch (sin bash ni sleeps):
+    // `focuswindow class:^<clase>$` lleva al workspace de la ventana y la
+    // enfoca. Verificado en vivo: focuswindow address: desde otro workspace
+    // cambia el workspace pero NO enfoca (se queda la ventana inicial), y
+    // encadenar workspace + sleep no es fiable; class: funciona directo.
+    // Si la ventana no tiene clase, al menos cambia al workspace.
     // IMPORTANTE: el spotlight se cierra en onExited, NO al lanzar el proceso.
-    // Si se cerrara antes, el proceso (hijo del spotlight) se mataría a mitad
-    // del comando y solo se cambiaría de workspace sin enfocar la ventana.
-    function activateWindow(addr, wsId) {
+    function activateWindow(addr, wsId, cls) {
         if (!addr) return;
         var p = procPlain.createObject(spotlight);
-        p.command = ["bash", "-c",
-            "hyprctl dispatch workspace " + wsId + " && sleep 0.3 && hyprctl dispatch focuswindow address:" + addr];
+        if (cls) {
+            // Escapar caracteres regex de la clase (p.ej. puntos, +, corchetes)
+            var esc = cls.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            p.command = ["hyprctl", "dispatch", "focuswindow", "class:^(" + esc + ")$"];
+        } else {
+            p.command = ["hyprctl", "dispatch", "workspace", String(wsId)];
+        }
         p.onExited.connect(function() {
             try { p.destroy(); } catch (e) {}
             Visibilities.setActiveModule("");
@@ -5374,7 +5376,7 @@ PanelWindow {
     function goToSelectedWindow() {
         if (windowGridSelectedIndex < 0) return;
         var win = windowGridData[windowGridSelectedIndex];
-        if (win && win.address) activateWindow(win.address, win.wsId);
+        if (win && win.address) activateWindow(win.address, win.wsId, win.class);
     }
 
     // ── Búsqueda de archivos ───────────────────────────────────────────────
