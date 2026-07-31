@@ -1954,17 +1954,7 @@ PanelWindow {
                                                             enabled: win !== undefined
                                                             onClicked: {
                                                                 if (!win) return;
-                                                                (function(addr, wsId) {
-                                                                    var p1 = procPlain.createObject(spotlight);
-                                                                    p1.command = ["hyprctl", "dispatch", "workspace", String(wsId)];
-                                                                    p1.onExited.connect(function() { p1.destroy(); });
-                                                                    p1.running = true;
-                                                                    var p2 = procPlain.createObject(spotlight);
-                                                                    p2.command = ["hyprctl", "dispatch", "focuswindow", "address:" + addr];
-                                                                    p2.onExited.connect(function() { p2.destroy(); });
-                                                                    p2.running = true;
-                                                                    Visibilities.setActiveModule("");
-                                                                })(win.address, ws.id);
+                                                                spotlight.activateWindow(win.address, ws.id);
                                                             }
                                                         }
                                                     }
@@ -5420,6 +5410,21 @@ PanelWindow {
         }
     }
 
+    // Activa una ventana: cambia al workspace y SOLO después enfoca la ventana.
+    // Lanzarlos en paralelo falla cuando la ventana está en otro workspace
+    // (focuswindow se ejecuta antes de que Hyprland haya cambiado de workspace).
+    // El sleep corto es la salvaguarda: Hyprland necesita un tick para aplicar
+    // el cambio antes de poder enfocar la ventana destino.
+    function activateWindow(addr, wsId) {
+        if (!addr) return;
+        var p = procPlain.createObject(spotlight);
+        p.command = ["bash", "-c",
+            "hyprctl dispatch workspace " + wsId + "; sleep 0.12; hyprctl dispatch focuswindow address:" + addr];
+        p.onExited.connect(function() { try { p.destroy(); } catch (e) {} });
+        p.running = true;
+        Visibilities.setActiveModule("");
+    }
+
     // Va a la ventana seleccionada en el grid
     function goToSelectedWindow() {
         if (windowGridSelectedIndex < 0) return;
@@ -5429,17 +5434,7 @@ PanelWindow {
             var n = Math.min(ws.windows.length, 6);
             if (windowGridSelectedIndex >= ws.offset && windowGridSelectedIndex < ws.offset + n) {
                 var win = ws.windows[windowGridSelectedIndex - ws.offset];
-                if (win && win.address) {
-                    var p1 = procPlain.createObject(spotlight);
-                    p1.command = ["hyprctl", "dispatch", "workspace", String(ws.id)];
-                    p1.onExited.connect(function() { try { p1.destroy(); } catch (e) {} });
-                    p1.running = true;
-                    var p2 = procPlain.createObject(spotlight);
-                    p2.command = ["hyprctl", "dispatch", "focuswindow", "address:" + win.address];
-                    p2.onExited.connect(function() { try { p2.destroy(); } catch (e) {} });
-                    p2.running = true;
-                    Visibilities.setActiveModule("");
-                }
+                if (win && win.address) activateWindow(win.address, ws.id);
                 break;
             }
         }
