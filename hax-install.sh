@@ -366,6 +366,17 @@ mkdir -p "$SHELL_SRC/assets/presets"
 # Módulos propios de Hax
 cp -r "$REPO_DIR/modules/widgets/spotlight"   "$SHELL_SRC/modules/widgets/"
 
+# Servicio SudoPass (contraseña local para install/update/remove)
+mkdir -p "$SHELL_SRC/modules/services"
+cp "$REPO_DIR/modules/services/SudoPass.qml" "$SHELL_SRC/modules/services/SudoPass.qml"
+log_success "Servicio SudoPass instalado (contraseña sudo local)."
+
+# Script de cifrado de la contraseña
+mkdir -p "$SHELL_SRC/scripts"
+cp "$REPO_DIR/scripts/sudopass.py" "$SHELL_SRC/scripts/sudopass.py"
+chmod +x "$SHELL_SRC/scripts/sudopass.py"
+log_success "Script sudopass.py instalado."
+
 # Carpeta de plugins del usuario (~/.config/hax/plugins)
 HAX_PLUGINS_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/hax/plugins"
 mkdir -p "$HAX_PLUGINS_DIR"
