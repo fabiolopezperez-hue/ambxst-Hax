@@ -438,18 +438,18 @@ cp -n "$REPO_DIR/version" "$SHELL_SRC/version" 2>/dev/null || true
 
 log_success "Hax instalado en $SHELL_SRC."
 
-# ── 6. Configurar atajo de teclado (Super + /) ────────────────
+# ── 6. Configurar atajo de teclado (Super + space) ──────────────
 # Soporta tanto hyprland.conf (hyprlang) como hyprland.lua (nuevo formato 0.55+)
 HAX_CMD="qs -p \"$SHELL_SRC/modules/widgets/spotlight/SpotlightView.qml\""
-HAX_CONF_BIND="bind = SUPER, slash, exec, $HAX_CMD"
-HAX_LUA_BIND="hl.bind(\"SUPER + Slash\", hl.dsp.exec_cmd('$HAX_CMD'))"
+HAX_CONF_BIND="bind = SUPER, space, exec, $HAX_CMD"
+HAX_LUA_BIND="hl.bind(\"SUPER + Space\", hl.dsp.exec_cmd('$HAX_CMD'))"
 
 HYPR_CONF="$HOME/.config/hypr/hyprland.conf"
 HYPR_LUA="$HOME/.config/hypr/hyprland.lua"
 
 if [[ -f "$HYPR_LUA" ]]; then
   if ! grep -q "spotlight\|SpotlightView\|hax" "$HYPR_LUA" 2>/dev/null; then
-    log_info "Añadiendo atajo Super + / para Hax (formato Lua)..."
+    log_info "Añadiendo atajo Super + space para Hax (formato Lua)..."
     printf "\n-- Hax — Spotlight launcher\n%s\n" "$HAX_LUA_BIND" >> "$HYPR_LUA"
     log_success "Atajo configurado. Recarga Hyprland con 'hyprctl reload'."
   else
@@ -457,7 +457,7 @@ if [[ -f "$HYPR_LUA" ]]; then
   fi
 elif [[ -f "$HYPR_CONF" ]]; then
   if ! grep -q "spotlight\|SpotlightView\|hax" "$HYPR_CONF" 2>/dev/null; then
-    log_info "Añadiendo atajo Super + / para Hax (formato hyprlang)..."
+    log_info "Añadiendo atajo Super + space para Hax (formato hyprlang)..."
     printf "\n# Hax — Spotlight launcher\n%s\n" "$HAX_CONF_BIND" >> "$HYPR_CONF"
     log_success "Atajo configurado. Recarga Hyprland con 'hyprctl reload'."
   else
@@ -561,7 +561,7 @@ echo ""
 echo -e "${GREEN}📌  Hax está listo en:${NC}"
 echo -e "    $SHELL_SRC/modules/widgets/spotlight/SpotlightView.qml"
 echo ""
-echo -e "Presiona ${GREEN}Super + /${NC} para abrir Hax."
+echo -e "Presiona ${GREEN}Super + space${NC} para abrir Hax."
 echo -e "Dentro de Hax escribe ${GREEN}/${NC} para abrir la terminal embebida (necesita el plugin qmltermwidget)."
 echo -e "Si ya tienes Hyprland corriendo: ${BLUE}hyprctl reload${NC}"
 echo ""

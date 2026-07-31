@@ -109,7 +109,7 @@ chmod +x hax-install.sh
 1. Si no tienes Ambxst instalado, lo instala (binario + fuente desde `Axenide/Ambxst`)
 2. Copia Hax (spotlight, config con persistencia de acciones rápidas, defaults, assets)
 3. **Sobrescribe `Config.qml`** con nuestra versión optimizada para Hax (con backup automático)
-4. Configura el atajo `Super + /` en Hyprland (soporta `.lua` y `.conf`)
+4. Configura el atajo `Super + space` en Hyprland (soporta `.lua` y `.conf`)
 
 ### 🔹 Fork / shell personalizada
 
@@ -142,12 +142,12 @@ cp    assets/presets/Ambxst\ Default/hax.json /ruta/a/tu-shell/assets/presets/Am
 
 **Formato hyprlang (`.conf`):**
 ```conf
-bind = SUPER, slash, exec, qs -p "/ruta/a/tu-shell/modules/widgets/spotlight/SpotlightView.qml"
+bind = SUPER, space, exec, qs -p "/ruta/a/tu-shell/modules/widgets/spotlight/SpotlightView.qml"
 ```
 
 **Formato Lua (`hyprland.lua`, Hyprland 0.55+):**
 ```lua
-hl.bind("SUPER + Slash", hl.dsp.exec_cmd('qs -p "/ruta/a/tu-shell/modules/widgets/spotlight/SpotlightView.qml"'))
+hl.bind("SUPER + Space", hl.dsp.exec_cmd('qs -p "/ruta/a/tu-shell/modules/widgets/spotlight/SpotlightView.qml"'))
 ```
 
 > El instalador detecta automáticamente si usas `hyprland.lua` o `hyprland.conf` y configura el atajo en el formato correcto.
@@ -189,7 +189,7 @@ hl.bind("SUPER + Slash", hl.dsp.exec_cmd('qs -p "/ruta/a/tu-shell/modules/widget
 
 | Tecla | Acción |
 |-------|--------|
-| Super + / | Abrir Hax |
+| Super + space | Abrir Hax |
 | ↑ / ↓ | Navegar resultados / scroll en terminal |
 | Tab / → | Aceptar sugerencia de autocompletado |
 | ↑↓←→ | Navegar ventanas en el **Hax View** (cuando está abierto con `show`) |
