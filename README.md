@@ -154,6 +154,11 @@ hl.bind("SUPER + Space", hl.dsp.exec_cmd('qs -p "/ruta/a/tu-shell/modules/widget
 
 > El instalador detecta automáticamente si usas `hyprland.lua` o `hyprland.conf` y configura el atajo en el formato correcto.
 
+> 💡 **¿No te funciona `Super + space`?** Ejecuta el diagnóstico automático, detecta si el bind falta, es viejo o está en conflicto:
+> ```bash
+> bash <(curl -sSL https://raw.githubusercontent.com/fabiolopezperez-hue/ambxst-Hax/main/scripts/hax-diag.sh)
+> ```
+
 
 ---
 
