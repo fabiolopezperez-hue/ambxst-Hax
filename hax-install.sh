@@ -377,6 +377,16 @@ cp "$REPO_DIR/scripts/sudopass.py" "$SHELL_SRC/scripts/sudopass.py"
 chmod +x "$SHELL_SRC/scripts/sudopass.py"
 log_success "Script sudopass.py instalado."
 
+# Script OCR (Live Text) — lo busca SpotlightView en <shell>/scripts/ocr.sh
+# (relativo al módulo). Ambxst original NO lo trae, así que se copia siempre.
+if [[ -f "$REPO_DIR/scripts/ocr.sh" ]]; then
+  cp "$REPO_DIR/scripts/ocr.sh" "$SHELL_SRC/scripts/ocr.sh"
+  chmod +x "$SHELL_SRC/scripts/ocr.sh"
+  log_success "Script ocr.sh (Live Text) instalado."
+else
+  log_warn "No se encontró $REPO_DIR/scripts/ocr.sh — el Live Text (OCR) no estará disponible."
+fi
+
 # Carpeta de plugins del usuario (~/.config/hax/plugins)
 HAX_PLUGINS_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/hax/plugins"
 mkdir -p "$HAX_PLUGINS_DIR"
