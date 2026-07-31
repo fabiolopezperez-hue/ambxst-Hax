@@ -5413,16 +5413,19 @@ PanelWindow {
     // Activa una ventana: cambia al workspace y SOLO después enfoca la ventana.
     // Lanzarlos en paralelo falla cuando la ventana está en otro workspace
     // (focuswindow se ejecuta antes de que Hyprland haya cambiado de workspace).
-    // El sleep corto es la salvaguarda: Hyprland necesita un tick para aplicar
-    // el cambio antes de poder enfocar la ventana destino.
+    // IMPORTANTE: el spotlight se cierra en onExited, NO al lanzar el proceso.
+    // Si se cerrara antes, el proceso (hijo del spotlight) se mataría a mitad
+    // del comando y solo se cambiaría de workspace sin enfocar la ventana.
     function activateWindow(addr, wsId) {
         if (!addr) return;
         var p = procPlain.createObject(spotlight);
         p.command = ["bash", "-c",
-            "hyprctl dispatch workspace " + wsId + "; sleep 0.12; hyprctl dispatch focuswindow address:" + addr];
-        p.onExited.connect(function() { try { p.destroy(); } catch (e) {} });
+            "hyprctl dispatch workspace " + wsId + " && sleep 0.1 && hyprctl dispatch focuswindow address:" + addr];
+        p.onExited.connect(function() {
+            try { p.destroy(); } catch (e) {}
+            Visibilities.setActiveModule("");
+        });
         p.running = true;
-        Visibilities.setActiveModule("");
     }
 
     // Va a la ventana seleccionada en el grid
