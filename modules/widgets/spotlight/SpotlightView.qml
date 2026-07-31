@@ -5348,22 +5348,27 @@ PanelWindow {
         }
     }
 
-    // Activa una ventana con UN SOLO hyprctl dispatch (sin bash ni sleeps):
-    // `focuswindow class:^<clase>$` lleva al workspace de la ventana y la
-    // enfoca. Verificado en vivo: focuswindow address: desde otro workspace
-    // cambia el workspace pero NO enfoca (se queda la ventana inicial), y
-    // encadenar workspace + sleep no es fiable; class: funciona directo.
-    // Si la ventana no tiene clase, al menos cambia al workspace.
-    // IMPORTANTE: el spotlight se cierra en onExited, NO al lanzar el proceso.
+    // Activa una ventana: SECUENCIA CORRECTA = cerrar el spotlight (overlay
+    // que roba el foco) ANTES de enfocar. El comando va DESPRENDIDO del
+    // spotlight con nohup para que no muera al cerrarse, y con un pequeño
+    // retardo para que el overlay libere su grab de input primero.
+    // - `focuswindow class:^<clase>$` lleva al workspace Y enfoca (hyprctl
+    //   nativo, verificado). El argumento va entre comillas dobles dentro
+    //   del bash porque el sh (dash) rompe con los paréntesis de la regex.
+    // - El proceso padre (el bash de procPlain) termina al instante →
+    //   onExited cierra el overlay → 0.25s después el dispatch enfoca.
+    // - Sin clase, al menos cambia al workspace.
     function activateWindow(addr, wsId, cls) {
         if (!addr) return;
         var p = procPlain.createObject(spotlight);
         if (cls) {
             // Escapar caracteres regex de la clase (p.ej. puntos, +, corchetes)
             var esc = cls.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            p.command = ["hyprctl", "dispatch", "focuswindow", "class:^(" + esc + ")$"];
+            p.command = ["bash", "-c",
+                "nohup bash -c 'sleep 0.25; hyprctl dispatch focuswindow \"class:^(" + esc + ")$\"' >/dev/null 2>&1 &"];
         } else {
-            p.command = ["hyprctl", "dispatch", "workspace", String(wsId)];
+            p.command = ["bash", "-c",
+                "nohup bash -c 'sleep 0.25; hyprctl dispatch workspace " + wsId + "' >/dev/null 2>&1 &"];
         }
         p.onExited.connect(function() {
             try { p.destroy(); } catch (e) {}
