@@ -30,6 +30,14 @@ QtObject {
     signal pluginResultsUpdated(string pluginId, var results)  // Script plugin results ready
     signal pluginActionMessage(string pluginId, string title, string message)  // Mensaje de ejecución
 
+    // ── Procesos reutilizables ──
+    // Component.createObject() es más rápido que Qt.createQmlObject()
+    // (que re-parsea QML en cada llamada). Misma funcionalidad.
+    // Se declaran como propiedades (no como hijos): el root es un QtObject
+    // y no acepta objetos hijos.
+    property Component procPlain: Component { Process {} }
+    property Component procCollect: Component { Process { stdout: StdioCollector {} } }
+
     // ── Inicialización ──
     function initialize(api) {
         haxAPI = api;
@@ -39,7 +47,7 @@ QtObject {
     // ── Descubrimiento de plugins ──
     function discover() {
         // Escanea el directorio de plugins
-        var pr = Qt.createQmlObject('import Quickshell.Io; Process { stdout: StdioCollector {} }', root);
+        var pr = procCollect.createObject(root);
         pr.command = ["bash", "-c",
             'if [ -d "' + pluginsDir + '" ]; then ' +
             '  for f in "' + pluginsDir + '"/*; do ' +
@@ -122,7 +130,7 @@ QtObject {
     function registerDirPlugin(dirPath) {
         // Plugin with manifest.json
         // For now, scan the directory for executable files
-        var pr = Qt.createQmlObject('import Quickshell.Io; Process { stdout: StdioCollector {} }', root);
+        var pr = procCollect.createObject(root);
         pr.command = ["bash", "-c",
             'for f in "' + dirPath + '"/*; do ' +
             '  if [ -f "$f" ] && [ -x "$f" ]; then echo "$f"; ' +
@@ -144,8 +152,7 @@ QtObject {
 
     // ── Script Plugin: fetch metadata ──
     function fetchScriptInfo(plugin) {
-        var pr = Qt.createQmlObject(
-            'import Quickshell.Io; Process { stdout: StdioCollector {} }', root);
+        var pr = procCollect.createObject(root);
         pr.pluginId = plugin.id;
         pr.command = [plugin.path, "--hax-info"];
         pr.onExited.connect(function() {
@@ -172,8 +179,7 @@ QtObject {
 
     // ── Script Plugin: precargar catálogo completo ──
     function fetchScriptCatalog(plugin) {
-        var pr = Qt.createQmlObject(
-            'import Quickshell.Io; Process { stdout: StdioCollector {} }', root);
+        var pr = procCollect.createObject(root);
         pr.pluginId = plugin.id;
         pr.command = [plugin.path, ""];  // query vacío → el script devuelve su catálogo
         pr.onExited.connect(function() {
@@ -358,8 +364,7 @@ QtObject {
 
                 // Script plugin: execute with --hax-exec [actionId] [actionData]
                 if (p.type === "script") {
-                    var pr = Qt.createQmlObject(
-                        'import Quickshell.Io; Process { stdout: StdioCollector {} }', root);
+                    var pr = procCollect.createObject(root);
                     var cmdArgs = [p.path, "--hax-exec", actionId];
                     // Pasar actionData si existe (ej: query de búsqueda)
                     if (context && typeof context === "object" && context.data) {
@@ -409,7 +414,7 @@ QtObject {
         }
         var json = JSON.stringify(state);
         // Escribir a ~/.config/hax/plugins/plugin-state.json
-        var pr = Qt.createQmlObject('import Quickshell.Io; Process { }', root);
+        var pr = procPlain.createObject(root);
         pr.command = ["bash", "-c",
             'mkdir -p "' + pluginsDir + '" && cat > "' + pluginsDir + '/plugin-state.json" << \'EOF\'\n' +
             json + '\nEOF'];
@@ -419,7 +424,7 @@ QtObject {
 
     // ── Persistencia: cargar estado enable/disable ──
     function loadPluginState(callback) {
-        var pr = Qt.createQmlObject('import Quickshell.Io; Process { stdout: StdioCollector {} }', root);
+        var pr = procCollect.createObject(root);
         pr.command = ["bash", "-c",
             'if [ -f "' + pluginsDir + '/plugin-state.json" ]; then cat "' + pluginsDir + '/plugin-state.json"; fi'];
         pr.onExited.connect(function() {
@@ -509,11 +514,11 @@ QtObject {
                 return;
             }
             var pl = defaultPlugins[idx];
-            var pr = Qt.createQmlObject('import Quickshell.Io; Process { }', root);
+            var pr = procPlain.createObject(root);
             pr.command = ["cp", pl.src, pl.dest];
             pr.onExited.connect(function() {
                 // Make executable
-                var pr2 = Qt.createQmlObject('import Quickshell.Io; Process { }', root);
+                var pr2 = procPlain.createObject(root);
                 pr2.command = ["chmod", "+x", pl.dest];
                 pr2.onExited.connect(function() {
                     try { pr2.destroy(); } catch(e) {}
@@ -537,7 +542,7 @@ QtObject {
     })()
 
     function scanForChanges() {
-        var pr = Qt.createQmlObject('import Quickshell.Io; Process { stdout: StdioCollector {} }', root);
+        var pr = procCollect.createObject(root);
         pr.command = ["bash", "-c",
             'if [ -d "' + pluginsDir + '" ]; then ' +
             '  ls -1 -a "' + pluginsDir + '" 2>/dev/null; ' +

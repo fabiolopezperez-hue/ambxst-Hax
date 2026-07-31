@@ -19,9 +19,32 @@ import QMLTermWidget 2.0
 // Busca apps, calcula, encuentra archivos y navega por la web.
 // Hecho con amor por Fabio y Maria 💖
 // ─────────────────────────────────────────────────────────────────────────────
+//
+//  📖 ÍNDICE DE SECCIONES (busca "SECCIÓN" o "3.N" para saltar)
+//  ─────────────────────────────────────────────────────────────────────────
+//   1 · PANEL — configuración de la ventana .............. Línea   27
+//   2 · ESTADO — propiedades e inicialización ........... Línea   48
+//   3 · UI — morphContainer (la gota → Hax) ............. Línea  572
+//        3.1 Campo de búsqueda (766)    3.7 Glosario (2233)
+//        3.2 Terminal embebida (1101)   3.8 Monitor (2334)
+//        3.3 Notificaciones (1324)      3.9 Debug (2457)
+//        3.4 Resultados (1420)          3.10 Quick Look (2605)
+//        3.5 Grid ventanas (1751)       3.11 Config (2791)
+//        3.6 Historial (1980)           3.12 Plugins (3247)
+//   4 · TERMINAL Y COMANDOS ........................... Línea 3675
+//   5 · LÓGICA DE BÚSQUEDA (updateResults) ............ Línea 3835
+//   6 · UTILIDADES (evaluador, OCR, glosario, quick look,
+//       historial, portapapeles, show, archivos, clima)  Línea 4604
+//   7 · TIMERS · NOTIFICACIONES · ALARMAS · PAQUETES .. Línea 5475
+//   8 · API DE PLUGINS (HaxAPI) ....................... Línea 5797
+// ─────────────────────────────────────────────────────────────────────────────
 
 PanelWindow {
     id: spotlight
+
+    // ═════════════════════════════════════════════════════════════════════
+    //  SECCIÓN 1 · PANEL — Configuración de la ventana
+    // ═════════════════════════════════════════════════════════════════════
 
     anchors {
         top: true
@@ -39,6 +62,27 @@ PanelWindow {
     // ── Visibilidad ──────────────────────────────────────────────────────────
     readonly property var screenVisibilities: Visibilities.getForScreen(screen.name)
     readonly property bool spotlightOpen: screenVisibilities ? screenVisibilities.spotlight : false
+
+    // ═════════════════════════════════════════════════════════════════════
+    //  SECCIÓN 2 · ESTADO — Propiedades, configuración e inicialización
+    // ═════════════════════════════════════════════════════════════════════
+
+    // ── Procesos reutilizables ──
+    // Crear procesos con Component.createObject() es más rápido que
+    // Qt.createQmlObject() (que re-parsea QML en cada llamada).
+    // Misma funcionalidad: procesos de Quickshell.Io con/sin parser de salida.
+    Component {
+        id: procPlain
+        Process {}
+    }
+    Component {
+        id: procSplit
+        Process { stdout: SplitParser {} }
+    }
+    Component {
+        id: procCollect
+        Process { stdout: StdioCollector {} }
+    }
 
     // ── Animación notch→centro (puntito que se desprende del bar) ────────────
     property bool showHax: false
@@ -108,8 +152,7 @@ PanelWindow {
             selectedIndex = 0;
             cancelCmdProcess();
             stopMonitor();
-            loadHistory();
-            startClipWatcher();
+            refreshHistory(); // recarga el historial compartido (ClipboardService)
             if (weatherSearch) { try { weatherSearch.abort(); } catch(e) {} weatherSearch = null; }
 
             // ⭐ La gota empieza desde 0 (nace desde 0px, espejo exacto de la salida)
@@ -127,21 +170,23 @@ PanelWindow {
         } else {
             openAnim.stop();
             stopMonitor();
-            stopClipWatcher();
             showPreview = false;
-            showConfig = false;
+            showInit = false;
             showPlugins = false;
+            showHistory = false;
             closeAnim.start();
         }
     }
 
     SequentialAnimation {
         id: openAnim
+        // Entrada un poco más rápida que la salida (450ms vs 600ms)
+        // para que la gota caiga y se expanda con viveza
         PropertyAnimation {
             target: spotlight
             property: "animProgress"
             to: 1.0
-            duration: 600
+            duration: 450
             easing.type: Easing.InOutCubic
         }
     }
@@ -250,7 +295,7 @@ PanelWindow {
             spotlight.pluginManager.initialize({
                 // ── Básicos ──
                 copyToClipboard: function(text) {
-                    var pr = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+                    var pr = procPlain.createObject(spotlight);
                     pr.command = ["wl-copy", text];
                     pr.onExited.connect(function() { try { pr.destroy(); } catch(e) {} });
                     pr.running = true;
@@ -264,13 +309,13 @@ PanelWindow {
 
                 // ── Utilidades ──
                 openUrl: function(url) {
-                    var pr = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+                    var pr = procPlain.createObject(spotlight);
                     pr.command = ["xdg-open", url];
                     pr.onExited.connect(function() { try { pr.destroy(); } catch(e) {} });
                     pr.running = true;
                 },
                 openFile: function(path) {
-                    var pr = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+                    var pr = procPlain.createObject(spotlight);
                     pr.command = ["xdg-open", path];
                     pr.onExited.connect(function() { try { pr.destroy(); } catch(e) {} });
                     pr.running = true;
@@ -299,10 +344,12 @@ PanelWindow {
     // ── Modo desarrollador (debug) ──────────────────────────────────────────
     // Se activa escribiendo "d" / "dev" / "debug" y pulsando Enter.
     property bool showDebug: false
-    property bool showConfig: false
+    property bool showInit: false
     property bool showPlugins: false
     property bool colorPickerOpen: false
     property bool actionPresetsOpen: false
+    // Mostrar u ocultar la contraseña sudo en el panel init
+    property bool showSudoPass: false
     // El color primario que usa Hax: el custom si está activado, si no el del sistema
     readonly property color haxPrimaryColor: Config.hax.customColorEnabled
         ? Qt.rgba(
@@ -385,7 +432,48 @@ PanelWindow {
     property bool showMonitor: false
     property bool showWindowGrid: false
     property var windowGridData: []
-    property real windowGridHeight: 300
+
+    // ── Historial del portapapeles (panel dedicado) ──────────────────────
+    property bool showHistory: false
+    property int historySelectedIndex: -1
+    // El panel usa ClipboardService.items (compartido con el sistema)
+
+    // Altura del panel de historial: cabecera + lista (máx 440px con scroll).
+    // 64 = 8 margen top + 26 cabecera + 8 spacing + 14 hint + 8 spacing + 8 margen bottom
+    readonly property real historyHeight: {
+        var n = ClipboardService.items.length;
+        if (n === 0) return 110;
+        return 64 + Math.min(n * 56, 376);
+    }
+
+    // 📐 Ancho objetivo del Hax: el máximo que piden las secciones visibles.
+    // Sistema general de expansión lateral (análogo a fullHeight para la altura):
+    // si una sección necesita más ancho, se añade un "if" aquí. El grid de
+    // ventanas pide 920px cuando está activo; el init pide 900px (rectángulo
+    // ancho para ver todas las opciones); el resto se queda en 620px.
+    readonly property real desiredWidth: {
+        var w = 620;
+        if (showWindowGrid) w = Math.max(w, 920);
+        if (showInit) w = Math.max(w, 900);
+        return w;
+    }
+
+    // Altura del grid de ventanas: depende del ancho disponible y del nº de
+    // workspaces. Se recalcula sola al cambiar el ancho (desiredWidth) o los
+    // datos, sin necesidad de llamadas manuales.
+    readonly property real windowGridHeight: {
+        if (windowGridData.length === 0) return 20 + 8 + 17 + 8 + 8;
+        // Ancho real del flow: fullWidth - 48 (32 de márgenes de contentColumn
+        // + 16 de márgenes del Column interno del pane). Debe coincidir con
+        // el ancho real de windowGridFlow para que cards y altura cuadren.
+        var w = Math.min(screen.width * 0.9, desiredWidth) - 48;
+        var cols = Math.max(1, Math.floor((w + 8) / 440));
+        var cardW = Math.min(440, (w - 8) / cols);
+        var cardH = (cardW - 12) * 9 / 16 + 28;
+        var rows = Math.ceil(windowGridData.length / cols);
+        var h = 8 + 20 + 8 + rows * cardH + (rows - 1) * 8 + 8;
+        return Math.min(h, 600);
+    }
     property real monCpu: 0
     property real monRamPct: 0
     property real monRamUsed: 0
@@ -398,10 +486,7 @@ PanelWindow {
 
     function startMonitor() {
         if (monProcess) return; // ya corriendo
-        var proc = Qt.createQmlObject(
-            'import Quickshell.Io; Process { stdout: SplitParser {} }',
-            spotlight
-        );
+        var proc = procSplit.createObject(spotlight);
         proc.command = ["bash", "-c",
             "while true; do "
             + "cpu=$(LC_ALL=C top -bn1 2>/dev/null | awk '/%Cpu/{print 100 - $8}'); "
@@ -497,10 +582,7 @@ PanelWindow {
         spotlight._debugPrevTs = 0;
         var proc;
         try {
-            proc = Qt.createQmlObject(
-                'import Quickshell.Io; Process { stdout: SplitParser {} }',
-                spotlight
-            );
+            proc = procSplit.createObject(spotlight);
         } catch (e) {
             return;
         }
@@ -549,6 +631,14 @@ PanelWindow {
         }
     }
 
+    // ═════════════════════════════════════════════════════════════════════
+    //  SECCIÓN 3 · UI — morphContainer: la gota que se transforma en Hax
+    //  Contiene todos los paneles: campo de búsqueda (3.1), terminal (3.2),
+    //  notificaciones (3.3), resultados (3.4), grid de ventanas (3.5),
+    //  glosario (3.6), monitor (3.7), debug (3.8), quick look (3.9),
+    //  configuración (3.10) y plugins (3.11).
+    // ═════════════════════════════════════════════════════════════════════
+
     // ── Puntito que baja del notch y se TRANSFORMA en Hax ─────────────────
     //
     // Una sola cosa que muta: empieza como círculo de 20px en el notch,
@@ -591,13 +681,23 @@ PanelWindow {
         readonly property real expandPhase: Math.max(0, (phase - 0.15) / 0.85)
 
         // 📐 Tamaño: gota → círculo → Hax completo
-        width: Math.max(1, dropletW + (clampWidth() - dropletW) * expandPhase)
+        width: Math.max(1, dropletW + (fullWidth - dropletW) * expandPhase)
         height: Math.max(1, dropletH + (fullHeight - dropletH) * expandPhase)
 
         // Suaviza los cambios de altura cuando el Hax ya está abierto
         // (sin interferir con la animación de apertura/cierre)
         // Se desactiva durante un comando para evitar congelar con animaciones
         Behavior on height {
+            enabled: Config.animDuration > 0 && animProgress >= 1 && cmdProcess === null
+            NumberAnimation {
+                duration: Config.animDuration * 3
+                easing.type: Easing.OutQuint
+            }
+        }
+
+        // Suaviza los cambios de ancho (expansión lateral) cuando el Hax ya
+        // está abierto — misma lógica que el Behavior on height
+        Behavior on width {
             enabled: Config.animDuration > 0 && animProgress >= 1 && cmdProcess === null
             NumberAnimation {
                 duration: Config.animDuration * 3
@@ -614,7 +714,9 @@ PanelWindow {
         // 🎭 Radio: de círculo perfecto a esquinas normales
         radius: Math.min(width / 2, Styling.radius(24) + (width / 2 - Styling.radius(24)) * Math.max(0, 1 - expandPhase * 3))
 
-        function clampWidth()  { return Math.min(620, screen.width * 0.9) }
+        // 📐 Ancho total dinámico del Hax (el máximo que piden las secciones
+        // visibles, recortado a la pantalla) — expansión lateral
+        readonly property real fullWidth: Math.min(screen.width * 0.9, spotlight.desiredWidth)
 
         // ── Altura total dinámica del Hax (depende de resultados) ──────────
         readonly property real fullHeight: 56 + 32
@@ -644,14 +746,17 @@ PanelWindow {
             + (spotlight.dictMode
                 ? 8 + dictPane.height
                 : 0)
-            + (spotlight.showConfig
-                ? 8 + configPane.height
+            + (spotlight.showInit
+                ? 8 + initPane.height
                 : 0)
             + (spotlight.showPlugins
                 ? 8 + pluginPane.height
                 : 0)
             + (spotlight.showWindowGrid
                 ? 8 + spotlight.windowGridHeight
+                : 0)
+            + (spotlight.showHistory
+                ? 8 + spotlight.historyHeight
                 : 0)
 
         // ── Contenido que aparece dentro mientras se transforma ────────────
@@ -664,9 +769,9 @@ PanelWindow {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.margins: 16
-            spacing: (results.length > 0 || cmdProcess !== null || isCommandMode || _lastCmdVisible || _forceTerminal || _haxNotifications.length > 0 || showMonitor || spotlight.showDebug || showWindowGrid) ? 8 : 0
+            spacing: (results.length > 0 || cmdProcess !== null || isCommandMode || _lastCmdVisible || _forceTerminal || _haxNotifications.length > 0 || showMonitor || spotlight.showDebug || showWindowGrid || spotlight.showHistory || spotlight.showInit || spotlight.showPlugins) ? 8 : 0
 
-                // ── Campo de búsqueda ──────────────────────────────────────────
+                // ── 3.1 · Campo de búsqueda ─────────────────────────────────
                 StyledRect {
                     id: searchBox
                     width: contentColumn.width
@@ -680,13 +785,13 @@ PanelWindow {
                         anchors.rightMargin: 16
                         spacing: 12
 
-                        // Icono de lupa
-                        Text {
-                            text: Icons.apps
-                            font.family: Icons.font
-                            font.pixelSize: 22
-                            color: spotlight.haxIconColor
-                            opacity: 0.7
+                        // Icono de hax (PNG con transparencia)
+                        Image {
+                            source: Qt.resolvedUrl("hax-icon.png")
+                            sourceSize.width: 42
+                            sourceSize.height: 42
+                            smooth: true
+                            fillMode: Image.PreserveAspectFit
                         }
 
                         // Input
@@ -753,6 +858,9 @@ PanelWindow {
                                     spotlight.showPreview = false;
                                 } else if (spotlight.showPlugins) {
                                     spotlight.showPlugins = false;
+                                } else if (spotlight.showInit) {
+                                    spotlight.showInit = false;
+                                    clear();
                                 } else if (spotlight.showTerminal) {
                                     spotlight.closeTerminal();
                 } else if (spotlight.showDebug) {
@@ -762,6 +870,9 @@ PanelWindow {
                 } else if (spotlight.showWindowGrid) {
                     spotlight.showWindowGrid = false;
                     clear();
+                } else if (spotlight.showHistory) {
+                    spotlight.showHistory = false;
+                    clear();
                 } else if (text.length > 0) {
                     clear();
                 } else {
@@ -770,6 +881,13 @@ PanelWindow {
                             }
 
                             Keys.onUpPressed: {
+                                if (spotlight.showHistory) {
+                                    if (spotlight.historySelectedIndex > 0) {
+                                        spotlight.historySelectedIndex--;
+                                        historyList.positionViewAtIndex(spotlight.historySelectedIndex, ListView.Center);
+                                    }
+                                    return;
+                                }
                                 if (spotlight.showWindowGrid) {
                                     // Refrescar y navegar grid de ventanas
                                     try { spotlight.buildWindowGrid(); } catch (e) {}
@@ -804,6 +922,13 @@ PanelWindow {
                             }
 
                             Keys.onDownPressed: {
+                                if (spotlight.showHistory) {
+                                    if (spotlight.historySelectedIndex < ClipboardService.items.length - 1) {
+                                        spotlight.historySelectedIndex++;
+                                        historyList.positionViewAtIndex(spotlight.historySelectedIndex, ListView.Center);
+                                    }
+                                    return;
+                                }
                                 if (spotlight.showWindowGrid) {
                                     // Refrescar y navegar grid de ventanas
                                     try { spotlight.buildWindowGrid(); } catch (e) {}
@@ -843,6 +968,15 @@ PanelWindow {
                             // Enter, Tab, flecha derecha, Ctrl+C, Esc
                             Keys.onPressed: (event) => {
                 if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                    if (spotlight.showHistory) {
+                        // Enter en panel de historial → copiar el item seleccionado
+                        var hidx = spotlight.historySelectedIndex;
+                        if (hidx >= 0 && hidx < ClipboardService.items.length) {
+                            spotlight.copyHistoryItem(ClipboardService.items[hidx].id);
+                        }
+                        event.accepted = true;
+                        return;
+                    }
                     if (spotlight.showWindowGrid) {
                         // Enter en grid de ventanas → ir a la seleccionada
                         spotlight.goToSelectedWindow();
@@ -851,7 +985,7 @@ PanelWindow {
                     }
                     if (spotlight.dictMode) {
                         if (spotlight.dictResultText.length > 0) {
-                            var dp = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+                            var dp = procPlain.createObject(spotlight);
                             dp.command = ["wl-copy", spotlight.dictResultText];
                             dp.onExited.connect(function() { try { dp.destroy(); } catch (e) {} });
                             dp.running = true;
@@ -931,6 +1065,14 @@ PanelWindow {
                                         copyResult(results[selectedIndex]);
                                     }
                                     event.accepted = true;
+                                } else if (spotlight.showHistory && event.key === Qt.Key_Delete) {
+                                    // Supr en panel de historial → borrar el item seleccionado
+                                    var didx = spotlight.historySelectedIndex;
+                                    if (didx >= 0 && didx < ClipboardService.items.length) {
+                                        spotlight.historySelectedIndex = -1;
+                                        spotlight.deleteHistoryItem(ClipboardService.items[didx].id);
+                                    }
+                                    event.accepted = true;
                                 }
                             }
                         }
@@ -967,7 +1109,7 @@ PanelWindow {
                 }
 
 
-                // ── Terminal embebida (100% operativa) — se abre con "/" ───────
+                // ── 3.2 · Terminal embebida (se abre con "/") ─────────────────
                 StyledRect {
                     id: termPane
                     width: contentColumn.width
@@ -1190,7 +1332,7 @@ PanelWindow {
                     }
                 }
 
-                // ── Notificaciones inline de Hax ─────────────────────────────
+                // ── 3.3 · Notificaciones inline de Hax ──────────────────────
                 StyledRect {
                     id: haxNotifContainer
                     width: contentColumn.width
@@ -1286,7 +1428,7 @@ PanelWindow {
                     }
                 }
 
-                // ── Lista de resultados (solo visible al escribir) ────────────
+                // ── 3.4 · Lista de resultados (solo visible al escribir) ─────
                 // Se despliega con una animación combinada de fade + expansión vertical
                 Item {
                     id: resultsContainer
@@ -1594,7 +1736,7 @@ PanelWindow {
                                         anchors.fill: parent
                                         cursorShape: Qt.PointingHandCursor
                                         onClicked: {
-                                            spotlight.removeFromHistory(modelData.historyText || modelData.name);
+                                            spotlight.deleteHistoryItem(modelData.historyId);
                                             mouse.accepted = true;
                                         }
                                     }
@@ -1617,7 +1759,7 @@ PanelWindow {
                     }
                 }
 
-                // ── Grid visual de ventanas (comando "show") ────────────────────
+                // ── 3.5 · Grid visual de ventanas (comando "show") ───────────
                 StyledRect {
                     id: windowGridPane
                     width: contentColumn.width
@@ -1672,7 +1814,10 @@ PanelWindow {
                                 delegate: Item {
                                     required property var modelData
                                     readonly property var ws: modelData
-                                    readonly property int cardWidth: Math.min(280, (windowGridFlow.width - 8) / Math.max(1, Math.floor((windowGridFlow.width + 8) / 288)))
+                                    // 2 cards por fila: umbral 440px por card
+                                    // (el Flow real mide fullWidth - 48, así que
+                                    // con 920px salen 2 columnas de ~432px)
+                                    readonly property int cardWidth: Math.min(440, (windowGridFlow.width - 8) / Math.max(1, Math.floor((windowGridFlow.width + 8) / 440)))
                                     readonly property real viewW: cardWidth - 12
                                     readonly property real viewH: viewW * 9 / 16
                                     // Grid: columnas dinámicas (1, 2 o 3 según número de ventanas)
@@ -1695,7 +1840,7 @@ PanelWindow {
                                             anchors.fill: parent
                                             cursorShape: Qt.PointingHandCursor
                                             onClicked: {
-                                                var p = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+                                                var p = procPlain.createObject(spotlight);
                                                 p.command = ["hyprctl", "dispatch", "workspace", String(ws.id)];
                                                 p.onExited.connect(function() { p.destroy(); });
                                                 p.running = true;
@@ -1810,11 +1955,11 @@ PanelWindow {
                                                             onClicked: {
                                                                 if (!win) return;
                                                                 (function(addr, wsId) {
-                                                                    var p1 = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+                                                                    var p1 = procPlain.createObject(spotlight);
                                                                     p1.command = ["hyprctl", "dispatch", "workspace", String(wsId)];
                                                                     p1.onExited.connect(function() { p1.destroy(); });
                                                                     p1.running = true;
-                                                                    var p2 = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+                                                                    var p2 = procPlain.createObject(spotlight);
                                                                     p2.command = ["hyprctl", "dispatch", "focuswindow", "address:" + addr];
                                                                     p2.onExited.connect(function() { p2.destroy(); });
                                                                     p2.running = true;
@@ -1846,7 +1991,260 @@ PanelWindow {
                     }
                 }
 
-                // ── Glosario / Diccionario (modo glosario) ──────────────────────
+                // ── 3.6 · Historial del portapapeles (panel dedicado) ───────
+                StyledRect {
+                    id: historyPane
+                    width: contentColumn.width
+                    height: spotlight.showHistory ? spotlight.historyHeight : 0
+                    visible: spotlight.showHistory
+                    variant: "pane"
+                    radius: Styling.radius(12)
+                    clip: true
+                    Behavior on height {
+                        enabled: Config.animDuration > 0
+                        NumberAnimation { duration: Config.animDuration * 3; easing.type: Easing.OutQuint }
+                    }
+                    Behavior on opacity {
+                        enabled: Config.animDuration > 0
+                        NumberAnimation { duration: Config.animDuration * 2; easing.type: Easing.OutQuint }
+                    }
+
+                    Column {
+                        id: historyContent
+                        width: parent.width
+                        anchors.fill: parent
+                        anchors.margins: 8
+                        spacing: 8
+
+                        // Cabecera
+                        RowLayout {
+                            width: parent.width
+                            spacing: 8
+
+                            Text {
+                                text: "📋 Historial del portapapeles"
+                                font.bold: true
+                                font.pixelSize: Config.theme.fontSize
+                                color: Styling.srItem("text")
+                                Layout.fillWidth: true
+                                elide: Text.ElideRight
+                            }
+
+                            // Limpiar historial (conserva los fijados)
+                            Text {
+                                text: "Limpiar"
+                                font.pixelSize: Config.theme.fontSize - 2
+                                color: Styling.srItem("text")
+                                opacity: 0.5
+                                Layout.alignment: Qt.AlignVCenter
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        ClipboardService.clear();
+                                        historySelectedIndex = -1;
+                                    }
+                                }
+                            }
+
+                            CloseButton {
+                                onClicked: {
+                                    spotlight.showHistory = false;
+                                    spotlight.searchText = "";
+                                    spotlight.searchInput.forceActiveFocus();
+                                }
+                            }
+                        }
+
+                        // Mensaje vacío
+                        Text {
+                            width: parent.width
+                            text: "📋 Historial vacío — copia algo en cualquier parte del sistema y aparecerá aquí"
+                            font.pixelSize: Config.theme.fontSize - 1
+                            color: Styling.srItem("text")
+                            horizontalAlignment: Text.AlignHCenter
+                            opacity: 0.4
+                            visible: ClipboardService.items.length === 0
+                        }
+
+                        // Hint de uso
+                        Text {
+                            width: parent.width
+                            text: "Enter copia · Supr borra · 📌 fija arriba"
+                            font.pixelSize: Config.theme.fontSize - 3
+                            color: Styling.srItem("text")
+                            horizontalAlignment: Text.AlignHCenter
+                            opacity: 0.3
+                            visible: ClipboardService.items.length > 0
+                        }
+
+                        // Lista de items
+                        ListView {
+                            id: historyList
+                            width: parent.width
+                            height: Math.max(0, spotlight.historyHeight - 64)
+                            interactive: ClipboardService.items.length * 56 > height
+                            clip: true
+                            model: ClipboardService.items
+                            currentIndex: spotlight.historySelectedIndex
+
+                            delegate: Item {
+                                required property int index
+                                readonly property var hItem: ClipboardService.items[index]
+                                readonly property bool isSel: index === spotlight.historySelectedIndex
+                                property bool hovered: false
+
+                                width: historyList.width
+                                height: 56
+
+                                // Fondo selección/hover
+                                Rectangle {
+                                    anchors.fill: parent
+                                    radius: Styling.radius(8)
+                                    color: Styling.srItem("overprimary")
+                                    opacity: isSel ? 0.18 : (hovered ? 0.08 : 0)
+                                    Behavior on opacity { NumberAnimation { duration: 90 } }
+                                }
+
+                                // Click → copiar (y seleccionar)
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    hoverEnabled: true
+                                    onEntered: hovered = true
+                                    onExited: hovered = false
+                                    onClicked: {
+                                        spotlight.historySelectedIndex = index;
+                                        spotlight.copyHistoryItem(hItem.id);
+                                    }
+                                }
+
+                                // Icono: miniatura si es imagen, emoji por tipo si no
+                                Item {
+                                    anchors.left: parent.left
+                                    anchors.leftMargin: 10
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: 40
+                                    height: 40
+
+                                    Rectangle {
+                                        anchors.fill: parent
+                                        radius: Styling.radius(8)
+                                        color: Styling.srItem("overprimary")
+                                        opacity: hItem.isImage ? 0 : 0.08
+                                    }
+
+                                    // Miniatura de imagen (data URL del servicio)
+                                    Image {
+                                        anchors.fill: parent
+                                        source: ClipboardService.getImageData(hItem.id)
+                                        visible: hItem.isImage && source.length > 0
+                                        fillMode: Image.PreserveAspectCrop
+                                        Component.onCompleted: {
+                                            if (hItem.isImage && source.length === 0)
+                                                ClipboardService.decodeToDataUrl(hItem.id, hItem.mime);
+                                        }
+                                    }
+
+                                    // Placeholder mientras carga la imagen
+                                    Text {
+                                        anchors.fill: parent
+                                        horizontalAlignment: Text.AlignHCenter
+                                        verticalAlignment: Text.AlignVCenter
+                                        text: hItem.isImage ? "🖼" : (hItem.isFile ? "📁" : "📄")
+                                        font.pixelSize: 18
+                                        color: Styling.srItem("text")
+                                        opacity: 0.7
+                                        visible: !(hItem.isImage && parent.source.length > 0)
+                                    }
+                                }
+
+                                // Texto principal + descripción
+                                Column {
+                                    anchors.left: parent.left
+                                    anchors.leftMargin: 60
+                                    anchors.right: parent.right
+                                    anchors.rightMargin: 96
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    spacing: 2
+
+                                    Text {
+                                        width: parent.width
+                                        text: (hItem.alias ? hItem.alias + " — " : "") + (hItem.preview || "")
+                                        font.pixelSize: Config.theme.fontSize - 1
+                                        font.bold: isSel
+                                        color: Styling.srItem("text")
+                                        elide: Text.ElideRight
+                                        maximumLineCount: 1
+                                    }
+
+                                    Text {
+                                        width: parent.width
+                                        text: (hItem.pinned ? "📌 " : "") + timeAgo(hItem.createdAt)
+                                            + (hItem.size ? " · " + Math.max(1, Math.round(hItem.size / 1024)) + " KB" : "")
+                                        font.pixelSize: Config.theme.fontSize - 3
+                                        color: Styling.srItem("text")
+                                        opacity: 0.45
+                                        elide: Text.ElideRight
+                                    }
+                                }
+
+                                // Botones: pin y borrar (al hacer hover)
+                                Row {
+                                    anchors.right: parent.right
+                                    anchors.rightMargin: 8
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    spacing: 4
+                                    visible: hovered || isSel
+
+                                    Text {
+                                        text: "📌"
+                                        font.pixelSize: Config.theme.fontSize - 1
+                                        color: Styling.srItem("text")
+                                        opacity: hItem.pinned ? 1 : 0.4
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: {
+                                                spotlight.historySelectedIndex = index;
+                                                spotlight.toggleHistoryPin(hItem.id);
+                                            }
+                                        }
+                                    }
+
+                                    Text {
+                                        text: "🗑️"
+                                        font.pixelSize: Config.theme.fontSize - 1
+                                        color: Styling.srItem("text")
+                                        opacity: 0.7
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: {
+                                                spotlight.historySelectedIndex = -1;
+                                                spotlight.deleteHistoryItem(hItem.id);
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Separador
+                                Rectangle {
+                                    anchors.bottom: parent.bottom
+                                    anchors.left: parent.left
+                                    anchors.leftMargin: 16
+                                    anchors.right: parent.right
+                                    anchors.rightMargin: 16
+                                    height: 1
+                                    color: Styling.srItem("text")
+                                    opacity: 0.05
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // ── 3.7 · Glosario / Diccionario (modo glosario) ─────────────
                 StyledRect {
                     id: dictPane
                     width: contentColumn.width
@@ -1947,7 +2345,7 @@ PanelWindow {
                     }
                 }
 
-                // ── Monitor del sistema (/stats) ───────────────────────────────
+                // ── 3.8 · Monitor del sistema (/stats) ───────────────────────
                 StyledRect {
                     id: monitorContainer
                     width: contentColumn.width
@@ -2070,7 +2468,7 @@ PanelWindow {
                         }
                     }
                 }
-                // ── Modo desarrollador (debug) — "d"/"dev"/"debug" + Enter ───────
+                // ── 3.9 · Modo desarrollador (debug) — "d"/"dev"/"debug" ──────
                 // Se muestra EN EL MISMO SITIO que el monitor del sistema (debajo de resultados).
                 StyledRect {
                     id: debugPane
@@ -2218,7 +2616,7 @@ PanelWindow {
                     }
                 }
 
-                // ── Previsualización rápida (Quick Look) ───────────────────────
+                // ── 3.10 · Previsualización rápida (Quick Look) ────────────────
                 // Dentro de contentColumn (en el flujo), igual que el Monitor.
                 // Cabecera (nombre + ruta) arriba + contenido (imagen/texto) abajo.
                 StyledRect {
@@ -2404,16 +2802,20 @@ PanelWindow {
                     }
                 }
 
-                // ── Configuración de Hax — "config" ───────────────────────────
+                // ── 3.11 · Inicio / Configuración de Hax — "init" ────────────
+                // Pantalla de bienvenida + ajustes rápidos. Un rectángulo ancho
+                // (2 columnas) para verlo todo de un vistazo, con palabras
+                // fáciles. La contraseña sudo se guarda LOCAL (SudoPass).
                 StyledRect {
-                    id: configPane
+                    id: initPane
                     width: contentColumn.width
                     variant: "pane"
                     radius: Styling.radius(12)
                     clip: true
-                    visible: spotlight.showConfig
-                    opacity: spotlight.showConfig ? 1 : 0
-                    height: spotlight.showConfig ? configContent.implicitHeight + 20 : 0
+                    visible: spotlight.showInit
+                    opacity: spotlight.showInit ? 1 : 0
+                    height: spotlight.showInit ? initContent.implicitHeight + 20 : 0
+
                     Behavior on opacity {
                         enabled: Config.animDuration > 0
                         NumberAnimation { duration: Config.animDuration * 2 }
@@ -2424,433 +2826,674 @@ PanelWindow {
                     }
 
                     Column {
-                        id: configContent
-                        anchors { left: parent.left; right: parent.right; top: parent.top; margins: 10 }
+                        id: initContent
+                        anchors { left: parent.left; right: parent.right; top: parent.top; margins: 14 }
                         spacing: 12
 
-                        // ── Cabecera ──
-                        Text {
+                        // ── Cabecera: bienvenida ──
+                        Row {
                             width: parent.width
-                            text: "⚙️ Configurar Hax"
-                            font.bold: true
-                            font.pixelSize: Config.theme.fontSize
-                            color: Styling.srItem("text")
-                        }
+                            spacing: 12
+                            layoutDirection: Qt.LeftToRight
 
-                        // ── Separador ──
-                        Rectangle {
-                            width: parent.width
-                            height: 1
-                            color: Styling.srItem("overprimary")
-                            opacity: 0.2
-                        }
-
-                        // ── Sección: Colores ──
-                        Text {
-                            text: "🎨 Colores"
-                            font.bold: true
-                            font.pixelSize: Config.theme.fontSize - 1
-                            color: Styling.srItem("text")
-                        }
-
-                        RowLayout {
-                            width: parent.width
-                            Text {
-                                text: "Color personalizado:"
-                                font.pixelSize: Config.theme.fontSize - 2
-                                color: Styling.srItem("text")
-                                Layout.fillWidth: true
+                            Image {
+                                source: Qt.resolvedUrl("hax-icon.png")
+                                sourceSize.width: 52
+                                sourceSize.height: 52
+                                smooth: true
+                                fillMode: Image.PreserveAspectFit
+                                anchors.verticalCenter: parent.verticalCenter
                             }
-                            Rectangle {
-                                id: colorSwatch
-                                width: 28; height: 28; radius: 6
-                                color: Config.hax.customColorEnabled ? Config.hax.customColor : Colors.primary
-                                border { color: Styling.srItem("overprimary"); width: 1 }
-                                Layout.alignment: Qt.AlignVCenter
 
-                                MouseArea {
-                                    id: swatchClickArea
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        // Posicionar el popup antes de abrirlo
-                                        var pos = colorSwatch.mapToItem(null, 0, 0);
-                                        colorPicker.x = pos.x - 100;
-                                        colorPicker.y = pos.y + colorSwatch.height + 8;
-                                        spotlight.colorPickerOpen = !spotlight.colorPickerOpen;
-                                    }
-                                }
-
-                                // Flechita indicando que es clickeable
-                                Text {
-                                    anchors { right: parent.right; bottom: parent.bottom }
-                                    text: "▼"
-                                    font.pixelSize: 7
-                                    color: Styling.srItem("overprimary")
-                                    opacity: 0.6
-                                }
-                            }
-                            TextField {
-                                id: colorInput
-                                text: Config.hax.customColor
-                                font.pixelSize: Config.theme.fontSize - 2
-                                font.family: "monospace"
-                                implicitWidth: 90
-                                height: 26
-                                onTextChanged: {
-                                    if (/^#[0-9a-fA-F]{6}$/.test(text)) {
-                                        Config.hax.customColor = text;
-                                        Config.saveHax();
-                                    }
-                                }
-                                background: Rectangle {
-                                    radius: 4
-                                    color: Styling.srItem("bg")
-                                    border { color: Styling.srItem("overprimary"); width: 1 }
-                                }
-                            }
-                        }
-
-                        // 🎨 (fin sección colores, el selector flotante está en el PanelWindow)
-
-                        RowLayout {
-                            width: parent.width
-                            spacing: 8
-                            StyledRect {
-                                variant: "common"
-                                radius: Styling.radius(6)
-                                Layout.fillWidth: true
-                                height: 28
-                                opacity: Config.hax.customColorEnabled ? 1 : 0.5
+                            Column {
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: parent.width - 64
+                                spacing: 2
 
                                 Text {
-                                    anchors.centerIn: parent
-                                    text: Config.hax.customColorEnabled ? "✅ Color personalizado activado" : "☐ Usar color personalizado"
-                                    font.pixelSize: Config.theme.fontSize - 2
-                                    color: Styling.srItem("text")
-                                }
-
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        Config.hax.customColorEnabled = !Config.hax.customColorEnabled;
-                                        Config.saveHax();
-                                    }
-                                }
-                            }
-
-                            StyledRect {
-                                variant: "common"
-                                radius: Styling.radius(6)
-                                implicitWidth: 90
-                                height: 28
-
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: "↻ Sincronizar"
-                                    font.pixelSize: Config.theme.fontSize - 2
-                                    color: Styling.srItem("text")
-                                }
-
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        Config.hax.customColorEnabled = false;
-                                        Config.hax.customColor = Colors.primary;
-                                        Config.saveHax();
-                                        colorInput.text = Colors.primary;
-                                    }
-                                }
-                            }
-                        }
-
-                        // ── Separador ──
-                        Rectangle {
-                            width: parent.width
-                            height: 1
-                            color: Styling.srItem("overprimary")
-                            opacity: 0.2
-                        }
-
-                        // ── Sección: OCR ──
-                        Text {
-                            text: "🖼️ OCR (Live Text)"
-                            font.bold: true
-                            font.pixelSize: Config.theme.fontSize - 1
-                            color: Styling.srItem("text")
-                        }
-
-                        RowLayout {
-                            width: parent.width
-                            Text {
-                                text: "Extraer texto de imágenes (Tesseract):"
-                                font.pixelSize: Config.theme.fontSize - 2
-                                color: Styling.srItem("text")
-                                Layout.fillWidth: true
-                            }
-                            StyledRect {
-                                variant: "common"
-                                radius: Styling.radius(6)
-                                implicitWidth: 80
-                                height: 28
-
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: Config.hax.ocrEnabled ? "✅ Activado" : "☐ Desactivado"
-                                    font.pixelSize: Config.theme.fontSize - 2
-                                    color: Styling.srItem("text")
-                                }
-
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        Config.hax.ocrEnabled = !Config.hax.ocrEnabled;
-                                        Config.saveHax();
-                                    }
-                                }
-                            }
-                        }
-
-                        // ── Separador ──
-                        Rectangle {
-                            width: parent.width
-                            height: 1
-                            color: Styling.srItem("overprimary")
-                            opacity: 0.2
-                        }
-
-                        // ── Sección: Acciones rápidas ──
-                        Text {
-                            text: "⚡ Acciones rápidas"
-                            font.bold: true
-                            font.pixelSize: Config.theme.fontSize - 1
-                            color: Styling.srItem("text")
-                        }
-
-                        Text {
-                            width: parent.width
-                            text: "Crea atajos: escribes una palabra (ej. «cc») y Hax ejecuta la acción. Pulsa 📋 para elegir una app en un clic."
-                            font.pixelSize: Config.theme.fontSize - 3
-                            color: Styling.srItem("text")
-                            opacity: 0.7
-                            wrapMode: Text.WordWrap
-                        }
-
-                        // Lista de atajos editables
-                        Repeater {
-                            id: shortcutRepeater
-                            model: haxShortcutsList
-
-                            delegate: Column {
-                                width: parent.width
-                                spacing: 4
-
-                                RowLayout {
                                     width: parent.width
-                                    spacing: 6
+                                    text: "Bienvenido a Hax"
+                                    font.bold: true
+                                    font.pixelSize: Config.theme.fontSize + 2
+                                    color: Styling.srItem("text")
+                                }
 
-                                    TextField {
-                                        id: keywordsField
-                                        Layout.fillWidth: true
-                                        height: 26
-                                        text: modelData.keywords.join(", ")
-                                        font.pixelSize: Config.theme.fontSize - 2
-                                        font.family: "monospace"
-                                        color: "#f0f0f0"
-                                        padding: 4
-                                        verticalAlignment: TextInput.AlignVCenter
-                                        background: Rectangle {
-                                            radius: 4
-                                            color: "#1a1a2e"
-                                            border { color: "#444466"; width: 1 }
-                                        }
+                                Text {
+                                    width: parent.width
+                                    text: "Tu buscador universal: abre apps, calcula, busca archivos, consulta el clima, instala programas y mucho más. Todo desde un solo lugar."
+                                    font.pixelSize: Config.theme.fontSize - 2
+                                    color: Styling.srItem("text")
+                                    opacity: 0.75
+                                    wrapMode: Text.WordWrap
+                                }
+                            }
+                        }
 
-                                        onEditingFinished: {
-                                            var arr = haxShortcutsList.slice();
-                                            arr[index].keywords = text.split(",").map(function(s) { return s.trim(); }).filter(function(s) { return s.length > 0; });
-                                            Config.hax.customShortcuts = JSON.stringify(arr);
-                                            Config.saveHaxShortcuts(arr);
-                                        }
-                                    }
+                        // ── Cuerpo: 2 columnas (RowLayout — GridLayout colapsa
+                        // a altura 0 dentro de un Column, bug de Qt Quick) ──
+                        RowLayout {
+                            id: initGrid
+                            width: parent.width
+                            spacing: 12
 
-                                    TextField {
-                                        id: actionField
-                                        implicitWidth: 100
-                                        height: 26
-                                        text: modelData.action
-                                        font.pixelSize: Config.theme.fontSize - 2
-                                        font.family: "monospace"
-                                        color: "#f0f0f0"
-                                        padding: 4
-                                        verticalAlignment: TextInput.AlignVCenter
-                                        background: Rectangle {
-                                            radius: 4
-                                            color: "#1a1a2e"
-                                            border { color: "#444466"; width: 1 }
-                                        }
+                            // ── Columna izquierda (más estrecha) ──
+                            Column {
+                                id: initLeftCol
+                                Layout.preferredWidth: 300
+                                Layout.fillHeight: true
+                                spacing: 12
 
-                                        onEditingFinished: {
-                                            var arr = haxShortcutsList.slice();
-                                            arr[index].action = text;
-                                            Config.hax.customShortcuts = JSON.stringify(arr);
-                                            Config.saveHaxShortcuts(arr);
-                                        }
-                                    }
+                                // ── ¿Qué es Hax? ──
+                                StyledRect {
+                                    width: parent.width
+                                    variant: "common"
+                                    radius: Styling.radius(10)
+                                    height: whatIsContent.implicitHeight + 24
 
-                                    StyledRect {
-                                        variant: "common"
-                                        radius: Styling.radius(4)
-                                        implicitWidth: 26
-                                        height: 26
+                                    Column {
+                                        id: whatIsContent
+                                        anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
+                                        spacing: 8
 
                                         Text {
-                                            anchors.centerIn: parent
-                                            text: "✕"
+                                            width: parent.width
+                                            text: "📖 ¿Qué es Hax?"
+                                            font.bold: true
                                             font.pixelSize: Config.theme.fontSize - 1
-                                            color: Colors.warning
+                                            color: Styling.srItem("text")
                                         }
 
-                                        MouseArea {
-                                            anchors.fill: parent
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: {
-                                                var arr = haxShortcutsList.slice();
-                                                arr.splice(index, 1);
-                                                Config.hax.customShortcuts = JSON.stringify(arr);
-                                                Config.saveHaxShortcuts(arr);
+                                        Text {
+                                            width: parent.width
+                                            text: "Hax es la lupa mágica de tu ordenador:"
+                                            font.pixelSize: Config.theme.fontSize - 2
+                                            color: Styling.srItem("text")
+                                            opacity: 0.8
+                                            wrapMode: Text.WordWrap
+                                        }
+
+                                        Text {
+                                            width: parent.width
+                                            text: "🔎  Busca y abre aplicaciones\n🔍  Encuentra archivos\n🧮  Calcula al instante\n🌤️  Consulta el clima\n📦  Instala programas\n📋  Recuerda tu portapapeles\n🖼️  Lee texto de imágenes"
+                                            font.pixelSize: Config.theme.fontSize - 2
+                                            color: Styling.srItem("text")
+                                            lineHeight: 1.5
+                                            wrapMode: Text.WordWrap
+                                        }
+
+                                        Text {
+                                            width: parent.width
+                                            text: "Escribe «?» en la búsqueda para ver el manual completo."
+                                            font.pixelSize: Config.theme.fontSize - 3
+                                            color: Styling.srItem("overprimary")
+                                            wrapMode: Text.WordWrap
+                                        }
+                                    }
+                                }
+
+                                // ── Contraseña sudo ──
+                                StyledRect {
+                                    id: sudoCard
+                                    width: parent.width
+                                    variant: "common"
+                                    radius: Styling.radius(10)
+                                    height: sudoContent.implicitHeight + 24
+
+                                    Column {
+                                        id: sudoContent
+                                        anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
+                                        spacing: 8
+
+                                        Text {
+                                            width: parent.width
+                                            text: "🔑 Contraseña para instalar programas"
+                                            font.bold: true
+                                            font.pixelSize: Config.theme.fontSize - 1
+                                            color: Styling.srItem("text")
+                                        }
+
+                                        Text {
+                                            width: parent.width
+                                            text: "Sirve para «install firefox», «update» y «remove». Se guarda SOLO en tu ordenador (cifrada) y no se envía a ningún sitio."
+                                            font.pixelSize: Config.theme.fontSize - 3
+                                            color: Styling.srItem("text")
+                                            opacity: 0.75
+                                            wrapMode: Text.WordWrap
+                                        }
+
+                                        RowLayout {
+                                            width: parent.width
+                                            spacing: 6
+
+                                            TextField {
+                                                id: sudoPassInput
+                                                Layout.fillWidth: true
+                                                height: 30
+                                                echoMode: showSudoPass ? TextInput.Normal : TextInput.Password
+                                                placeholderText: SudoPass.hasPassword ? "•••••••• (guardada)" : "Escribe tu contraseña"
+                                                placeholderTextColor: "#666688"
+                                                font.pixelSize: Config.theme.fontSize - 2
+                                                color: "#f0f0f0"
+                                                padding: 6
+                                                verticalAlignment: TextInput.AlignVCenter
+                                                background: Rectangle {
+                                                    radius: 5
+                                                    color: "#1a1a2e"
+                                                    border { color: "#444466"; width: 1 }
+                                                }
+                                            }
+
+                                            // Ojo: mostrar / ocultar
+                                            StyledRect {
+                                                variant: "common"
+                                                radius: Styling.radius(5)
+                                                implicitWidth: 30
+                                                height: 30
+
+                                                Text {
+                                                    anchors.centerIn: parent
+                                                    text: showSudoPass ? "🙈" : "👁️"
+                                                    font.pixelSize: 12
+                                                }
+
+                                                MouseArea {
+                                                    anchors.fill: parent
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    onClicked: showSudoPass = !showSudoPass
+                                                }
+                                            }
+
+                                            // Guardar
+                                            StyledRect {
+                                                variant: "common"
+                                                radius: Styling.radius(5)
+                                                implicitWidth: 78
+                                                height: 30
+                                                opacity: sudoPassInput.text.length > 0 ? 1 : 0.45
+
+                                                Text {
+                                                    anchors.centerIn: parent
+                                                    text: "💾 Guardar"
+                                                    font.pixelSize: Config.theme.fontSize - 3
+                                                    color: "#f0f0f0"
+                                                }
+
+                                                MouseArea {
+                                                    anchors.fill: parent
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    enabled: sudoPassInput.text.length > 0
+                                                    onClicked: {
+                                                        SudoPass.set(sudoPassInput.text);
+                                                        sudoPassInput.text = "";
+                                                        sudoPassInput.focus = false;
+                                                    }
+                                                }
+                                            }
+
+                                            // Borrar
+                                            StyledRect {
+                                                variant: "common"
+                                                radius: Styling.radius(5)
+                                                implicitWidth: 30
+                                                height: 30
+                                                visible: SudoPass.hasPassword
+
+                                                Text {
+                                                    anchors.centerIn: parent
+                                                    text: "🗑️"
+                                                    font.pixelSize: 12
+                                                }
+
+                                                MouseArea {
+                                                    anchors.fill: parent
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    onClicked: SudoPass.clear()
+                                                }
+                                            }
+                                        }
+
+                                        // Estado
+                                        Row {
+                                            spacing: 6
+                                            Text {
+                                                text: SudoPass.loading ? "⏳ Cargando..." : (SudoPass.hasPassword ? "✅ Guardada" : "⚠️ Sin guardar todavía")
+                                                font.pixelSize: Config.theme.fontSize - 3
+                                                color: SudoPass.hasPassword ? "#7bd88f" : Colors.warning
+                                            }
+                                            Text {
+                                                text: SudoPass.hasPassword ? "— se usará para instalar paquetes" : "— instalar paquetes pedirá escribirla en el terminal"
+                                                font.pixelSize: Config.theme.fontSize - 3
+                                                color: Styling.srItem("text")
+                                                opacity: 0.6
                                             }
                                         }
                                     }
                                 }
                             }
-                        }
 
-                        // Formulario para añadir acción rápida
-                        Column {
-                            width: parent.width
-                            spacing: 6
+                            // ── Columna derecha (más ancha) ──
+                            Column {
+                                id: initRightCol
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
+                                spacing: 12
 
-                            // Nombre (opcional) — se muestra en el buscador
-                            TextField {
-                                id: newNameInput
-                                width: parent.width
-                                height: 28
-                                placeholderText: "Nombre (opcional, ej: Abrir Firefox)"
-                                placeholderTextColor: "#666688"
-                                font.pixelSize: Config.theme.fontSize - 2
-                                color: "#f0f0f0"
-                                padding: 4
-                                verticalAlignment: TextInput.AlignVCenter
-                                background: Rectangle {
-                                    radius: 4
-                                    color: "#1a1a2e"
-                                    border { color: "#444466"; width: 1 }
-                                }
-                            }
+                                // ── Apariencia: color + OCR ──
+                                StyledRect {
+                                    width: parent.width
+                                    variant: "common"
+                                    radius: Styling.radius(10)
+                                    height: aparienciaContent.implicitHeight + 24
 
-                            RowLayout {
-                                width: parent.width
-                                spacing: 6
+                                    Column {
+                                        id: aparienciaContent
+                                        anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
+                                        spacing: 10
 
-                                TextField {
-                                    id: newKeywordsInput
-                                    Layout.fillWidth: true
-                                    height: 28
-                                    placeholderText: "Palabra clave (ej: ff)"
-                                    placeholderTextColor: "#666688"
-                                    font.pixelSize: Config.theme.fontSize - 2
-                                    font.family: "monospace"
-                                    color: "#f0f0f0"
-                                    padding: 4
-                                    verticalAlignment: TextInput.AlignVCenter
-                                    background: Rectangle {
-                                        radius: 4
-                                        color: "#1a1a2e"
-                                        border { color: "#444466"; width: 1 }
-                                    }
-                                }
+                                        Text {
+                                            width: parent.width
+                                            text: "🎨 Apariencia"
+                                            font.bold: true
+                                            font.pixelSize: Config.theme.fontSize - 1
+                                            color: Styling.srItem("text")
+                                        }
 
-                                Rectangle {
-                                    implicitWidth: 160
-                                    height: 28
-                                    radius: 4
-                                    color: "#1a1a2e"
-                                    border { color: "#444466"; width: 1 }
+                                        // Color personalizado
+                                        RowLayout {
+                                            width: parent.width
+                                            spacing: 8
 
-                                    RowLayout {
-                                        anchors.fill: parent
-                                        anchors.margins: 4
-                                        spacing: 2
+                                            Text {
+                                                text: "Color:"
+                                                font.pixelSize: Config.theme.fontSize - 2
+                                                color: Styling.srItem("text")
+                                                Layout.fillWidth: true
+                                            }
 
-                                        TextField {
-                                            id: newActionInput
-                                            Layout.fillWidth: true
-                                            height: 20
-                                            placeholderText: "app, comando o URL"
-                                            placeholderTextColor: "#666688"
-                                            font.pixelSize: Config.theme.fontSize - 2
-                                            font.family: "monospace"
-                                            color: "#f0f0f0"
-                                            padding: 0
-                                            verticalAlignment: TextInput.AlignVCenter
-                                            background: null
+                                            Rectangle {
+                                                id: colorSwatch
+                                                width: 26; height: 26; radius: 6
+                                                color: Config.hax.customColorEnabled ? Config.hax.customColor : Colors.primary
+                                                border { color: Styling.srItem("overprimary"); width: 1 }
+                                                Layout.alignment: Qt.AlignVCenter
+
+                                                MouseArea {
+                                                    id: swatchClickArea
+                                                    anchors.fill: parent
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    onClicked: {
+                                                        var pos = colorSwatch.mapToItem(null, 0, 0);
+                                                        colorPicker.x = pos.x - 100;
+                                                        colorPicker.y = pos.y + colorSwatch.height + 8;
+                                                        spotlight.colorPickerOpen = !spotlight.colorPickerOpen;
+                                                    }
+                                                }
+                                            }
+
+                                            TextField {
+                                                id: colorInput
+                                                text: Config.hax.customColor
+                                                font.pixelSize: Config.theme.fontSize - 2
+                                                font.family: "monospace"
+                                                implicitWidth: 84
+                                                height: 26
+                                                onTextChanged: {
+                                                    if (/^#[0-9a-fA-F]{6}$/.test(text)) {
+                                                        Config.hax.customColor = text;
+                                                        Config.saveHax();
+                                                    }
+                                                }
+                                                background: Rectangle {
+                                                    radius: 4
+                                                    color: Styling.srItem("bg")
+                                                    border { color: Styling.srItem("overprimary"); width: 1 }
+                                                }
+                                            }
+
+                                            StyledRect {
+                                                variant: "common"
+                                                radius: Styling.radius(6)
+                                                implicitWidth: 34
+                                                height: 26
+                                                opacity: Config.hax.customColorEnabled ? 1 : 0.5
+
+                                                Text {
+                                                    anchors.centerIn: parent
+                                                    text: Config.hax.customColorEnabled ? "✅" : "☐"
+                                                    font.pixelSize: Config.theme.fontSize - 1
+                                                }
+
+                                                MouseArea {
+                                                    anchors.fill: parent
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    onClicked: {
+                                                        Config.hax.customColorEnabled = !Config.hax.customColorEnabled;
+                                                        Config.saveHax();
+                                                    }
+                                                }
+                                            }
+
+                                            StyledRect {
+                                                variant: "common"
+                                                radius: Styling.radius(6)
+                                                implicitWidth: 76
+                                                height: 26
+
+                                                Text {
+                                                    anchors.centerIn: parent
+                                                    text: "↻ Restaurar"
+                                                    font.pixelSize: Config.theme.fontSize - 3
+                                                    color: Styling.srItem("text")
+                                                }
+
+                                                MouseArea {
+                                                    anchors.fill: parent
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    onClicked: {
+                                                        Config.hax.customColorEnabled = false;
+                                                        Config.hax.customColor = Colors.primary;
+                                                        Config.saveHax();
+                                                        colorInput.text = Colors.primary;
+                                                    }
+                                                }
+                                            }
                                         }
 
                                         Text {
-                                            text: "📋"
-                                            font.pixelSize: 12
-                                            color: "#aaaacc"
-                                            MouseArea {
-                                                anchors.fill: parent
-                                                cursorShape: Qt.PointingHandCursor
-                                                onClicked: {
-                                                    actionPresets.x = morphContainer.x + (morphContainer.width - actionPresets.width) / 2;
-                                                    actionPresets.y = morphContainer.y + (morphContainer.height - actionPresets.height) / 2;
-                                                    actionPresetsOpen = !actionPresetsOpen;
+                                            width: parent.width
+                                            text: "Toca el cuadradito de color para abrir el selector."
+                                            font.pixelSize: Config.theme.fontSize - 3
+                                            color: Styling.srItem("text")
+                                            opacity: 0.55
+                                        }
+
+                                        // Separador
+                                        Rectangle {
+                                            width: parent.width
+                                            height: 1
+                                            color: Styling.srItem("overprimary")
+                                            opacity: 0.15
+                                        }
+
+                                        // OCR
+                                        RowLayout {
+                                            width: parent.width
+                                            Text {
+                                                text: "🖼️ OCR (Live Text): extrae texto de imágenes"
+                                                font.pixelSize: Config.theme.fontSize - 2
+                                                color: Styling.srItem("text")
+                                                Layout.fillWidth: true
+                                            }
+                                            StyledRect {
+                                                variant: "common"
+                                                radius: Styling.radius(6)
+                                                implicitWidth: 88
+                                                height: 28
+
+                                                Text {
+                                                    anchors.centerIn: parent
+                                                    text: Config.hax.ocrEnabled ? "✅ Activado" : "☐ Desactivado"
+                                                    font.pixelSize: Config.theme.fontSize - 3
+                                                    color: Styling.srItem("text")
+                                                }
+
+                                                MouseArea {
+                                                    anchors.fill: parent
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    onClicked: {
+                                                        Config.hax.ocrEnabled = !Config.hax.ocrEnabled;
+                                                        Config.saveHax();
+                                                    }
                                                 }
                                             }
                                         }
                                     }
                                 }
 
+                                // ── Acciones rápidas ──
                                 StyledRect {
+                                    width: parent.width
                                     variant: "common"
-                                    radius: Styling.radius(6)
-                                    implicitWidth: 60
-                                    height: 28
+                                    radius: Styling.radius(10)
+                                    height: accionesContent.implicitHeight + 24
 
-                                    Text {
-                                        anchors.centerIn: parent
-                                        text: "+ Añadir"
-                                        font.pixelSize: Config.theme.fontSize - 2
-                                        color: "#f0f0f0"
-                                    }
+                                    Column {
+                                        id: accionesContent
+                                        anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
+                                        spacing: 8
 
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: {
-                                            var kw = newKeywordsInput.text.split(",").map(function(s) { return s.trim(); }).filter(function(s) { return s.length > 0; });
-                                            var act = newActionInput.text.trim();
-                                            if (kw.length > 0 && act.length > 0) {
-                                                var t = "app";
-                                                if (/^https?:\/\//i.test(act)) t = "web";
-                                                else if (/[|&;<>]/.test(act) || act.indexOf(" ") >= 0 || act.startsWith("/") || act.startsWith("sudo")) t = "command";
-                                                var arr = haxShortcutsList.slice();
-                                                arr.push({
-                                                    "keywords": kw,
-                                                    "action": act,
-                                                    "type": t,
-                                                    "name": newNameInput.text.trim()
-                                                });
-                                                Config.hax.customShortcuts = JSON.stringify(arr);
-                                                Config.saveHaxShortcuts(arr);
-                                                newKeywordsInput.text = "";
-                                                newActionInput.text = "";
-                                                newNameInput.text = "";
+                                        Text {
+                                            width: parent.width
+                                            text: "⚡ Acciones rápidas"
+                                            font.bold: true
+                                            font.pixelSize: Config.theme.fontSize - 1
+                                            color: Styling.srItem("text")
+                                        }
+
+                                        Text {
+                                            width: parent.width
+                                            text: "Crea atajos: escribes una palabra (ej. «cc») y Hax ejecuta la acción. Pulsa 📋 para elegir una app en un clic."
+                                            font.pixelSize: Config.theme.fontSize - 3
+                                            color: Styling.srItem("text")
+                                            opacity: 0.7
+                                            wrapMode: Text.WordWrap
+                                        }
+
+                                        // Lista de atajos editables
+                                        Repeater {
+                                            id: shortcutRepeater
+                                            model: haxShortcutsList
+
+                                            delegate: Column {
+                                                width: parent.width
+                                                spacing: 4
+
+                                                RowLayout {
+                                                    width: parent.width
+                                                    spacing: 6
+
+                                                    TextField {
+                                                        id: keywordsField
+                                                        Layout.fillWidth: true
+                                                        height: 26
+                                                        text: modelData.keywords.join(", ")
+                                                        font.pixelSize: Config.theme.fontSize - 2
+                                                        font.family: "monospace"
+                                                        color: "#f0f0f0"
+                                                        padding: 4
+                                                        verticalAlignment: TextInput.AlignVCenter
+                                                        background: Rectangle {
+                                                            radius: 4
+                                                            color: "#1a1a2e"
+                                                            border { color: "#444466"; width: 1 }
+                                                        }
+
+                                                        onEditingFinished: {
+                                                            var arr = haxShortcutsList.slice();
+                                                            arr[index].keywords = text.split(",").map(function(s) { return s.trim(); }).filter(function(s) { return s.length > 0; });
+                                                            Config.hax.customShortcuts = JSON.stringify(arr);
+                                                            Config.saveHaxShortcuts(arr);
+                                                        }
+                                                    }
+
+                                                    TextField {
+                                                        id: actionField
+                                                        implicitWidth: 110
+                                                        height: 26
+                                                        text: modelData.action
+                                                        font.pixelSize: Config.theme.fontSize - 2
+                                                        font.family: "monospace"
+                                                        color: "#f0f0f0"
+                                                        padding: 4
+                                                        verticalAlignment: TextInput.AlignVCenter
+                                                        background: Rectangle {
+                                                            radius: 4
+                                                            color: "#1a1a2e"
+                                                            border { color: "#444466"; width: 1 }
+                                                        }
+
+                                                        onEditingFinished: {
+                                                            var arr = haxShortcutsList.slice();
+                                                            arr[index].action = text;
+                                                            Config.hax.customShortcuts = JSON.stringify(arr);
+                                                            Config.saveHaxShortcuts(arr);
+                                                        }
+                                                    }
+
+                                                    StyledRect {
+                                                        variant: "common"
+                                                        radius: Styling.radius(4)
+                                                        implicitWidth: 26
+                                                        height: 26
+
+                                                        Text {
+                                                            anchors.centerIn: parent
+                                                            text: "✕"
+                                                            font.pixelSize: Config.theme.fontSize - 1
+                                                            color: Colors.warning
+                                                        }
+
+                                                        MouseArea {
+                                                            anchors.fill: parent
+                                                            cursorShape: Qt.PointingHandCursor
+                                                            onClicked: {
+                                                                var arr = haxShortcutsList.slice();
+                                                                arr.splice(index, 1);
+                                                                Config.hax.customShortcuts = JSON.stringify(arr);
+                                                                Config.saveHaxShortcuts(arr);
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        // Formulario para añadir acción rápida
+                                        Column {
+                                            width: parent.width
+                                            spacing: 6
+
+                                            TextField {
+                                                id: newNameInput
+                                                width: parent.width
+                                                height: 28
+                                                placeholderText: "Nombre (opcional, ej: Abrir Firefox)"
+                                                placeholderTextColor: "#666688"
+                                                font.pixelSize: Config.theme.fontSize - 2
+                                                color: "#f0f0f0"
+                                                padding: 4
+                                                verticalAlignment: TextInput.AlignVCenter
+                                                background: Rectangle {
+                                                    radius: 4
+                                                    color: "#1a1a2e"
+                                                    border { color: "#444466"; width: 1 }
+                                                }
+                                            }
+
+                                            RowLayout {
+                                                width: parent.width
+                                                spacing: 6
+
+                                                TextField {
+                                                    id: newKeywordsInput
+                                                    Layout.fillWidth: true
+                                                    height: 28
+                                                    placeholderText: "Palabra clave (ej: ff)"
+                                                    placeholderTextColor: "#666688"
+                                                    font.pixelSize: Config.theme.fontSize - 2
+                                                    font.family: "monospace"
+                                                    color: "#f0f0f0"
+                                                    padding: 4
+                                                    verticalAlignment: TextInput.AlignVCenter
+                                                    background: Rectangle {
+                                                        radius: 4
+                                                        color: "#1a1a2e"
+                                                        border { color: "#444466"; width: 1 }
+                                                    }
+                                                }
+
+                                                Rectangle {
+                                                    implicitWidth: 160
+                                                    height: 28
+                                                    radius: 4
+                                                    color: "#1a1a2e"
+                                                    border { color: "#444466"; width: 1 }
+
+                                                    RowLayout {
+                                                        anchors.fill: parent
+                                                        anchors.margins: 4
+                                                        spacing: 2
+
+                                                        TextField {
+                                                            id: newActionInput
+                                                            Layout.fillWidth: true
+                                                            height: 20
+                                                            placeholderText: "app, comando o URL"
+                                                            placeholderTextColor: "#666688"
+                                                            font.pixelSize: Config.theme.fontSize - 2
+                                                            font.family: "monospace"
+                                                            color: "#f0f0f0"
+                                                            padding: 0
+                                                            verticalAlignment: TextInput.AlignVCenter
+                                                            background: null
+                                                        }
+
+                                                        Text {
+                                                            text: "📋"
+                                                            font.pixelSize: 12
+                                                            color: "#aaaacc"
+                                                            MouseArea {
+                                                                anchors.fill: parent
+                                                                cursorShape: Qt.PointingHandCursor
+                                                                onClicked: {
+                                                                    actionPresets.x = morphContainer.x + (morphContainer.width - actionPresets.width) / 2;
+                                                                    actionPresets.y = morphContainer.y + (morphContainer.height - actionPresets.height) / 2;
+                                                                    actionPresetsOpen = !actionPresetsOpen;
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+
+                                                StyledRect {
+                                                    variant: "common"
+                                                    radius: Styling.radius(6)
+                                                    implicitWidth: 60
+                                                    height: 28
+
+                                                    Text {
+                                                        anchors.centerIn: parent
+                                                        text: "+ Añadir"
+                                                        font.pixelSize: Config.theme.fontSize - 2
+                                                        color: "#f0f0f0"
+                                                    }
+
+                                                    MouseArea {
+                                                        anchors.fill: parent
+                                                        cursorShape: Qt.PointingHandCursor
+                                                        onClicked: {
+                                                            var kw = newKeywordsInput.text.split(",").map(function(s) { return s.trim(); }).filter(function(s) { return s.length > 0; });
+                                                            var act = newActionInput.text.trim();
+                                                            if (kw.length > 0 && act.length > 0) {
+                                                                var t = "app";
+                                                                if (/^https?:\/\//i.test(act)) t = "web";
+                                                                else if (/[|&;<>]/.test(act) || act.indexOf(" ") >= 0 || act.startsWith("/") || act.startsWith("sudo")) t = "command";
+                                                                var arr = haxShortcutsList.slice();
+                                                                arr.push({
+                                                                    "keywords": kw,
+                                                                    "action": act,
+                                                                    "type": t,
+                                                                    "name": newNameInput.text.trim()
+                                                                });
+                                                                Config.hax.customShortcuts = JSON.stringify(arr);
+                                                                Config.saveHaxShortcuts(arr);
+                                                                newKeywordsInput.text = "";
+                                                                newActionInput.text = "";
+                                                                newNameInput.text = "";
+                                                            }
+                                                        }
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -2860,7 +3503,7 @@ PanelWindow {
                     }
                 }
 
-                // ── Gestión de plugins — "plugins" ─────────────────────────
+                // ── 3.12 · Gestión de plugins — "plugins" ─────────────────────
                 StyledRect {
                     id: pluginPane
                     width: contentColumn.width
@@ -3240,7 +3883,7 @@ PanelWindow {
                         { cat: false, label: "Alarma 22:00", value: "alarm 22:00" },
                         { cat: false, label: "Eliminar todas las alarmas", value: "alarm clear" },
                         { cat: true, label: "Hax" },
-                        { cat: false, label: "Configurar Hax", value: "config" },
+                        { cat: false, label: "Iniciar / Configurar Hax", value: "init" },
                         { cat: false, label: "OCR / Live Text", value: "live" },
                         { cat: false, label: "Ayuda", value: "help" }
                     ]
@@ -3287,6 +3930,10 @@ PanelWindow {
     }
 
 
+    // ═════════════════════════════════════════════════════════════════════
+    //  SECCIÓN 4 · TERMINAL Y COMANDOS — funciones de terminal integrada
+    // ═════════════════════════════════════════════════════════════════════
+
     // ── Terminal integrada ─────────────────────────────────────────────────
 
     function runCmd(cmd) {
@@ -3301,10 +3948,7 @@ PanelWindow {
 
         var proc;
         try {
-            proc = Qt.createQmlObject(
-                'import Quickshell.Io; Process { stdout: SplitParser {} }',
-                spotlight
-            );
+            proc = procSplit.createObject(spotlight);
         } catch (e) {
             spotlight.debugLogError("runCmd", e);
             return;
@@ -3355,13 +3999,28 @@ PanelWindow {
 
     // ── Ejecutar comando rápido (fuego y olvido) ──────────────────────────
     function bash(cmd) {
-        var proc = Qt.createQmlObject(
-            'import Quickshell.Io; Process { }',
-            spotlight
-        );
+        var proc = procPlain.createObject(spotlight);
         proc.command = ["bash", "-c", cmd];
         proc.onExited.connect(function() { proc.destroy(); });
         proc.running = true;
+    }
+
+    // ── Comando con sudo usando la contraseña guardada en SudoPass ────────
+    // Cubre los dos casos de mundo real:
+    //  · Usuarios CON contraseña sudo normal: usa la contraseña guardada en
+    //    init (SudoPass). Si no la han guardado, avisa para que la pongan.
+    //  · Usuarios con NOPASSWD (ej. el usuario fabio): sudo -n funciona sin
+    //    contraseña, así que la instalación sigue funcionando igual aunque
+    //    no hayan guardado nada en init.
+    function sudoExec(cmd) {
+        var pass = SudoPass.password;
+        if (!pass || pass.length === 0) {
+            return "sudo -n " + cmd + " 2>/dev/null || echo '⚠️ No hay contraseña sudo guardada. Escribe «init» en Hax para configurarla.'";
+        }
+        // Escapar comillas simples para poder inyectar la contraseña con
+        // printf '%s' — evita que caracteres raros rompan el comando
+        var esc = pass.replace(/'/g, "'\\''");
+        return "printf '%s' '" + esc + "' | sudo -S " + cmd;
     }
 
     // Lanza un atajo personalizado según su tipo, igual que el resto de Hax.
@@ -3369,8 +4028,8 @@ PanelWindow {
         var action = shortcut.action;
         var type = shortcut.type;
         // Acciones integradas de Hax (atajos que abren paneles internos)
-        if (action === "config") { spotlight.showPlugins = false; spotlight.showConfig = true; return; }
-        if (action === "plugins") { spotlight.searchText = ""; spotlight.showConfig = false; spotlight.showPlugins = true; return; }
+        if (action === "init") { spotlight.showPlugins = false; spotlight.showInit = true; return; }
+        if (action === "plugins") { spotlight.searchText = ""; spotlight.showInit = false; spotlight.showPlugins = true; return; }
         // Temporizadores y alarmas (funciones internas de Hax, no comandos de bash)
         var _a = action.toLowerCase();
         if (_a === "timer" || _a.indexOf("timer ") === 0) { _runTimerFromShortcut(action); Visibilities.setActiveModule(""); return; }
@@ -3438,7 +4097,7 @@ PanelWindow {
     function openTerminal() {
         spotlight.showTerminal = true;
         spotlight.showPreview = false;
-        spotlight.showConfig = false;
+        spotlight.showInit = false;
         spotlight.showPlugins = false;
         spotlight.showMonitor = false;
         spotlight.cancelCmdProcess();
@@ -3448,6 +4107,27 @@ PanelWindow {
         spotlight.showTerminal = false;
         searchInput.forceActiveFocus();
     }
+
+    // ── Abre el panel de inicio/ajustes rápidos ("init") ───────────────────
+    // Función en el scope del root para poder usar los ids (Timer del
+    // debounce de archivos) sin problemas de scope dentro de los exec.
+    function openInitPanel() {
+        // Cancelar la búsqueda de archivos pendiente (como "show" e
+        // "historial") para que NO aparezca lista de archivos junto al
+        // panel init — solo el rectángulo de bienvenida.
+        _fileSearchDebounce.stop();
+        _fileSearchPendingQuery = "";
+        spotlight.searchText = "";
+        spotlight.results = [];
+        spotlight.showPlugins = false;
+        spotlight.showInit = true;
+    }
+
+    // ═════════════════════════════════════════════════════════════════════
+    //  SECCIÓN 5 · LÓGICA DE BÚSQUEDA — updateResults y sus modos
+    //  (glosario, cálculos, acciones del sistema, ayuda, show, monitor,
+    //   timers, alarmas, paquetes, clima, historial, plugins, archivos)
+    // ═════════════════════════════════════════════════════════════════════
 
     // ── Lógica de búsqueda ─────────────────────────────────────────────────
 
@@ -3509,7 +4189,7 @@ PanelWindow {
                     icon: Icons.notepad,
                     type: "calc",
                     exec: () => {
-                        const p = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+                        const p = procPlain.createObject(spotlight);
                         p.command = ["wl-copy", String(result)];
                         p.running = true;
                         p.onExited.connect(() => p.destroy());
@@ -3617,7 +4297,7 @@ PanelWindow {
                 { name: "/", description: "Abre la terminal integrada (fish) dentro de Hax — 100% operativa (vim, htop, sudo...)", icon: Icons.notepad, type: "info", exec: null },
                 { name: "/stats", description: "Abre el monitor del sistema en vivo (CPU, RAM, disco, temp)", icon: Icons.notepad, type: "info", exec: null },
                 { name: "🐞 d / dev / debug", description: "Abre el modo desarrollador (debug) con métricas en pantalla", icon: Icons.notepad, type: "info", exec: null },
-                { name: "⚙️ config", description: "Abre el panel de configuración de Hax: activar OCR, cambiar color, gestionar acciones rápidas personalizadas", icon: Icons.notepad, type: "info", exec: null },
+                { name: "🚀 init", description: "Pantalla de bienvenida y ajustes rápidos de Hax: contraseña sudo (para instalar paquetes), color, OCR y acciones rápidas", icon: Icons.notepad, type: "info", exec: null },
                 { name: "🖼️ live / livetext / ocr / status", description: "Live Text (OCR) — busca texto DENTRO de imágenes", icon: Icons.notepad, type: "info", exec: null },
                 { name: "🖼️ reindexar / reindex", description: "Reindexa todas las imágenes con OCR (Tesseract)", icon: Icons.notepad, type: "info", exec: null },
                 { name: "🪟 show", description: "Muestra todas las ventanas abiertas agrupadas por espacio de trabajo", icon: Icons.notepad, type: "info", exec: null },
@@ -3636,6 +4316,11 @@ PanelWindow {
                 // Construir el grid en el siguiente frame
                 Qt.callLater(function() { buildWindowGrid(); });
             }
+            // Cancelar la búsqueda de archivos pendiente (p.ej. la de "sho" que
+            // se programó con el debounce al teclear) para que NO aparezca la
+            // lista de archivos junto al grid — solo las cards de ventanas.
+            _fileSearchDebounce.stop();
+            _fileSearchPendingQuery = "";
             results = [];
             return;
         } else if (query !== "show" && showWindowGrid) {
@@ -3863,7 +4548,7 @@ PanelWindow {
                     description: "pacman -Syu — actualiza todos los paquetes",
                     icon: Icons.notepad, type: "info",
                     exec: function() {
-                        runCmd('echo "F200607" | sudo -S rm -f /var/lib/pacman/db.lck 2>/dev/null; echo "F200607" | sudo -S pacman -Syu --noconfirm --overwrite "*"');
+                        runCmd(sudoExec('rm -f /var/lib/pacman/db.lck 2>/dev/null') + '; ' + sudoExec('pacman -Syu --noconfirm --overwrite "*"'));
                     }
                 });
                 results = newResults;
@@ -3879,7 +4564,7 @@ PanelWindow {
                         name: "🗑️ Desinstalar «" + rmPkg + "»",
                         description: "sudo pacman -R " + rmPkg,
                         icon: Icons.notepad, type: "info",
-                        exec: function() { runCmd('echo "F200607" | sudo -S pacman -R --noconfirm ' + rmPkg); }
+                        exec: function() { runCmd(sudoExec('pacman -R --noconfirm ' + rmPkg)); }
                     });
                 }
                 results = newResults;
@@ -3898,7 +4583,7 @@ PanelWindow {
                     name: "📦 Instalar «" + pmPkg + "» (pacman)",
                     description: "sudo pacman -S " + pmPkg,
                     icon: Icons.notepad, type: "info",
-                    exec: function() { runCmd('echo "F200607" | sudo -S pacman -S --noconfirm ' + pmPkg); }
+                    exec: function() { runCmd(sudoExec('pacman -S --noconfirm ' + pmPkg)); }
                 });
                 results = newResults;
                 return;
@@ -3910,7 +4595,7 @@ PanelWindow {
                     name: "📦 Instalar «" + yyPkg + "» (AUR/yay)",
                     description: "yay -S " + yyPkg,
                     icon: Icons.notepad, type: "info",
-                    exec: function() { runCmd('echo "F200607" | sudo -S yay -S --noconfirm ' + yyPkg); }
+                    exec: function() { runCmd(sudoExec('yay -S --noconfirm ' + yyPkg)); }
                 });
                 results = newResults;
                 return;
@@ -3994,46 +4679,44 @@ PanelWindow {
             return;
         }
 
-        // ── Historial inteligente ──────────────────────────────────────────
-        // Si busca "historial", "clip", etc. → mostrar TODO el historial
+        // ── Historial del portapapeles ─────────────────────────────────────
+        // "historial / clip / clipboard / portapapeles" → panel dedicado con
+        // el historial COMPLETO compartido (ClipboardService, mismo que el
+        // dashboard). Igual que "show" abre el grid de ventanas.
         var histMatch = query.match(/^(historial|history|clip|clipboard|portapapeles)$/i);
         if (histMatch) {
-            var histItems = searchHistory(""); // sin límite, devuelve todos
-            for (var hi = 0; hi < histItems.length; hi++) {
-                var hItem = histItems[hi];
-                newResults.push({
-                    name: "📋 " + hItem.text,
-                    description: "Copiado " + hItem.count + " vez" + (hItem.count !== 1 ? "es" : ""),
-                    icon: Icons.notepad,
-                    type: "history",
-                    historyText: hItem.text,
-                    exec: null
-                });
+            if (!showHistory) {
+                showHistory = true;
+                historySelectedIndex = ClipboardService.items.length > 0 ? 0 : -1;
+                refreshHistory(); // asegurar datos frescos de la DB
             }
-            if (newResults.length === 0) {
-                newResults.push({
-                    name: "📋 Historial vacío",
-                    description: "Copia algo con Enter o Ctrl+C y aparecerá aquí",
-                    icon: Icons.notepad,
-                    type: "info",
-                    exec: null
-                });
-            }
-            results = newResults;
+            // Cancelar búsqueda de archivos pendiente (como "show")
+            _fileSearchDebounce.stop();
+            _fileSearchPendingQuery = "";
+            results = [];
             return;
+        } else if (showHistory) {
+            // Cualquier otro texto cierra el panel de historial
+            showHistory = false;
         }
 
         // Buscar coincidencias en el historial para cualquier query
-        if (query.length >= 2 && _historyItems.length > 0) {
-            var histMatches = searchHistory(query, 3);
+        if (query.length >= 2 && ClipboardService.items.length > 0) {
+            var histMatches = searchClipboard(query, 3);
             for (var hi2 = 0; hi2 < histMatches.length; hi2++) {
                 var hItem2 = histMatches[hi2];
+                var histPreview2 = hItem2.alias
+                    ? hItem2.alias + " — " + (hItem2.preview || "")
+                    : (hItem2.preview || "");
                 newResults.push({
-                    name: "📋 " + hItem2.text,
-                    description: "Historial — " + hItem2.count + " vez" + (hItem2.count !== 1 ? "es" : ""),
+                    name: "📋 " + histPreview2,
+                    description: (hItem2.isImage ? "🖼 Imagen · " : (hItem2.isFile ? "📁 Archivo · " : "📄 Texto · "))
+                        + timeAgo(hItem2.createdAt)
+                        + (hItem2.pinned ? " · 📌" : ""),
                     icon: Icons.notepad,
                     type: "history",
-                    historyText: hItem2.text,
+                    historyId: hItem2.id,
+                    historyItem: hItem2,
                     exec: null
                 });
             }
@@ -4087,16 +4770,15 @@ PanelWindow {
         }
 
         // ── Configuración de Hax ──
-        // Aparece al escribir "config".
-        if (query === "config") {
+        // Aparece al escribir "init".
+        if (query === "init") {
             newResults.unshift({
-                name: "⚙️ Configurar Hax",
-                description: "Colores, OCR, atajos personalizados y más",
+                name: "🚀 Bienvenido a Hax",
+                description: "Ajustes rápidos: contraseña sudo, color, OCR, acciones rápidas",
                 icon: Icons.notepad,
-                type: "config",
+                type: "init",
                 exec: function() {
-                    spotlight.showPlugins = false;
-                    spotlight.showConfig = true;
+                    spotlight.openInitPanel();
                 }
             });
         }
@@ -4111,7 +4793,7 @@ PanelWindow {
                 type: "plugins",
                 exec: function() {
                     spotlight.searchText = "";
-                    spotlight.showConfig = false;
+                    spotlight.showInit = false;
                     spotlight.showPlugins = true;
                 }
             });
@@ -4209,8 +4891,14 @@ PanelWindow {
             startFileSearch(query);
         }
     }
+    // ═════════════════════════════════════════════════════════════════════
+    //  SECCIÓN 6 · UTILIDADES — evaluador aritmético, Live Text (OCR),
+    //  glosario, quick look, Dolphin, historial, portapapeles, show
+    //  (grid de ventanas), búsqueda de archivos y clima
+    // ═════════════════════════════════════════════════════════════════════
 
     // ── Evaluador aritmético seguro ────────────────────────────────────────
+
     function safeEval(expr) {
         if (!/^[\d+\-*/().\s]+$/.test(expr)) return null;
         try {
@@ -4336,7 +5024,7 @@ PanelWindow {
         spotlight.liveTextPending = folders.length;
         for (var i = 0; i < folders.length; i++) {
             (function(f) {
-                var pr = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+                var pr = procPlain.createObject(spotlight);
                 pr.command = ["bash", ocrScript, "index", f.d, String(f.depth)];
                 pr.onExited.connect(function() {
                     try { pr.destroy(); } catch (e) {}
@@ -4353,7 +5041,7 @@ PanelWindow {
 
     // Actualiza el contador de imágenes indexadas (Live Text).
     function refreshLiveTextStatus() {
-        var pr = Qt.createQmlObject('import Quickshell.Io; Process { stdout: StdioCollector {} }', spotlight);
+        var pr = procCollect.createObject(spotlight);
         pr.command = ["bash", ocrScript, "status"];
         pr.onExited.connect(function() {
             var t = (pr.stdout ? pr.stdout.text : "").trim();
@@ -4366,7 +5054,7 @@ PanelWindow {
 
     // Lee el texto OCR de una imagen para el panel de previsualización.
     function fetchOcrForPreview(p) {
-        var pr = Qt.createQmlObject('import Quickshell.Io; Process { stdout: StdioCollector {} }', spotlight);
+        var pr = procCollect.createObject(spotlight);
         pr.command = ["bash", ocrScript, "get", p];
         pr.onExited.connect(function() {
             var t = pr.stdout ? pr.stdout.text.trim() : "";
@@ -4449,7 +5137,7 @@ PanelWindow {
     // Copia al portapapeles el texto OCR de la imagen previsualizada.
     function copyOcrText() {
         if (!spotlight.previewOcrText) return;
-        var p = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+        var p = procPlain.createObject(spotlight);
         p.command = ["wl-copy", spotlight.previewOcrText];
         p.onExited.connect(function() { try { p.destroy(); } catch (e) {} });
         p.running = true;
@@ -4487,10 +5175,7 @@ PanelWindow {
         // Texto/binario: leer con cat, detectando binarios
         var proc;
         try {
-            proc = Qt.createQmlObject(
-                'import Quickshell.Io; Process { stdout: SplitParser {} }',
-                spotlight
-            );
+            proc = procSplit.createObject(spotlight);
         } catch (e) {
             spotlight.debugLogError("openPreview", e);
             return;
@@ -4517,7 +5202,7 @@ PanelWindow {
         if (!item) return;
         var p;
         try {
-            p = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+            p = procPlain.createObject(spotlight);
         } catch (e) {
             spotlight.debugLogError("copyResult", e);
             return;
@@ -4537,19 +5222,17 @@ PanelWindow {
             copyText = parts.length > 1 ? parts[1] : parts[0];
             p.command = ["wl-copy", copyText];
         } else if (item.type === "history") {
-            // Items del historial: copiar el texto guardado
-            copyText = item.historyText || item.name || "";
-            p.command = ["wl-copy", copyText];
+            // Items del historial compartido (ClipboardService): copiar por id
+            copyHistoryItem(item.historyId);
+            _copyFeedback = item.name || "";
+            _copyFeedbackTimer.restart();
+            return;
         } else {
             copyText = item.name || "";
             p.command = ["wl-copy", copyText];
         }
         p.onExited.connect(() => p.destroy());
         p.running = true;
-        // Guardar en el historial inteligente
-        saveToHistory(copyText, item.type || "text");
-        // Marcar para que el vigilante del portapapeles no lo cuente doble
-        _lastClipboard = copyText;
         // Feedback visual
         _copyFeedback = item.name || copyText || "";
         _copyFeedbackTimer.restart();
@@ -4575,177 +5258,103 @@ PanelWindow {
     property string previewText: ""
     property string previewImageSrc: ""
 
-    // ── Historial inteligente ──────────────────────────────────────────────
-    property var _historyItems: []
-    property var _historyLoaded: false
-    property string _lastClipboard: ""
-    property var _clipWatcherProc: null
+    // ── Historial del portapapeles (ClipboardService compartido) ─────────
+    // El historial vive en la DB SQLite del sistema (ClipboardService),
+    // el mismo que usa el dashboard: un solo historial para todo ambxst.
+    // Hax solo consume sus items (ya cargados) y sus operaciones.
 
-    function loadHistory() {
-        if (_historyLoaded) return;
-        var path = Quickshell.env("HOME") + "/.local/share/hax/history.json";
-        var proc = Qt.createQmlObject(
-            'import Quickshell.Io; Process { stdout: SplitParser {} }',
-            spotlight
-        );
-        proc.command = ["bash", "-c", "cat " + path + " 2>/dev/null || echo '[]'"];
-        var lines = [];
-        proc.stdout.onRead.connect(function(data) {
-            lines.push(data);
-        });
-        proc.onExited.connect(function() {
-            try {
-                _historyItems = JSON.parse(lines.join("")) || [];
-            } catch(e) {
-                _historyItems = [];
-            }
-            _historyLoaded = true;
-            proc.destroy();
-        });
-        proc.running = true;
-    }
-
-    function saveToHistory(text, type) {
-        if (!text || text.length === 0) return;
-        // Buscar si ya existe
-        var idx = -1;
-        for (var i = 0; i < _historyItems.length; i++) {
-            if (_historyItems[i].text === text) {
-                idx = i;
-                break;
-            }
-        }
-        var now = new Date().toISOString();
-        if (idx >= 0) {
-            _historyItems[idx].count = (_historyItems[idx].count || 1) + 1;
-            _historyItems[idx].lastUsed = now;
-        } else {
-            _historyItems.unshift({
-                text: text,
-                type: type || "text",
-                count: 1,
-                lastUsed: now
-            });
-            // Máximo 50 items
-            if (_historyItems.length > 50) _historyItems.pop();
-        }
-        // Ordenar: más usado primero, luego más reciente
-        _historyItems.sort(function(a, b) {
-            if (a.count !== b.count) return b.count - a.count;
-            return b.lastUsed.localeCompare(a.lastUsed);
-        });
-        // Guardar a disco
-        _writeHistory();
-    }
-
-    function _writeHistory() {
-        var json = JSON.stringify(_historyItems);
-        var path = Quickshell.env("HOME") + "/.local/share/hax/history.json";
-        var proc = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
-        // Escribir JSON directamente con bash (sin Python)
-        // Escapamos comillas simples para bash: ' → '\''
-        var safeJson = json.replace(/'/g, "'\\''");
-        var safePath = path.replace(/'/g, "'\\''");
-        proc.command = ["bash", "-c", "mkdir -p $(dirname '" + safePath + "') && printf '%s' '" + safeJson + "' > '" + safePath + "'"];
-        proc.onExited.connect(function() {
-            proc.destroy();
-        });
-        proc.running = true;
-    }
-
-    function removeFromHistory(text) {
-        if (!text) return;
-        for (var i = 0; i < _historyItems.length; i++) {
-            if (_historyItems[i].text === text) {
-                _historyItems.splice(i, 1);
-                break;
-            }
-        }
-        _writeHistory();
-        // Refrescar la lista de resultados para que desaparezca
-        selectedIndex = 0;
-        updateResults();
-    }
-
-    // ── Vigilante del portapapeles ─────────────────────────────────────────
-    // Guarda en el historial TODO lo que copies, venga de donde venga
-    function _readClipboard(cb) {
-        var proc = Qt.createQmlObject('import Quickshell.Io; Process { stdout: SplitParser {} }', spotlight);
-        var lines = [];
-        proc.stdout.onRead.connect(function(d) { lines.push(d); });
-        proc.onExited.connect(function() {
-            var content = lines.join("\n").trim();
-            proc.destroy();
-            if (cb) cb(content);
-        });
-        // -n = no añade salto de línea final; si está vacío, devuelve error y se ignora
-        proc.command = ["wl-paste", "-n"];
-        proc.running = true;
-    }
-
-    function startClipWatcher() {
-        if (_clipWatcherProc) return;
-        // Capturar el contenido actual (al abrir Hax)
-        _readClipboard(function(content) {
-            if (content.length > 0 && content.length < 100000) {
-                _lastClipboard = content;
-                saveToHistory(content, "text");
-            }
-        });
-        // Proceso persistente: monitoriza el portapapeles SIN spawnear 40 procesos/min
-        var proc = Qt.createQmlObject(
-            'import Quickshell.Io; Process { stdout: SplitParser {} }',
-            spotlight
-        );
-        proc.command = ["bash", "-c",
-            "o=''; while true; do c=$(wl-paste -n 2>/dev/null); " +
-            "if [ -n \"$c\" ] && [ \"$c\" != \"$o\" ]; then echo \"$c\"; o=\"$c\"; fi; sleep 1; done"
-        ];
-        proc.stdout.onRead.connect(function(content) {
-            content = content.trim();
-            if (content.length > 0 && content.length < 100000 && content !== _lastClipboard) {
-                _lastClipboard = content;
-                saveToHistory(content, "text");
-            }
-        });
-        proc.onExited.connect(function() {
-            proc.destroy();
-            _clipWatcherProc = null;
-        });
-        _clipWatcherProc = proc;
-        proc.running = true;
-    }
-
-    function stopClipWatcher() {
-        if (_clipWatcherProc) {
-            var proc = _clipWatcherProc;
-            _clipWatcherProc = null;
-            proc.running = false;
-            // onExited se encarga de proc.destroy() — EVITAR double destroy
-        }
-        _lastClipboard = "";
-    }
-
-    function searchHistory(query, maxResults) {
-        if (!_historyItems || _historyItems.length === 0) return [];
+    // Busca en el historial (preview + alias) — búsqueda en memoria sobre
+    // los items ya cargados por ClipboardService (100 máx).
+    function searchClipboard(query, maxResults) {
+        var items = ClipboardService.items;
+        if (!items || items.length === 0) return [];
         if (!query || query.length === 0) {
-            // Sin query: devolver todos (o hasta maxResults si se especifica)
-            if (maxResults && maxResults > 0) {
-                return _historyItems.slice(0, maxResults);
-            }
-            return _historyItems;
+            if (maxResults && maxResults > 0) return items.slice(0, maxResults);
+            return items;
         }
         var q = query.toLowerCase();
-        var results = [];
+        var out = [];
         var limit = maxResults || 3;
-        for (var i = 0; i < _historyItems.length; i++) {
-            var item = _historyItems[i];
-            if (item.text.toLowerCase().indexOf(q) !== -1) {
-                results.push(item);
-                if (results.length >= limit) break;
+        for (var i = 0; i < items.length; i++) {
+            var it = items[i];
+            var hay = ((it.alias || "") + " " + (it.preview || "")).toLowerCase();
+            if (hay.indexOf(q) !== -1) {
+                out.push(it);
+                if (out.length >= limit) break;
             }
         }
-        return results;
+        return out;
+    }
+
+    // Tiempo relativo para el historial ("hace 3 min", "hace 2 h"...)
+    function timeAgo(ts) {
+        if (!ts) return "";
+        var s = Math.floor((Date.now() - ts) / 1000);
+        if (s < 60) return "ahora mismo";
+        if (s < 3600) return "hace " + Math.floor(s / 60) + " min";
+        if (s < 86400) return "hace " + Math.floor(s / 3600) + " h";
+        return "hace " + Math.floor(s / 86400) + " d";
+    }
+
+    // Copia al portapapeles un item del historial (imagen → binario con su
+    // mime; archivo → text/uri-list; texto → full_content de la DB)
+    function copyHistoryItem(id) {
+        var item = null;
+        for (var i = 0; i < ClipboardService.items.length; i++) {
+            if (ClipboardService.items[i].id === String(id)) { item = ClipboardService.items[i]; break; }
+        }
+        if (!item) return;
+        var p = procPlain.createObject(spotlight);
+        if (item.isImage && item.binaryPath) {
+            p.command = ["bash", "-c", "cat '" + item.binaryPath + "' | wl-copy --type '" + item.mime + "'"];
+        } else if (item.isFile) {
+            p.command = ["bash", "-c", "sqlite3 '" + ClipboardService.dbPath + "' \"SELECT full_content FROM clipboard_items WHERE id = " + item.id + ";\" | tr -d '\\r' | wl-copy --type text/uri-list"];
+        } else {
+            p.command = ["bash", "-c", "sqlite3 '" + ClipboardService.dbPath + "' \"SELECT full_content FROM clipboard_items WHERE id = " + item.id + ";\" | wl-copy"];
+        }
+        p.onExited.connect(function() { try { p.destroy(); } catch (e) {} });
+        p.running = true;
+        // Feedback visual
+        _copyFeedback = "✓ Copiado";
+        _copyFeedbackTimer.restart();
+    }
+
+    // Elimina un item del historial y refresca la lista
+    function deleteHistoryItem(id) {
+        ClipboardService.deleteItem(String(id));
+        Qt.callLater(function() { ClipboardService.list(); });
+    }
+
+    // Fija/desfija un item (siempre arriba en el historial)
+    function toggleHistoryPin(id) {
+        ClipboardService.togglePin(String(id));
+    }
+
+    // Pone/quita un alias a un item
+    function setHistoryAlias(id, alias) {
+        ClipboardService.setAlias(String(id), alias);
+    }
+
+    // Recarga la lista del historial desde la DB compartida
+    function refreshHistory() {
+        ClipboardService.list();
+    }
+
+    // Reacciona a cambios en el historial compartido (copiar algo en cualquier
+    // parte del sistema también se refleja aquí)
+    Connections {
+        target: ClipboardService
+        function onListCompleted() {
+            if (historySelectedIndex >= ClipboardService.items.length)
+                historySelectedIndex = ClipboardService.items.length - 1;
+            if (showHistory) return; // el pane usa ClipboardService.items directo
+            // Si hay coincidencias de historial visibles en results, regenerarlas
+            var needsRefresh = false;
+            for (var i = 0; i < results.length; i++) {
+                if (results[i].type === "history") { needsRefresh = true; break; }
+            }
+            if (needsRefresh) updateResults();
+        }
     }
 
     // ── Show: grid visual de ventanas (CompositorData + ScreencopyView) ────
@@ -4756,26 +5365,31 @@ PanelWindow {
         try { toplevels = ToplevelManager && ToplevelManager.toplevels ? (ToplevelManager.toplevels.values || []) : []; } catch (e) { toplevels = []; }
         var wsMap = {};
         for (var i = 0; i < windows.length; i++) {
-            var w = windows[i];
-            if (!w.mapped) continue;
-            var wsId = w.workspace.id;
-            if (!wsMap[wsId]) wsMap[wsId] = { id: wsId, windows: [] };
-            // Parear con Toplevel para ScreencopyView
-            var cls = w.class || "";
-            var matched = null;
-            if (cls) {
-                var candidates = toplevels.filter(function(t) { return t.appId === cls; });
-                if (candidates.length === 1) matched = candidates[0];
-                else if (candidates.length > 1)
-                    matched = candidates.find(function(t) { return t.title === (w.title || ""); }) || candidates[0];
-            }
-            wsMap[wsId].windows.push({
-                address: w.address,
-                class: cls,
-                title: w.title || "?",
-                is_focused: w.is_focused || false,
-                toplevel: matched
-            });
+            // Proteger cada ventana: si una tiene datos raros (p.ej. sin
+            // workspace), NO debe romper la construcción del resto del grid.
+            try {
+                var w = windows[i];
+                if (!w) continue;
+                if (!w.mapped) continue;
+                var wsId = w.workspace && w.workspace.id !== undefined ? w.workspace.id : 0;
+                if (wsMap[wsId] === undefined) wsMap[wsId] = { id: wsId, windows: [] };
+                // Parear con Toplevel para ScreencopyView
+                var cls = w.class || "";
+                var matched = null;
+                if (cls) {
+                    var candidates = toplevels.filter(function(t) { return t && t.appId === cls; });
+                    if (candidates.length === 1) matched = candidates[0];
+                    else if (candidates.length > 1)
+                        matched = candidates.find(function(t) { return t.title === (w.title || ""); }) || candidates[0];
+                }
+                wsMap[wsId].windows.push({
+                    address: w.address,
+                    class: cls,
+                    title: w.title || "?",
+                    is_focused: w.is_focused || false,
+                    toplevel: matched
+                });
+            } catch (e) { continue; }
         }
         // Calcular offset global para navegación con flechas
         var flatIdx = 0;
@@ -4793,11 +5407,17 @@ PanelWindow {
             result.push(ws);
         }
         windowGridData = result;
-        // Calcular altura: columnas de workspace cards
-        var cols = Math.max(1, Math.floor((contentColumn.width - 16) / 300));
-        var rows = Math.ceil(result.length / cols);
-        windowGridHeight = Math.min(rows * 195 + 8, 600);
         } catch (e) { /* si falla, no romper la shell */ }
+    }
+
+    // Reconstruye el grid automáticamente cuando cambian las ventanas
+    // (cierra/abre apps, cambia de workspace...). Evita que el grid se quede
+    // con datos desactualizados si se abre justo antes de un cambio.
+    Connections {
+        target: CompositorData
+        function onWindowListChanged() {
+            if (showWindowGrid) Qt.callLater(function() { buildWindowGrid(); });
+        }
     }
 
     // Va a la ventana seleccionada en el grid
@@ -4810,11 +5430,11 @@ PanelWindow {
             if (windowGridSelectedIndex >= ws.offset && windowGridSelectedIndex < ws.offset + n) {
                 var win = ws.windows[windowGridSelectedIndex - ws.offset];
                 if (win && win.address) {
-                    var p1 = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+                    var p1 = procPlain.createObject(spotlight);
                     p1.command = ["hyprctl", "dispatch", "workspace", String(ws.id)];
                     p1.onExited.connect(function() { try { p1.destroy(); } catch (e) {} });
                     p1.running = true;
-                    var p2 = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+                    var p2 = procPlain.createObject(spotlight);
                     p2.command = ["hyprctl", "dispatch", "focuswindow", "address:" + win.address];
                     p2.onExited.connect(function() { try { p2.destroy(); } catch (e) {} });
                     p2.running = true;
@@ -4829,13 +5449,37 @@ PanelWindow {
     property var currentSearch: null
     property var currentSystemSearch: null
 
+    // Debounce: espera a que el usuario pause de escribir (~200ms) antes de
+    // lanzar find+OCR, en vez de lanzar 3 procesos por cada tecla.
+    property string _fileSearchPendingQuery: ""
+    Timer {
+        id: _fileSearchDebounce
+        interval: 200
+        repeat: false
+        onTriggered: {
+            // Solo lanzar la búsqueda si el campo sigue mostrando la misma
+            // consulta. Si el usuario borró rápido (o cambió el texto), la
+            // búsqueda pendiente ya no aplica y se descarta — así no queda
+            // nunca una lista de archivos fantasma tras borrar a 1 letra
+            // (p.ej. "s" es un comando del sistema y no pasa por startFileSearch).
+            var cur = spotlight.searchText.trim().toLowerCase();
+            if (spotlight._fileSearchPendingQuery.length > 0
+                && cur === spotlight._fileSearchPendingQuery) {
+                spotlight._doFileSearch(spotlight._fileSearchPendingQuery);
+            }
+        }
+    }
+
     function startFileSearch(query) {
-        if (query.length < 2) return;
-        
-        // Guardar la generación actual para evitar resultados obsoletos
-        var gen = searchGeneration;
-        
-        // Cancelar búsquedas anteriores si aún corren
+        if (query.length < 2) {
+            // Menos de 2 letras: cancelar cualquier búsqueda pendiente
+            // para que no salte una lista de archivos obsoleta
+            _fileSearchDebounce.stop();
+            _fileSearchPendingQuery = "";
+            return;
+        }
+
+        // Cancelar búsquedas en curso: la nueva petición invalida las anteriores
         if (currentSearch) {
             currentSearch.running = false;
             currentSearch.destroy();
@@ -4846,7 +5490,16 @@ PanelWindow {
             currentSystemSearch.destroy();
             currentSystemSearch = null;
         }
-        
+
+        // Guardar la consulta y esperar a que deje de escribir
+        _fileSearchPendingQuery = query;
+        _fileSearchDebounce.restart();
+    }
+
+    function _doFileSearch(query) {
+        // Guardar la generación actual para evitar resultados obsoletos
+        var gen = searchGeneration;
+
         const home = Quickshell.env("HOME") || "/home/fabio";
         // Quitar caracteres problemáticos del query para el glob de find
         const q = query.replace(/[^a-zA-Z0-9\u00C0-\u024F\u0400-\u04FF_.-\s]/g, "");
@@ -4857,10 +5510,7 @@ PanelWindow {
         var pendingSearches = 2;
         
         // ── Búsqueda 1: Home del usuario (rápido) ──
-        var proc = Qt.createQmlObject(
-            'import Quickshell.Io; Process { stdout: SplitParser {} }', 
-            spotlight
-        );
+        var proc = procSplit.createObject(spotlight);
         proc.command = [
             "find",
             home + "/Documentos",
@@ -4913,10 +5563,7 @@ PanelWindow {
         proc.running = true;
         
         // ── Búsqueda 2: Carpetas del sistema + ocultas ──
-        var sysProc = Qt.createQmlObject(
-            'import Quickshell.Io; Process { stdout: SplitParser {} }', 
-            spotlight
-        );
+        var sysProc = procSplit.createObject(spotlight);
         sysProc.command = [
             "find",
             home + "/.config",
@@ -4975,10 +5622,7 @@ PanelWindow {
 
         // ── Live Text: también buscar en el texto de las imágenes (OCR) ──
         (function() {
-            var ocrPr = Qt.createQmlObject(
-                'import Quickshell.Io; Process { stdout: StdioCollector {} }',
-                spotlight
-            );
+            var ocrPr = procCollect.createObject(spotlight);
             ocrPr.command = ["bash", ocrScript, "search", q];
             ocrPr.onExited.connect(function() {
                 if (gen !== searchGeneration) { try { ocrPr.destroy(); } catch (e) {} return; }
@@ -5132,6 +5776,10 @@ PanelWindow {
 
         return res;
     }
+
+    // ═════════════════════════════════════════════════════════════════════
+    //  SECCIÓN 7 · TIMERS · NOTIFICACIONES INLINE · ALARMAS · PAQUETES
+    // ═════════════════════════════════════════════════════════════════════
 
     // ═════════════════════════════════════════════════════════════════════
     //  TIMERS
@@ -5319,7 +5967,7 @@ PanelWindow {
         var safeQ = query.replace(/'/g, "'\\''");
 
         // Un solo proceso con los 3 gestores secuenciales
-        var proc = Qt.createQmlObject('import Quickshell.Io; Process { stdout: SplitParser {} }', spotlight);
+        var proc = procSplit.createObject(spotlight);
         proc.command = ["bash", "-c",
             "echo '===PACMAN==='; timeout 15 pacman -Ss '" + safeQ + "' 2>/dev/null | head -30"
             + "; echo '===YAY==='; timeout 20 yay -Ss '" + safeQ + "' 2>/dev/null | head -30"
@@ -5394,7 +6042,7 @@ PanelWindow {
                         var sudoP = section === "pacman" ? "pacman" : "";
                         addPkg(pkg, desc, gestor,
                             sudoP
-                                ? "echo 'F200607' | sudo -S " + sudoP + " -S --noconfirm " + pkg
+                                ? sudoExec(sudoP + " -S --noconfirm " + pkg)
                                 : "yay -S --noconfirm " + pkg);
                     }
                 }
@@ -5416,7 +6064,7 @@ PanelWindow {
         var allPkgs = [];
         var safeQ = query.replace(/'/g, "'\\''");
 
-        var proc = Qt.createQmlObject('import Quickshell.Io; Process { }', spotlight);
+        var proc = procPlain.createObject(spotlight);
         proc.command = ["bash", "-c", "flatpak search '" + safeQ + "' 2>/dev/null | head -10"];
         var out = "";
         proc.stdout.onRead.connect(function(data) { if (gen === searchGeneration) out += data; });
@@ -5450,6 +6098,10 @@ PanelWindow {
         _pkgSearchProcesses = [proc];
         proc.running = true;
     }
+
+    // ═════════════════════════════════════════════════════════════════════
+    //  SECCIÓN 8 · API DE PLUGINS — utilidades para HaxAPI
+    // ═════════════════════════════════════════════════════════════════════
 
     // ═════════════════════════════════════════════════════════════════════
     //  UTILIDADES PARA HaxAPI
