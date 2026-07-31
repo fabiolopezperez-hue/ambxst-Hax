@@ -448,20 +448,22 @@ HYPR_CONF="$HOME/.config/hypr/hyprland.conf"
 HYPR_LUA="$HOME/.config/hypr/hyprland.lua"
 
 if [[ -f "$HYPR_LUA" ]]; then
-  if ! grep -q "spotlight\|SpotlightView\|hax" "$HYPR_LUA" 2>/dev/null; then
+  # ¿Ya existe el bind de Hax con Super + Space?
+  if grep -q "SUPER + Space.*SpotlightView" "$HYPR_LUA" 2>/dev/null; then
+    log_info "El atajo de Hax (Super + space) ya existe en hyprland.lua."
+  else
     log_info "Añadiendo atajo Super + space para Hax (formato Lua)..."
     printf "\n-- Hax — Spotlight launcher\n%s\n" "$HAX_LUA_BIND" >> "$HYPR_LUA"
     log_success "Atajo configurado. Recarga Hyprland con 'hyprctl reload'."
-  else
-    log_info "El atajo de Hax ya existe en hyprland.lua."
   fi
 elif [[ -f "$HYPR_CONF" ]]; then
-  if ! grep -q "spotlight\|SpotlightView\|hax" "$HYPR_CONF" 2>/dev/null; then
+  # ¿Ya existe el bind de Hax con SUPER, space?
+  if grep -q "SUPER, space.*SpotlightView" "$HYPR_CONF" 2>/dev/null; then
+    log_info "El atajo de Hax (Super + space) ya existe en hyprland.conf."
+  else
     log_info "Añadiendo atajo Super + space para Hax (formato hyprlang)..."
     printf "\n# Hax — Spotlight launcher\n%s\n" "$HAX_CONF_BIND" >> "$HYPR_CONF"
     log_success "Atajo configurado. Recarga Hyprland con 'hyprctl reload'."
-  else
-    log_info "El atajo de Hax ya existe en hyprland.conf."
   fi
 else
   log_warn "No se encontró hyprland.lua ni hyprland.conf."
