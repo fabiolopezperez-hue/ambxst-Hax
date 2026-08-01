@@ -51,6 +51,7 @@
 
 | Característica | Descripción |
 |----------------|-------------|
+| ⚙️ **Panel de inicio** | Escribe `init` para abrir el panel de bienvenida/configuración de Hax: configurar la contrasena sudo para instalar apps, activar OCR, cambiar color, gestionar acciones rápidas personalizadas y más |
 | 🔍 **Búsqueda de apps** | Encuentra apps instaladas con resultados ordenados por uso |
 | 📊 **Monitor del sistema** | `stats` — muestra CPU, RAM, disco y temperatura en vivo con barras de progreso |
 | 📦 **Buscador de paquetes** | `install firefox` — busca en pacman + AUR (yay) + flatpak a la vez |
@@ -70,7 +71,6 @@
 | 🐞 **Modo desarrollador (debug)** | Escribe `d`, `dev` o `debug` → la opción **🐞 Modo desarrollador (debug)** aparece la **primera** en la lista. Pulsa **Enter** (o clic) para abrir un panel **persistente abajo**, con errores capturados, tiempos de carga (apertura + última búsqueda + sesión) y consumo de recursos del propio Hax (memoria/CPU). Ciérralo con el botón **✕** o **Esc** |
 | 📋 **Historial inteligente** | con **Enter** copia el resultado, y para abrir el historial solo pon en el buscador `history` |
 | 🎯 **Autocompletado inline** | Mientras escribes, Hax sugiere en gris el resultado que coincide; acepta con **Tab** / **→** |
-| ⚙️ **Panel de configuración** | Escribe `config` para abrir el panel de configuración de Hax: activar OCR, cambiar color, gestionar acciones rápidas personalizadas y más |
 | 📖 **Glosario / Diccionario** | Escribe `g`, `glo` o `glosario` y pulsa **Enter**: Hax entra en modo diccionario y se queda esperando la palabra. Al escribirla, la **definición aparece en vivo abajo** (es→en, vía Wiktionary). **Enter** copia la definición, **Esc** sale del modo |
 
 ---
